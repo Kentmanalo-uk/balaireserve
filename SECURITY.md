@@ -7,8 +7,8 @@ the Balai-Reserve application, with emphasis on payment-proof handling.
 - **Password hashing:** `bcryptjs` with a work factor of **12** on every live
   code path (registration, admin/CRM user creation, password change). Login
   verifies with `bcrypt.compareSync`. Plaintext passwords are never stored.
-- **Sessions:** `express-session` backed by a persistent SQLite store
-  (`better-sqlite3-session-store`). Session cookies are:
+- **Sessions:** `express-session` backed by a persistent MySQL store
+  (`src/config/sessionStore.js`, `sessions` table). Session cookies are:
   - `httpOnly: true` (not readable by JavaScript),
   - `sameSite: 'lax'` (mitigates cross-site request forgery on top-level POSTs),
   - `secure: true` in production (HTTPS-only), and

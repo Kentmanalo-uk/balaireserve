@@ -3,16 +3,16 @@
  * =============================================
  * Online Booking & Event Management System
  * Framework: Xianfire (custom .xian template engine over Express)
- * Database:  SQLite via better-sqlite3
+ * Database:  MySQL via mysql2
  */
 'use strict';
 
 require('dotenv').config();
 
 const express     = require('express');
+require('express-async-errors'); // route async handler rejections to the error handler
 const path        = require('path');
 const session     = require('express-session');
-const SqliteStore = require('better-sqlite3-session-store')(session);
 const cookieParser= require('cookie-parser');
 const helmet      = require('helmet');
 const morgan      = require('morgan');
@@ -28,6 +28,7 @@ const { attachAudit } = require('./src/middleware/auth');
 
 // ΓöÇΓöÇ Database ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const db = require('./src/config/database');
+const MySqlSessionStore = require('./src/config/sessionStore');
 
 // ΓöÇΓöÇ Notification Utility ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const { getUnreadCount, getRecentNotifications } = require('./src/utils/notifications');
@@ -119,10 +120,7 @@ app.use(cookieParser());
 
 // ΓöÇΓöÇ Session ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 app.use(session({
-  store: new SqliteStore({
-    client:  db,
-    expired: { clear: true, intervalMs: 900000 },
-  }),
+  store: new MySqlSessionStore(db, { clearIntervalMs: 900000 }),
   secret:            process.env.SESSION_SECRET || 'balai-reserve-change-me',
   resave:            false,
   saveUninitialized: false,
@@ -169,12 +167,12 @@ app.use(async (req, res, next) => {
     try {
       res.locals.unreadNotifCount      = await getUnreadCount(user.id);
       res.locals.recentNotifications   = await getRecentNotifications(user.id, 6);
-      res.locals.pendingInquiriesCount = await db.prepare(
+      res.locals.pendingInquiriesCount = (await db.prepare(
         `SELECT COUNT(*) AS c FROM inquiries WHERE status IN ('open','in_progress')`
-      ).get().c || 0;
-      res.locals.pendingReservationsCount = await db.prepare(
+      ).get()).c || 0;
+      res.locals.pendingReservationsCount = (await db.prepare(
         `SELECT COUNT(*) AS c FROM reservations WHERE status IN ('pending','awaiting_payment')`
-      ).get().c || 0;
+      ).get()).c || 0;
     } catch { /* non-critical — never let badge queries crash a page */ }
   }
 
@@ -189,10 +187,10 @@ app.get('/favicon.ico', async (req, res) => res.redirect('/favicon.svg'));
 
 // ΓöÇΓöÇ Root: show public landing page to everyone (auth status changes nav only) ΓöÇΓöÇΓöÇΓöÇ
 app.get('/', async (req, res) => {
-  const totalRooms    = await db.prepare("SELECT COUNT(*) AS c FROM rooms    WHERE is_active=1").get().c;
-  const totalVenues   = await db.prepare("SELECT COUNT(*) AS c FROM venues   WHERE is_active=1").get().c;
-  const totalCottages = await db.prepare("SELECT COUNT(*) AS c FROM cottages WHERE is_active=1").get().c;
-  const totalPackages = await db.prepare("SELECT COUNT(*) AS c FROM event_packages WHERE is_active=1").get().c;
+  const totalRooms    = (await db.prepare("SELECT COUNT(*) AS c FROM rooms    WHERE is_active=1").get()).c;
+  const totalVenues   = (await db.prepare("SELECT COUNT(*) AS c FROM venues   WHERE is_active=1").get()).c;
+  const totalCottages = (await db.prepare("SELECT COUNT(*) AS c FROM cottages WHERE is_active=1").get()).c;
+  const totalPackages = (await db.prepare("SELECT COUNT(*) AS c FROM event_packages WHERE is_active=1").get()).c;
   const avgRatingRow  = await db.prepare("SELECT ROUND(AVG(rating),1) AS a FROM feedback").get();
 
   const featuredRooms = await db.prepare(
@@ -227,7 +225,7 @@ app.get('/', async (req, res) => {
     LIMIT 6
   `).all();
 
-  const settingsRows = await db.prepare("SELECT key, value FROM settings").all();
+  const settingsRows = await db.prepare("SELECT `key`, value FROM settings").all();
   const siteSettings = {};
   settingsRows.forEach(s => { siteSettings[s.key] = s.value; });
 
@@ -241,8 +239,12 @@ app.get('/', async (req, res) => {
   });
 });
 
-app.use((req, res, next) => {
-  reconcileExpiredReservations(db);
+app.use(async (req, res, next) => {
+  try {
+    await reconcileExpiredReservations(db);
+  } catch (error) {
+    console.error('[reconciler] Error during reconciliation:', error);
+  }
   next();
 });
 
@@ -272,7 +274,7 @@ app.use('/settings',      settingsRoutes);
 const { validateQRToken, consumeQRToken } = require('./src/utils/qrGenerator');
 
 app.get('/checkin/:token', async (req, res) => {
-  const result = validateQRToken(req.params.token);
+  const result = await validateQRToken(req.params.token);
   if (!result.valid) {
     return res.render('guests/checkin-invalid', {
       title:  'Invalid QR Code',
@@ -295,13 +297,13 @@ app.get('/checkin/:token', async (req, res) => {
 });
 
 app.post('/checkin/:token', async (req, res) => {
-  const result = validateQRToken(req.params.token);
+  const result = await validateQRToken(req.params.token);
   if (!result.valid) return res.redirect('/auth/login');
 
   const resId = result.qr.reservation_id;
-  consumeQRToken(req.params.token);
-  await db.prepare(`UPDATE reservations SET status='checked_in', updated_at=datetime('now') WHERE id=?`).run(resId);
-  await db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_at) VALUES (?,'qr',datetime('now'))`).run(resId);
+  await consumeQRToken(req.params.token);
+  await db.prepare(`UPDATE reservations SET status='checked_in', updated_at=NOW() WHERE id=?`).run(resId);
+  await db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_at) VALUES (?,'qr',NOW())`).run(resId);
   await db.prepare(`UPDATE guests SET status='checked_in' WHERE reservation_id=?`).run(resId);
 
   res.render('guests/checkin-success', { title: 'Check-in Successful', layout: 'layouts/minimal' });

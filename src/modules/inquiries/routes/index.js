@@ -24,7 +24,7 @@ router.get('/', requireAuth, async (req, res) => {
   if (status)   { where += ` AND i.status = ?`;   params.push(status); }
   if (category) { where += ` AND i.category = ?`; params.push(category); }
 
-  const total     = await db.prepare(`SELECT COUNT(*) AS cnt FROM inquiries i ${where}`).get(...params).cnt;
+  const total     = (await db.prepare(`SELECT COUNT(*) AS cnt FROM inquiries i ${where}`).get(...params)).cnt;
   const inquiries = await db.prepare(`
     SELECT i.*, u.first_name || ' ' || u.last_name AS assigned_name
     FROM inquiries i LEFT JOIN users u ON u.id=i.assigned_to
@@ -71,7 +71,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 // POST /inquiries/:id/assign
 router.post('/:id/assign', requireAuth, requireRole('admin','staff'), async (req, res) => {
   const { assigned_to } = req.body;
-  await db.prepare(`UPDATE inquiries SET assigned_to=?, status='in_progress', updated_at=datetime('now') WHERE id=?`).run(assigned_to, req.params.id);
+  await db.prepare(`UPDATE inquiries SET assigned_to=?, status='in_progress', updated_at=NOW() WHERE id=?`).run(assigned_to || null, req.params.id);
   req.session.flash = { success: 'Inquiry assigned.' };
   res.redirect(`/inquiries/${req.params.id}`);
 });
@@ -80,7 +80,7 @@ router.post('/:id/assign', requireAuth, requireRole('admin','staff'), async (req
 router.post('/:id/resolve', requireAuth, requireRole('admin','staff'), async (req, res) => {
   const { resolution } = req.body;
   // Auto-assign to the staff member who resolves — no manual selection needed
-  await db.prepare(`UPDATE inquiries SET status='resolved', resolution=?, assigned_to=?, resolved_at=datetime('now'), updated_at=datetime('now') WHERE id=?`).run(resolution || '', req.session.user.id, req.params.id);
+  await db.prepare(`UPDATE inquiries SET status='resolved', resolution=?, assigned_to=?, resolved_at=NOW(), updated_at=NOW() WHERE id=?`).run(resolution || '', req.session.user.id, req.params.id);
   req.session.flash = { success: 'Inquiry marked as resolved.' };
   res.redirect(`/inquiries/${req.params.id}`);
 });
@@ -90,13 +90,13 @@ router.post('/:id/escalate', requireAuth, requireRole('admin','staff'), async (r
   const inquiry = await db.prepare(`SELECT * FROM inquiries WHERE id=?`).get(req.params.id);
   if (!inquiry) return res.redirect('/inquiries');
 
-  const ticketNum = generateTicketNumber();
+  const ticketNum = await generateTicketNumber();
   await db.prepare(`
     INSERT INTO support_tickets (ticket_number, customer_id, inquiry_id, subject, description, category, priority, status, assigned_to)
     VALUES (?, ?, ?, ?, ?, ?, 'normal', 'open', ?)
   `).run(ticketNum, inquiry.customer_id, inquiry.id, inquiry.subject, inquiry.message, inquiry.category || 'general', req.session.user.id);
 
-  await db.prepare(`UPDATE inquiries SET status='escalated', updated_at=datetime('now') WHERE id=?`).run(inquiry.id);
+  await db.prepare(`UPDATE inquiries SET status='escalated', updated_at=NOW() WHERE id=?`).run(inquiry.id);
   req.session.flash = { success: `Escalated to support ticket ${ticketNum}.` };
   res.redirect(`/inquiries/${inquiry.id}`);
 });
@@ -119,15 +119,15 @@ router.post('/submit',
     // Link to the customer record when the submitter is logged in, so it shows
     // up under their "My Inquiries" in the portal.
     const customerId = req.session?.user
-      ? (await db.prepare('SELECT id FROM customers WHERE user_id = ?').get(req.session.user.id)?.id || null)
+      ? ((await db.prepare('SELECT id FROM customers WHERE user_id = ?').get(req.session.user.id))?.id || null)
       : null;
 
-    const id = await db.prepare(`
+    const id = (await db.prepare(`
       INSERT INTO inquiries (customer_id, name, email, phone, subject, message, category, source, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open')
-    `).run(customerId, name, email||'', phone||'', subject, message, category||'general', source||'website').lastInsertRowid;
+    `).run(customerId, name, email||'', phone||'', subject, message, category||'general', source||'website')).lastInsertRowid;
 
-    notifyAllAdmins('inquiry', 'New Inquiry', `${name} sent a new inquiry: "${subject}"`, `/inquiries/${id}`);
+    await notifyAllAdmins('inquiry', 'New Inquiry', `${name} sent a new inquiry: "${subject}"`, `/inquiries/${id}`);
 
     // Check if auto-answer is possible (simple chatbot logic)
     const autoReply = await autoAnswer(subject + ' ' + message);
@@ -160,7 +160,7 @@ async function autoAnswer(message) {
 
   // Room availability
   if (msg.includes('room') && (msg.includes('available') || msg.includes('vacancy') || msg.includes('free'))) {
-    const available = await db.prepare(`SELECT COUNT(*) AS cnt FROM rooms WHERE status='available' AND is_active=1`).get().cnt;
+    const available = (await db.prepare(`SELECT COUNT(*) AS cnt FROM rooms WHERE status='available' AND is_active=1`).get()).cnt;
     return `We currently have ${available} room(s) available. You can check our room listings or speak with our reservations team to find the perfect room for your stay.`;
   }
 
@@ -173,7 +173,7 @@ async function autoAnswer(message) {
 
   // Venue availability
   if (msg.includes('venue') && (msg.includes('available') || msg.includes('book') || msg.includes('reserve'))) {
-    const available = await db.prepare(`SELECT COUNT(*) AS cnt FROM venues WHERE status='available' AND is_active=1`).get().cnt;
+    const available = (await db.prepare(`SELECT COUNT(*) AS cnt FROM venues WHERE status='available' AND is_active=1`).get()).cnt;
     return `We have ${available} venue(s) currently available. Our venues include function halls, garden areas, poolside, and more. Please contact our team to check availability for your preferred date.`;
   }
 
@@ -186,28 +186,28 @@ async function autoAnswer(message) {
 
   // Check-in / check-out time
   if (msg.includes('check-in') || msg.includes('check in') || msg.includes('check-out') || msg.includes('checkout')) {
-    const cin  = await db.prepare(`SELECT value FROM settings WHERE key='check_in_time'`).get()?.value  || '2:00 PM';
-    const cout = await db.prepare(`SELECT value FROM settings WHERE key='check_out_time'`).get()?.value || '12:00 PM';
+    const cin  = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='check_in_time'`).get())?.value  || '2:00 PM';
+    const cout = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='check_out_time'`).get())?.value || '12:00 PM';
     return `Check-in time is ${cin} and check-out time is ${cout}. Early check-in or late check-out may be available upon request, subject to availability.`;
   }
 
   // Payment / downpayment
   if (msg.includes('payment') || msg.includes('downpayment') || msg.includes('deposit')) {
-    const pct = await db.prepare(`SELECT value FROM settings WHERE key='downpayment_percent'`).get()?.value || '50';
+    const pct = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='downpayment_percent'`).get())?.value || '50';
     return `A ${pct}% downpayment is required to confirm your reservation. We accept cash, GCash, bank transfer, check, and credit card. Full payment is required upon check-in or before the event.`;
   }
 
   // Cancellation
   if (msg.includes('cancel') || msg.includes('refund')) {
-    const policy = await db.prepare(`SELECT value FROM settings WHERE key='cancellation_policy'`).get()?.value || 'Please contact us regarding our cancellation policy.';
+    const policy = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='cancellation_policy'`).get())?.value || 'Please contact us regarding our cancellation policy.';
     return policy;
   }
 
   // Contact information
   if (msg.includes('contact') || msg.includes('phone') || msg.includes('email') || msg.includes('address')) {
-    const phone   = await db.prepare(`SELECT value FROM settings WHERE key='resort_phone'`).get()?.value   || '';
-    const email   = await db.prepare(`SELECT value FROM settings WHERE key='resort_email'`).get()?.value   || '';
-    const address = await db.prepare(`SELECT value FROM settings WHERE key='resort_address'`).get()?.value || '';
+    const phone   = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_phone'`).get())?.value   || '';
+    const email   = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_email'`).get())?.value   || '';
+    const address = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_address'`).get())?.value || '';
     return `You can reach us at: Phone: ${phone}, Email: ${email}, Address: ${address}. Our team is available during office hours.`;
   }
 

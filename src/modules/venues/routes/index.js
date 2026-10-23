@@ -55,10 +55,10 @@ function removeVenueImage(imagePath) {
 }
 
 // Only venue_types that exist on at least one active venue
-function getActiveVenueTypes() {
-  return db.prepare(
+async function getActiveVenueTypes() {
+  return (await db.prepare(
     `SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 ORDER BY venue_type`
-  ).all().map(r => r.venue_type);
+  ).all()).map(r => r.venue_type);
 }
 
 // GET /venues
@@ -73,11 +73,11 @@ router.get('/', requireAuth, async (req, res) => {
   if (status) { where += ` AND status = ?`;     params.push(status); }
   if (type)   { where += ` AND venue_type = ?`; params.push(type); }
 
-  const total  = await db.prepare(`SELECT COUNT(*) AS cnt FROM venues ${where}`).get(...params).cnt;
+  const total  = (await db.prepare(`SELECT COUNT(*) AS cnt FROM venues ${where}`).get(...params)).cnt;
   const venues = await db.prepare(`SELECT * FROM venues ${where} ORDER BY name LIMIT ? OFFSET ?`).all(...params, limit, offset);
   for (const venue of venues) venue.imagesList = parseImages(venue.images);
 
-  const venueTypes = getActiveVenueTypes();
+  const venueTypes = await getActiveVenueTypes();
   const statuses   = ['available','reserved','maintenance','unavailable'];
 
   res.render('venues/index', {
@@ -91,7 +91,7 @@ router.get('/', requireAuth, async (req, res) => {
 
 // GET /venues/new
 router.get('/new', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
-  const venueTypes = getActiveVenueTypes();
+  const venueTypes = await getActiveVenueTypes();
   res.render('venues/form', { title: 'Add Venue', layout: 'layouts/main', venue: null, venueTypes, errors: [], old: {} });
 });
 
@@ -106,7 +106,7 @@ router.post('/',
     body('price').isFloat({ min: 0 }).withMessage('Enter a valid price.'),
   ],
   async (req, res) => {
-    const venueTypes = getActiveVenueTypes();
+    const venueTypes = await getActiveVenueTypes();
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       cleanupUploads(req.files);
@@ -121,7 +121,7 @@ router.post('/',
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(name, venue_type, capacity, description || '', location || '', price, price_note || '', amenitiesJson, imagesJson, status || 'available');
 
-    req.audit('create', 'venues', null, null, { name, venue_type });
+    await req.audit('create', 'venues', null, null, { name, venue_type });
     req.session.flash = { success: `Venue "${name}" created successfully.` };
     res.redirect('/venues');
   }
@@ -150,7 +150,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 router.get('/:id/edit', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
   const venue = await db.prepare(`SELECT * FROM venues WHERE id = ?`).get(req.params.id);
   if (!venue) { req.session.flash = { error: 'Venue not found.' }; return res.redirect('/venues'); }
-  const venueTypes = getActiveVenueTypes();
+  const venueTypes = await getActiveVenueTypes();
   try { venue.amenitiesStr = JSON.parse(venue.amenities || '[]').join(', '); } catch { venue.amenitiesStr = ''; }
   venue.imagesList = parseImages(venue.images);
   res.render('venues/form', { title: `Edit ${venue.name}`, layout: 'layouts/main', venue, venueTypes, errors: [], old: venue });
@@ -175,7 +175,7 @@ router.post('/:id/edit',
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       cleanupUploads(req.files);
-      const venueTypes = getActiveVenueTypes();
+      const venueTypes = await getActiveVenueTypes();
       old.imagesList = parseImages(old.images);
       return res.render('venues/form', { title: 'Edit Venue', layout: 'layouts/main', venue: old, venueTypes, errors: errors.array(), old: { ...old, ...req.body } });
     }
@@ -189,7 +189,7 @@ router.post('/:id/edit',
     const newImages = (req.files || []).map(file => `/uploads/venues/${file.filename}`);
     if (keepImages.length + newImages.length > 5) {
       cleanupUploads(req.files);
-      const venueTypes = getActiveVenueTypes();
+      const venueTypes = await getActiveVenueTypes();
       old.imagesList = existingImages;
       return res.status(400).render('venues/form', {
         title: 'Edit Venue', layout: 'layouts/main', venue: old, venueTypes,
@@ -200,14 +200,14 @@ router.post('/:id/edit',
     const imagesJson = JSON.stringify([...keepImages, ...newImages]);
 
     await db.prepare(`
-      UPDATE venues SET name=?, venue_type=?, capacity=?, description=?, location=?, price=?, price_note=?, amenities=?, images=?, status=?, updated_at=datetime('now')
+      UPDATE venues SET name=?, venue_type=?, capacity=?, description=?, location=?, price=?, price_note=?, amenities=?, images=?, status=?, updated_at=NOW()
       WHERE id=?
     `).run(name, venue_type, capacity, description || '', location || '', price, price_note || '', amenitiesJson, imagesJson, status, req.params.id);
     for (const image of existingImages) {
       if (!keepImages.includes(image)) removeVenueImage(image);
     }
 
-    req.audit('update', 'venues', req.params.id, old, { name, price, status });
+    await req.audit('update', 'venues', req.params.id, old, { name, price, status });
     req.session.flash = { success: 'Venue updated successfully.' };
     res.redirect(`/venues/${req.params.id}`);
   }

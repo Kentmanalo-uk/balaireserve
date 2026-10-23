@@ -23,7 +23,7 @@ router.get('/', requireAuth, async (req, res) => {
   }
   if (status) { where += ` AND g.status = ?`; params.push(status); }
 
-  const total  = await db.prepare(`SELECT COUNT(*) AS cnt FROM guests g JOIN reservations r ON r.id = g.reservation_id ${where}`).get(...params).cnt;
+  const total  = (await db.prepare(`SELECT COUNT(*) AS cnt FROM guests g JOIN reservations r ON r.id = g.reservation_id ${where}`).get(...params)).cnt;
   const guests = await db.prepare(`
     SELECT g.*, r.booking_ref, r.check_in_date, r.check_out_date, r.status AS res_status
     FROM guests g
@@ -78,9 +78,9 @@ router.post('/:id/checkout', requireAuth, requireRole('admin','staff'), async (r
   // ΓöÇΓöÇ Fix 5: Block checkout if balance is still outstanding ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const reservation = await db.prepare(`SELECT * FROM reservations WHERE id=?`).get(guest.reservation_id);
   if (reservation) {
-    const totalPaid = await db.prepare(
+    const totalPaid = (await db.prepare(
       "SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')"
-    ).get(guest.reservation_id).t;
+    ).get(guest.reservation_id)).t;
     const totalAmt = reservation.total_amount || 0;
     if (totalAmt > 0 && totalPaid < totalAmt) {
       req.session.flash = { error: `Cannot check out: balance of ₱${(totalAmt - totalPaid).toLocaleString('en-PH', {minimumFractionDigits:2})} is still outstanding. Collect full payment before checking out.` };
@@ -88,20 +88,20 @@ router.post('/:id/checkout', requireAuth, requireRole('admin','staff'), async (r
     }
   }
 
-  db.transaction(() => {
-    db.prepare(`UPDATE guests SET status='checked_out', updated_at=datetime('now') WHERE id=?`).run(guest.id);
+  await db.transaction(async () => {
+    await db.prepare(`UPDATE guests SET status='checked_out', updated_at=NOW() WHERE id=?`).run(guest.id);
     // ΓöÇΓöÇ Fix 5: Set status=completed AND payment_status=fully_paid on checkout
-    db.prepare(`UPDATE reservations SET status='completed', payment_status='fully_paid', updated_at=datetime('now') WHERE id=?`).run(guest.reservation_id);
-    db.prepare(`INSERT INTO check_outs (reservation_id, guest_id, checked_out_by) VALUES (?,?,?)`).run(guest.reservation_id, guest.id, req.session.user.id);
+    await db.prepare(`UPDATE reservations SET status='completed', payment_status='fully_paid', updated_at=NOW() WHERE id=?`).run(guest.reservation_id);
+    await db.prepare(`INSERT INTO check_outs (reservation_id, guest_id, checked_out_by) VALUES (?,?,?)`).run(guest.reservation_id, guest.id, req.session.user.id);
     // Free up the room
     // Free the resource back to available right after checkout completes.
-    const items = db.prepare(`SELECT * FROM reservation_items WHERE reservation_id=?`).all(guest.reservation_id);
+    const items = await db.prepare(`SELECT * FROM reservation_items WHERE reservation_id=?`).all(guest.reservation_id);
     for (const item of items) {
-      if (item.item_type === 'room')    db.prepare(`UPDATE rooms SET status='available' WHERE id=?`).run(item.item_id);
-      if (item.item_type === 'venue')   db.prepare(`UPDATE venues SET status='available' WHERE id=?`).run(item.item_id);
-      if (item.item_type === 'cottage') db.prepare(`UPDATE cottages SET status='available' WHERE id=?`).run(item.item_id);
+      if (item.item_type === 'room')    await db.prepare(`UPDATE rooms SET status='available' WHERE id=?`).run(item.item_id);
+      if (item.item_type === 'venue')   await db.prepare(`UPDATE venues SET status='available' WHERE id=?`).run(item.item_id);
+      if (item.item_type === 'cottage') await db.prepare(`UPDATE cottages SET status='available' WHERE id=?`).run(item.item_id);
     }
-  })();
+  });
 
   req.session.flash = { success: 'Guest checked out successfully.' };
   res.redirect(`/guests/${guest.id}`);

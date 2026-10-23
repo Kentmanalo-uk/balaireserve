@@ -58,13 +58,13 @@ router.get('/', requireAuth, requireRole('admin', 'staff'), async (req, res) => 
   if (from)   { where += ` AND p.payment_date >= ?`;  params.push(from); }
   if (to)     { where += ` AND p.payment_date <= ?`;  params.push(to + ' 23:59:59'); }
 
-  const total = await db.prepare(`
+  const total = (await db.prepare(`
     SELECT COUNT(*) AS cnt
     FROM payments p
     JOIN reservations r ON r.id = p.reservation_id
     JOIN customers c    ON c.id = r.customer_id
     ${where}
-  `).get(...params).cnt;
+  `).get(...params)).cnt;
 
   const payments = await db.prepare(`
     SELECT p.*,
@@ -93,7 +93,7 @@ router.get('/', requireAuth, requireRole('admin', 'staff'), async (req, res) => 
     ${where}
   `).get(...summaryParams);
 
-  const totalCollected = await db.prepare(`SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE status IN ('received','verified')`).get().t;
+  const totalCollected = (await db.prepare(`SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE status IN ('received','verified')`).get()).t;
   const methods  = ['cash', 'gcash', 'bank_transfer', 'credit_card', 'check'];
   const statuses = ['received', 'verified', 'refunded'];
 
@@ -154,7 +154,7 @@ router.post('/:id/verify', requireAuth, requireRole('admin'), async (req, res) =
   if (!payment) return res.redirect('/payments');
 
   await db.prepare(`UPDATE payments SET status = 'verified' WHERE id = ?`).run(payment.id);
-  req.audit('verify', 'payments', payment.id, { status: payment.status }, { status: 'verified' });
+  await req.audit('verify', 'payments', payment.id, { status: payment.status }, { status: 'verified' });
   req.session.flash = { success: `Payment ${payment.reference_number} marked as verified.` };
   res.redirect(`/payments/${payment.id}`);
 });
@@ -189,13 +189,13 @@ router.post('/:id/refund',
 
     const refundRef = `REF-${Date.now()}`;
 
-    db.transaction(() => {
+    await db.transaction(async () => {
       // Insert a negative/refund payment record
-      db.prepare(`
+      await db.prepare(`
         INSERT INTO payments
           (reservation_id, reference_number, amount, payment_method, payment_date,
            payment_type, status, received_by, notes)
-        VALUES (?, ?, ?, ?, date('now'), 'refund', 'refunded', ?, ?)
+        VALUES (?, ?, ?, ?, CURDATE(), 'refund', 'refunded', ?, ?)
       `).run(
         payment.reservation_id,
         refundRef,
@@ -206,20 +206,20 @@ router.post('/:id/refund',
       );
 
       // Mark the original payment as refunded
-      db.prepare(`UPDATE payments SET status = 'refunded', notes = COALESCE(notes,'') || ' [Refunded: ' || ? || ']' WHERE id = ?`).run(refundRef, payment.id);
+      await db.prepare(`UPDATE payments SET status = 'refunded', notes = COALESCE(notes,'') || ' [Refunded: ' || ? || ']' WHERE id = ?`).run(refundRef, payment.id);
 
       // Recalculate reservation payment_status
-      const allPay = db.prepare(`SELECT * FROM payments WHERE reservation_id = ?`).all(payment.reservation_id);
+      const allPay = await db.prepare(`SELECT * FROM payments WHERE reservation_id = ?`).all(payment.reservation_id);
       const net    = allPay.filter(p => p.status !== 'refunded').reduce((s, p) => s + p.amount, 0);
       let   newPs  = 'unpaid';
       if (net >= payment.res_total) newPs = 'fully_paid';
       else if (net > 0)             newPs = 'partially_paid';
 
-      db.prepare(`UPDATE reservations SET payment_status = ?, updated_at = datetime('now') WHERE id = ?`).run(newPs, payment.reservation_id);
-    })();
+      await db.prepare(`UPDATE reservations SET payment_status = ?, updated_at = NOW() WHERE id = ?`).run(newPs, payment.reservation_id);
+    });
 
-    req.audit('refund', 'payments', payment.id, { amount: payment.amount }, { refunded: refundAmt, reason: req.body.refund_reason });
-    notifyAllAdmins('payment', 'Refund Processed', `₱${refundAmt.toLocaleString()} refunded on ${payment.booking_ref}`, `/payments/${payment.id}`);
+    await req.audit('refund', 'payments', payment.id, { amount: payment.amount }, { refunded: refundAmt, reason: req.body.refund_reason });
+    await notifyAllAdmins('payment', 'Refund Processed', `₱${refundAmt.toLocaleString()} refunded on ${payment.booking_ref}`, `/payments/${payment.id}`);
 
     req.session.flash = { success: `Refund of ₱${refundAmt.toLocaleString()} processed. Reference: ${refundRef}` };
     res.redirect(`/payments/${payment.id}`);
@@ -251,7 +251,7 @@ router.get('/refunds/requests', requireAuth, requireRole('admin', 'staff'), asyn
     ORDER BY rr.created_at DESC
   `).all(...params);
 
-  const counts = await db.prepare(`SELECT status, COUNT(*) AS c FROM refund_requests GROUP BY status`).all()
+  const counts = (await db.prepare(`SELECT status, COUNT(*) AS c FROM refund_requests GROUP BY status`).all())
     .reduce((acc, r) => { acc[r.status] = r.c; return acc; }, {});
 
   res.render('payments/refund-requests', {
@@ -302,11 +302,11 @@ router.post('/refunds/requests/:id/review',
         return res.redirect('/payments/refunds/requests');
       }
 
-      db.transaction(() => {
+      await db.transaction(async () => {
         // Refund amount = net paid on the booking (can't exceed what's collected).
-        const netPaid = db.prepare(
+        const netPaid = (await db.prepare(
           "SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')"
-        ).get(rr.reservation_id).t;
+        ).get(rr.reservation_id)).t;
         const refundAmt = Math.min(rr.amount || netPaid, netPaid);
 
         if (refundAmt > 0) {
@@ -316,13 +316,13 @@ router.post('/refunds/requests/:id/review',
             + (payoutRef ? ` (ref: ${payoutRef})` : '')
             + (rr.gcash_number ? ` to GCash ${rr.gcash_number}` : '')
             + (adminNote ? `. ${adminNote}` : '');
-          db.prepare(`
+          await db.prepare(`
             INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, received_by, notes, submitted_by)
-            VALUES (?, ?, ?, ?, date('now'), 'refund', 'refunded', ?, ?, 'staff')
+            VALUES (?, ?, ?, ?, CURDATE(), 'refund', 'refunded', ?, ?, 'staff')
           `).run(rr.reservation_id, refundRef, refundAmt, payoutMethod, req.session.user.id, payNote);
 
           // Mark all previously collected payments as refunded so they leave the balance.
-          db.prepare(
+          await db.prepare(
             "UPDATE payments SET status = 'refunded', notes = COALESCE(notes,'') || ' [Refunded via request #' || ? || ']' WHERE reservation_id = ? AND status IN ('received','verified')"
           ).run(rr.id, rr.reservation_id);
         }
@@ -330,39 +330,39 @@ router.post('/refunds/requests/:id/review',
         // A refunded booking is cancelled: mark it cancelled + refunded so it
         // can no longer be checked in, and log the status change.
         const prevStatus = reservation.status;
-        db.prepare(
-          "UPDATE reservations SET status = 'cancelled', payment_status = 'refunded', updated_at = datetime('now') WHERE id = ?"
+        await db.prepare(
+          "UPDATE reservations SET status = 'cancelled', payment_status = 'refunded', updated_at = NOW() WHERE id = ?"
         ).run(rr.reservation_id);
         if (prevStatus !== 'cancelled') {
-          db.prepare(
+          await db.prepare(
             "INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?, ?, 'cancelled', ?, 'Auto-cancelled after refund approval')"
           ).run(rr.reservation_id, prevStatus, req.session.user.id);
         }
 
         // Free up the booked room/venue/cottage so it shows as available again.
-        const items = db.prepare('SELECT * FROM reservation_items WHERE reservation_id = ?').all(rr.reservation_id);
+        const items = await db.prepare('SELECT * FROM reservation_items WHERE reservation_id = ?').all(rr.reservation_id);
         for (const item of items) {
-          if (item.item_type === 'room')    db.prepare("UPDATE rooms SET status='available', updated_at=datetime('now') WHERE id=?").run(item.item_id);
-          if (item.item_type === 'venue')   db.prepare("UPDATE venues SET status='available', updated_at=datetime('now') WHERE id=?").run(item.item_id);
-          if (item.item_type === 'cottage') db.prepare("UPDATE cottages SET status='available', updated_at=datetime('now') WHERE id=?").run(item.item_id);
+          if (item.item_type === 'room')    await db.prepare("UPDATE rooms SET status='available', updated_at=NOW() WHERE id=?").run(item.item_id);
+          if (item.item_type === 'venue')   await db.prepare("UPDATE venues SET status='available', updated_at=NOW() WHERE id=?").run(item.item_id);
+          if (item.item_type === 'cottage') await db.prepare("UPDATE cottages SET status='available', updated_at=NOW() WHERE id=?").run(item.item_id);
         }
 
         // Invalidate any check-in QR codes so they can no longer be scanned.
-        db.prepare("UPDATE qr_codes SET used = 1, used_at = datetime('now') WHERE reservation_id = ?").run(rr.reservation_id);
+        await db.prepare("UPDATE qr_codes SET used = 1, used_at = NOW() WHERE reservation_id = ?").run(rr.reservation_id);
 
         // Any guest records for this booking should no longer be "expected".
-        db.prepare("UPDATE guests SET status='no_show', updated_at=datetime('now') WHERE reservation_id=? AND status NOT IN ('checked_out')").run(rr.reservation_id);
+        await db.prepare("UPDATE guests SET status='no_show', updated_at=NOW() WHERE reservation_id=? AND status NOT IN ('checked_out')").run(rr.reservation_id);
 
-        db.prepare(`
+        await db.prepare(`
           UPDATE refund_requests
-          SET status = 'approved', admin_note = ?, payout_method = ?, payout_ref = ?, payout_proof = ?, payout_date = date('now'),
-              reviewed_by = ?, reviewed_at = datetime('now')
+          SET status = 'approved', admin_note = ?, payout_method = ?, payout_ref = ?, payout_proof = ?, payout_date = CURDATE(),
+              reviewed_by = ?, reviewed_at = NOW()
           WHERE id = ?
         `).run(adminNote || null, payoutMethod, payoutRef || null, payoutProof, req.session.user.id, rr.id);
-      })();
+      });
 
-      req.audit('refund_approve', 'refund_requests', rr.id, { status: 'pending' }, { status: 'approved', payout_method: payoutMethod, payout_ref: payoutRef });
-      notifyReservationCustomer(
+      await req.audit('refund_approve', 'refund_requests', rr.id, { status: 'pending' }, { status: 'approved', payout_method: payoutMethod, payout_ref: payoutRef });
+      await notifyReservationCustomer(
         rr.reservation_id, 'payment', 'Refund Approved',
         `Your refund request for ${reservation.booking_ref} has been approved and paid out via ${payoutMethod.toUpperCase()}`
           + (payoutRef ? ` (ref: ${payoutRef})` : '') + '. This booking has been cancelled.'
@@ -378,11 +378,11 @@ router.post('/refunds/requests/:id/review',
         return res.redirect('/payments/refunds/requests');
       }
       await db.prepare(`
-        UPDATE refund_requests SET status = 'rejected', admin_note = ?, reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?
+        UPDATE refund_requests SET status = 'rejected', admin_note = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?
       `).run(adminNote, req.session.user.id, rr.id);
 
-      req.audit('refund_reject', 'refund_requests', rr.id, { status: 'pending' }, { status: 'rejected' });
-      notifyReservationCustomer(
+      await req.audit('refund_reject', 'refund_requests', rr.id, { status: 'pending' }, { status: 'rejected' });
+      await notifyReservationCustomer(
         rr.reservation_id, 'payment', 'Refund Request Declined',
         `Your refund request for ${reservation.booking_ref} was declined. Reason: ${adminNote}`,
         '/portal/my-reservations/' + rr.reservation_id

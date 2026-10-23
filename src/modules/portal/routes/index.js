@@ -45,8 +45,8 @@ const proofUpload = multer({
 
 const STAFF_ROLES = ['admin','staff'];
 const BOOKABLE_RESOURCE_STATUSES = new Set(['available', 'reserved', 'occupied', 'cleaning']);
-function activeItemReservations(itemType) {
-  return db.prepare(`
+async function activeItemReservations(itemType) {
+  return await db.prepare(`
     SELECT ri.item_id, r.reservation_type, r.check_in_date, r.check_out_date,
            r.event_date, r.start_time, r.end_time
     FROM reservation_items ri
@@ -75,15 +75,15 @@ function reservationOverlaps(itemType, reservation, requested) {
     reservation.end_time > requested.startTime;
 }
 
-function unavailableItemIds(itemType, requested) {
+async function unavailableItemIds(itemType, requested) {
   const unavailable = new Set();
-  for (const reservation of activeItemReservations(itemType)) {
+  for (const reservation of await activeItemReservations(itemType)) {
     if (reservationOverlaps(itemType, reservation, requested)) unavailable.add(reservation.item_id);
   }
   return unavailable;
 }
 
-function resourceDetails(reservationType, itemId) {
+async function resourceDetails(reservationType, itemId) {
   const table = {
     room: 'rooms',
     venue: 'venues',
@@ -91,12 +91,12 @@ function resourceDetails(reservationType, itemId) {
     cottage: 'cottages',
   }[reservationType];
   if (!table || !Number.isInteger(itemId) || itemId < 1) return null;
-  return db.prepare(`SELECT id, name, price, capacity, status, is_active FROM ${table} WHERE id = ?`).get(itemId) || null;
+  return (await db.prepare(`SELECT id, name, price, capacity, status, is_active FROM ${table} WHERE id = ?`).get(itemId)) || null;
 }
 
-function resourceConflict(reservationType, itemId, requested) {
+async function resourceConflict(reservationType, itemId, requested) {
   const itemType = reservationType === 'event' ? 'venue' : reservationType;
-  return activeItemReservations(itemType).some(reservation =>
+  return (await activeItemReservations(itemType)).some(reservation =>
     reservation.item_id === itemId && reservationOverlaps(itemType, reservation, requested)
   );
 }
@@ -139,7 +139,7 @@ router.use(async (req, res, next) => {
   try {
     const settingKeys = ['gcash_number','gcash_name','maya_number','maya_name','bank_bdo','bank_bpi','bank_name','gcash_qr_path','maya_qr_path'];
     const rows = await db.prepare(
-      `SELECT key, value FROM settings WHERE key IN (${settingKeys.map(() => '?').join(',')})`
+      `SELECT \`key\`, value FROM settings WHERE \`key\` IN (${settingKeys.map(() => '?').join(',')})`
     ).all(...settingKeys);
     const pm = {};
     for (const r of rows) pm[r.key] = r.value || '';
@@ -205,9 +205,9 @@ async function calculateServerTotal(reservation_type, roomId, venueId, pkgId, ci
 }
 
 router.get('/', requireCustomerOrGuest, async (req, res) => {
-  const availableRooms  = await db.prepare("SELECT COUNT(*) AS c FROM rooms  WHERE status='available' AND is_active=1").get().c;
-  const availableVenues = await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM venues WHERE status='available' AND is_active=1").get().c;
-  const availableCottages = await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM cottages WHERE status='available' AND is_active=1").get().c;
+  const availableRooms  = (await db.prepare("SELECT COUNT(*) AS c FROM rooms  WHERE status='available' AND is_active=1").get()).c;
+  const availableVenues = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM venues WHERE status='available' AND is_active=1").get()).c;
+  const availableCottages = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM cottages WHERE status='available' AND is_active=1").get()).c;
   const featuredRooms = await db.prepare("SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.status='available' AND r.is_active=1 ORDER BY r.price LIMIT 3").all();
   for (const r of featuredRooms) { try { r.imagesList = JSON.parse(r.images || '[]'); } catch { r.imagesList = []; } }
   const featuredVenues = uniqueCatalogRows(await db.prepare("SELECT * FROM venues WHERE status='available' AND is_active=1 ORDER BY price").all()).slice(0, 3);
@@ -226,7 +226,7 @@ router.get('/rooms', requireCustomerOrGuest, async (req, res) => {
   if (guests) { where += ' AND r.capacity>=?'; params.push(parseInt(guests)); }
   let bookedIds = new Set();
   if (checkin && checkout) {
-    bookedIds = unavailableItemIds('room', { checkIn: checkin, checkOut: checkout });
+    bookedIds = await unavailableItemIds('room', { checkIn: checkin, checkOut: checkout });
   }
   const orderBy = sort === 'price_desc' ? 'r.price DESC' : 'r.price ASC';
   const rooms = await db.prepare(`SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id ${where} ORDER BY ${orderBy}`).all(...params);
@@ -247,14 +247,14 @@ router.get('/venues', requireCustomerOrGuest, async (req, res) => {
   if (guests) { where += ' AND capacity>=?';  params.push(parseInt(guests)); }
   const orderBy = sort === 'price_desc' ? 'price DESC' : 'price ASC';
   const venues = uniqueCatalogRows(await db.prepare(`SELECT * FROM venues ${where} ORDER BY ${orderBy}`).all(...params), row => row.name, req.query.item_id);
-  const bookedIds = date ? unavailableItemIds('venue', { date }) : new Set();
+  const bookedIds = date ? await unavailableItemIds('venue', { date }) : new Set();
   for (const v of venues) {
     try { v.imagesList = JSON.parse(v.images || '[]'); } catch { v.imagesList = []; }
     try { v.amenitiesList = JSON.parse(v.amenities || '[]'); } catch { v.amenitiesList = []; }
     v.isAvailable = BOOKABLE_RESOURCE_STATUSES.has(v.status) &&
       (date ? !bookedIds.has(v.id) : true);
   }
-  const venueTypes = await db.prepare(`SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 ORDER BY venue_type`).all().map(r => r.venue_type);
+  const venueTypes = (await db.prepare(`SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 ORDER BY venue_type`).all()).map(r => r.venue_type);
   const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`);
   for (const p of packages) { try { p.inclusionsList = JSON.parse(p.inclusions || '[]'); } catch { p.inclusionsList = []; } }
   res.render('portal/venues', { title: 'Browse Venues – Balai-Reserve', layout: 'layouts/portal', venues, venueTypes, packages, filters: { date, guests, type, sort } });
@@ -268,7 +268,7 @@ router.get('/cottages', requireCustomerOrGuest, async (req, res) => {
   if (max_price) { where += ' AND price<=?';    params.push(parseFloat(max_price)); }
   const orderBy = sort === 'price_desc' ? 'price DESC' : 'price ASC';
   const cottages = uniqueCatalogRows(await db.prepare(`SELECT * FROM cottages ${where} ORDER BY ${orderBy}`).all(...params), row => row.name, req.query.item_id);
-  const bookedIds = date ? unavailableItemIds('cottage', { date }) : new Set();
+  const bookedIds = date ? await unavailableItemIds('cottage', { date }) : new Set();
   for (const c of cottages) {
     try { c.imagesList = JSON.parse(c.images || '[]'); } catch { c.imagesList = []; }
     try { c.amenitiesList = JSON.parse(c.amenities || '[]'); } catch { c.amenitiesList = []; }
@@ -300,7 +300,7 @@ router.get('/book', requireCustomer, async (req, res) => {
   cottages.forEach(parseImgs);
   if (selectedItem) parseImgs(selectedItem);
   const policyKeys = ['cancellation_policy','downpayment_percent','check_in_time','check_out_time','resort_name'];
-  const policyRows = await db.prepare(`SELECT key, value FROM settings WHERE key IN (${policyKeys.map(() => '?').join(',')})`).all(...policyKeys);
+  const policyRows = await db.prepare(`SELECT \`key\`, value FROM settings WHERE \`key\` IN (${policyKeys.map(() => '?').join(',')})`).all(...policyKeys);
   const ps = {};
   for (const r of policyRows) ps[r.key] = r.value || '';
   const terms = { resortName: ps.resort_name || 'Balai Miciano Resort', downpaymentPercent: getDownpaymentPercent(ps.downpayment_percent), checkInTime: ps.check_in_time || '14:00', checkOutTime: ps.check_out_time || '12:00', cancellationPolicy: ps.cancellation_policy || 'Cancellations made 7 days before the reservation date are eligible for a 50% refund. No refund for cancellations within 48 hours of the reservation date.' };
@@ -423,7 +423,7 @@ router.post('/book',
     if (['room','cottage'].includes(reservation_type))   itemId = roomId;
     if (['venue','event'].includes(reservation_type))    itemId = venueId;
 
-    const resource = resourceDetails(reservation_type, itemId);
+    const resource = await resourceDetails(reservation_type, itemId);
     const requiresResource = reservation_type !== 'event' || itemId != null;
     if (requiresResource && (!resource || !resource.is_active || !BOOKABLE_RESOURCE_STATUSES.has(resource.status))) {
       req.session.flash = { error: 'That selection is no longer available. Please choose another option.' };
@@ -437,7 +437,7 @@ router.post('/book',
     const totalAmt = await calculateServerTotal(reservation_type, roomId, venueId, pkgId, ciDate, coDate, stTime, enTime, selectedInclusions);
     if (totalAmt <= 0) { req.session.flash = { error: 'Could not calculate the booking price. Please select a valid room, venue, or package.' }; return res.redirect('/portal/book'); }
 
-    const downpaymentSetting = await db.prepare("SELECT value FROM settings WHERE key = 'downpayment_percent'").get();
+    const downpaymentSetting = await db.prepare("SELECT value FROM settings WHERE `key` = 'downpayment_percent'").get();
     const downpaymentPercent = getDownpaymentPercent(downpaymentSetting?.value);
     const dpAmt   = Math.ceil(totalAmt * downpaymentPercent / 100);
     const pmLabel = { gcash:'GCash', bank_transfer:'Bank Transfer (BDO/BPI)', maya:'Maya', cash:'Cash (Walk-in / Front Desk)' }[pmMethod] || pmMethod;
@@ -445,7 +445,7 @@ router.post('/book',
     let customer = await db.prepare('SELECT * FROM customers WHERE user_id = ?').get(user.id);
     if (!customer) {
       const code = 'CUS-' + String(Date.now()).slice(-6);
-      await db.prepare('INSERT OR IGNORE INTO customers (user_id, customer_code, first_name, last_name, email, status) VALUES (?, ?, ?, ?, ?, ?)').run(user.id, code, user.firstName, user.lastName, user.email || '', 'active');
+      await db.prepare('INSERT IGNORE INTO customers (user_id, customer_code, first_name, last_name, email, status) VALUES (?, ?, ?, ?, ?, ?)').run(user.id, code, user.firstName, user.lastName, user.email || '', 'active');
       customer = await db.prepare('SELECT * FROM customers WHERE user_id = ?').get(user.id);
     }
     if (!customer) { req.session.flash = { error: 'Could not create customer record.' }; return res.redirect('/portal/book'); }
@@ -475,8 +475,8 @@ router.post('/book',
       lastName:         String(user?.lastName || ''),
       email:            String(user?.email || '')
     };
-    const submission = db.transaction(() => {
-      const currentResource = resourceDetails(reservation_type, itemId);
+    const submission = await db.transaction(async () => {
+      const currentResource = await resourceDetails(reservation_type, itemId);
       const requested = reservation_type === 'room'
         ? { checkIn: ciDate, checkOut: coDate }
         : reservation_type === 'cottage'
@@ -489,11 +489,11 @@ router.post('/book',
       if (currentResource && guestCount > currentResource.capacity) {
         return { error: 'The selected option cannot accommodate that many guests.' };
       }
-      if (itemId != null && resourceConflict(reservation_type, itemId, requested)) {
+      if (itemId != null && await resourceConflict(reservation_type, itemId, requested)) {
         return { error: `That ${resourceItemType} is already reserved for the selected date or time.` };
       }
 
-      const newId = db.prepare(
+      const newId = (await db.prepare(
         'INSERT INTO reservations (booking_ref, customer_id, reservation_type, check_in_date, check_out_date, event_date, start_time, end_time, num_guests, special_requests, total_amount, downpayment_req, status, payment_status, source, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
       ).run(
         V.bookingRef, V.customerId, V.reservation_type,
@@ -502,26 +502,26 @@ router.post('/book',
         V.totalAmt, V.dpAmt,
         'awaiting_payment', 'unpaid', 'online',
         V.pmMethod
-      ).lastInsertRowid;
+      )).lastInsertRowid;
 
       if (reservation_type === 'room' && roomId) {
-        const row = db.prepare('SELECT name, price FROM rooms WHERE id = ?').get(roomId);
-        db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'room', roomId, row?.name||'', 1, row?.price||0, V.totalAmt);
-        db.prepare("UPDATE rooms SET status='reserved', updated_at=datetime('now') WHERE id=? AND status IN ('available','reserved')").run(roomId);
+        const row = await db.prepare('SELECT name, price FROM rooms WHERE id = ?').get(roomId);
+        await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'room', roomId, row?.name||'', 1, row?.price||0, V.totalAmt);
+        await db.prepare("UPDATE rooms SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')").run(roomId);
       } else if (reservation_type === 'venue' && venueId) {
-        const row = db.prepare('SELECT name, price FROM venues WHERE id = ?').get(venueId);
-        db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'venue', venueId, row?.name||'', 1, row?.price||0, V.totalAmt);
-        db.prepare("UPDATE venues SET status='reserved', updated_at=datetime('now') WHERE id=? AND status IN ('available','reserved')").run(venueId);
+        const row = await db.prepare('SELECT name, price FROM venues WHERE id = ?').get(venueId);
+        await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'venue', venueId, row?.name||'', 1, row?.price||0, V.totalAmt);
+        await db.prepare("UPDATE venues SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')").run(venueId);
       } else if (reservation_type === 'cottage' && roomId) {
-        const row = db.prepare('SELECT name, price FROM cottages WHERE id = ?').get(roomId);
-        db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'cottage', roomId, row?.name||'', 1, row?.price||0, V.totalAmt);
-        db.prepare("UPDATE cottages SET status='reserved', updated_at=datetime('now') WHERE id=? AND status IN ('available','reserved')").run(roomId);
+        const row = await db.prepare('SELECT name, price FROM cottages WHERE id = ?').get(roomId);
+        await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'cottage', roomId, row?.name||'', 1, row?.price||0, V.totalAmt);
+        await db.prepare("UPDATE cottages SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')").run(roomId);
       }
 
       if (pkgId) {
-        const pkg = db.prepare('SELECT name, price, inclusions FROM event_packages WHERE id = ?').get(pkgId);
+        const pkg = await db.prepare('SELECT name, price, inclusions FROM event_packages WHERE id = ?').get(pkgId);
         if (pkg) {
-          db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'event_package', pkgId, pkg.name, 1, pkg.price, pkg.price);
+          await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'event_package', pkgId, pkg.name, 1, pkg.price, pkg.price);
           if (selectedInclusions.length > 0) {
             let allInclusions = [];
             try { allInclusions = JSON.parse(pkg.inclusions || '[]'); } catch { allInclusions = []; }
@@ -531,21 +531,21 @@ router.post('/book',
               const name = (sel.name || '').trim();
               if (addonMap.has(name)) {
                 const addonPrice = addonMap.get(name);
-                db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(newId, 'inclusion', pkgId, name, 1, addonPrice, addonPrice, 'Event package add-on');
+                await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(newId, 'inclusion', pkgId, name, 1, addonPrice, addonPrice, 'Event package add-on');
               }
             }
           }
         }
       }
 
-      db.prepare("INSERT INTO reservation_status_history (reservation_id, from_status, to_status) VALUES (?, NULL, 'awaiting_payment')").run(newId);
+      await db.prepare("INSERT INTO reservation_status_history (reservation_id, from_status, to_status) VALUES (?, NULL, 'awaiting_payment')").run(newId);
       // FIXED: Using V.firstName, V.lastName, V.email to prevent undefined binding
-      db.prepare("INSERT INTO guests (reservation_id, customer_id, first_name, last_name, email, phone, num_guests, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'expected')").run(newId, V.customerId, V.firstName, V.lastName, V.email, V.contactPhone, V.guestCount);
-      db.prepare("UPDATE customers SET phone = ?, updated_at = datetime('now') WHERE id = ?").run(V.contactPhone, V.customerId);
+      await db.prepare("INSERT INTO guests (reservation_id, customer_id, first_name, last_name, email, phone, num_guests, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'expected')").run(newId, V.customerId, V.firstName, V.lastName, V.email, V.contactPhone, V.guestCount);
+      await db.prepare("UPDATE customers SET phone = ?, updated_at = NOW() WHERE id = ?").run(V.contactPhone, V.customerId);
 
-      db.prepare("INSERT INTO crm_activities (customer_id, activity_type, subject, description, status) VALUES (?, 'inquiry', ?, ?, 'completed')").run(V.customerId, 'Online booking submitted', 'Booking ' + bookingRef + ' — ' + reservation_type + ' — ' + V.totalAmt.toLocaleString() + ' total. Downpayment ' + V.dpAmt.toLocaleString() + ' via ' + pmLabel);
+      await db.prepare("INSERT INTO crm_activities (customer_id, activity_type, subject, description, status) VALUES (?, 'inquiry', ?, ?, 'completed')").run(V.customerId, 'Online booking submitted', 'Booking ' + bookingRef + ' — ' + reservation_type + ' — ' + V.totalAmt.toLocaleString() + ' total. Downpayment ' + V.dpAmt.toLocaleString() + ' via ' + pmLabel);
       return { id: newId };
-    })();
+    });
     if (submission.error) {
       req.session.flash = { error: submission.error };
       return res.redirect('/portal/book');
@@ -554,8 +554,8 @@ router.post('/book',
 
     try { await generateReservationQR(resId, bookingRef); } catch (e) { console.error('[Portal] QR generation failed:', e.message); }
 
-    notifyAllAdmins('reservation', 'New Online Booking', bookingRef + ' submitted by ' + (user.firstName || '') + ' ' + (user.lastName || '') + ' via ' + pmLabel, '/reservations/' + resId);
-    notifyUser(user.id, 'reservation', 'Booking Submitted', 'Your booking ' + bookingRef + ' was received. Pay the downpayment via ' + pmLabel + ' to confirm.', '/portal/my-reservations/' + resId);
+    await notifyAllAdmins('reservation', 'New Online Booking', bookingRef + ' submitted by ' + (user.firstName || '') + ' ' + (user.lastName || '') + ' via ' + pmLabel, '/reservations/' + resId);
+    await notifyUser(user.id, 'reservation', 'Booking Submitted', 'Your booking ' + bookingRef + ' was received. Pay the downpayment via ' + pmLabel + ' to confirm.', '/portal/my-reservations/' + resId);
 
     req.session.flash = { success: 'Booking ' + bookingRef + ' submitted! Pay the downpayment via ' + pmLabel + ' to confirm your reservation.' };
     res.redirect('/portal/my-reservations/' + resId);
@@ -611,21 +611,21 @@ router.post('/my-reservations/:id/submit-payment', requireCustomer, proofUpload.
   const noteText = ['Customer payment notification submitted online.', referenceNumber ? 'Transaction Ref: ' + referenceNumber : (ocrRef ? 'GCash Ref (auto-read): ' + ocrRef : ''), (methodSel === 'gcash') ? 'GCash screenshot passed automatic verification.' : '', (amtMismatch != null) ? ('NOTE: screenshot amount (' + amtMismatch + ') differs from entered amount (' + amount + ').') : '', note ? 'Note: ' + note : '', 'Awaiting staff verification.'].filter(Boolean).join(' ');
   const payType = amount >= reservation.total_amount ? 'full_payment' : 'downpayment';
   try {
-    db.transaction(() => {
-      db.prepare("INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, notes, proof_image, submitted_by) VALUES (?, ?, ?, ?, DATE('now'), ?, 'received', ?, ?, 'customer')").run(reservation.id, refNum, amount, pmMethod, payType, noteText, proofPath);
-      const totalPaid = db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status = 'received'").get(reservation.id).t;
+    await db.transaction(async () => {
+      await db.prepare("INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, notes, proof_image, submitted_by) VALUES (?, ?, ?, ?, CURDATE(), ?, 'received', ?, ?, 'customer')").run(reservation.id, refNum, amount, pmMethod, payType, noteText, proofPath);
+      const totalPaid = (await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status = 'received'").get(reservation.id)).t;
       let newPayStatus = 'partially_paid';
       if (totalPaid >= reservation.total_amount && reservation.total_amount > 0) newPayStatus = 'fully_paid';
-      db.prepare("UPDATE reservations SET payment_status = ?, updated_at = datetime('now') WHERE id = ?").run(newPayStatus, reservation.id);
-    })();
+      await db.prepare("UPDATE reservations SET payment_status = ?, updated_at = NOW() WHERE id = ?").run(newPayStatus, reservation.id);
+    });
   } catch (error) {
     removeUploadedProof(req.file);
-    if (error.code !== 'SQLITE_CONSTRAINT_UNIQUE') throw error;
+    if (error.code !== 'ER_DUP_ENTRY') throw error;
     req.session.flash = { error: 'That transaction/reference number has already been submitted.' };
     return res.redirect('/portal/my-reservations/' + req.params.id);
   }
-  notifyAllAdmins('payment', 'Payment Proof Submitted: ' + reservation.booking_ref, (customer.first_name || '') + ' ' + (customer.last_name || '') + ' submitted via ' + pmMethod.replace(/_/g,' ') + (proofPath ? ' (with screenshot)' : ''), '/reservations/' + reservation.id);
-  notifyUser(user.id, 'payment', 'Payment Proof Received', 'We received your payment for ' + reservation.booking_ref + '. Our team will verify it within 24 hours.', '/portal/my-reservations/' + reservation.id);
+  await notifyAllAdmins('payment', 'Payment Proof Submitted: ' + reservation.booking_ref, (customer.first_name || '') + ' ' + (customer.last_name || '') + ' submitted via ' + pmMethod.replace(/_/g,' ') + (proofPath ? ' (with screenshot)' : ''), '/reservations/' + reservation.id);
+  await notifyUser(user.id, 'payment', 'Payment Proof Received', 'We received your payment for ' + reservation.booking_ref + '. Our team will verify it within 24 hours.', '/portal/my-reservations/' + reservation.id);
   req.session.flash = { success: 'Payment notification submitted! Our team will verify and confirm your booking within 24 hours.' };
   res.redirect('/portal/my-reservations/' + reservation.id);
 });
@@ -639,7 +639,7 @@ router.get('/profile', requireCustomer, async (req, res) => {
   let customer = await db.prepare('SELECT * FROM customers WHERE user_id = ?').get(user.id);
   if (!customer) {
     const code = 'CUS-' + String(Date.now()).slice(-6);
-    await db.prepare('INSERT OR IGNORE INTO customers (user_id, customer_code, first_name, last_name, email, status) VALUES (?, ?, ?, ?, ?, ?)').run(user.id, code, user.firstName, user.lastName, user.email || '', 'active');
+    await db.prepare('INSERT IGNORE INTO customers (user_id, customer_code, first_name, last_name, email, status) VALUES (?, ?, ?, ?, ?, ?)').run(user.id, code, user.firstName, user.lastName, user.email || '', 'active');
     customer = await db.prepare('SELECT * FROM customers WHERE user_id = ?').get(user.id);
   }
   res.render('portal/profile', { title: 'Profile Settings – Balai-Reserve', layout: 'layouts/portal', account, customer, errors: [], pwErrors: [], old: {}, activeTab: req.query.tab || 'profile' });
@@ -658,10 +658,10 @@ router.post('/profile', requireCustomer, [
   const errors = validationResult(req);
   if (!errors.isEmpty()) { return res.render('portal/profile', { title: 'Profile Settings – Balai-Reserve', layout: 'layouts/portal', account, customer, errors: errors.array(), pwErrors: [], old: req.body, activeTab: 'profile' }); }
   const { first_name, last_name, phone, address, preferred_contact } = req.body;
-  db.transaction(() => {
-    db.prepare(`UPDATE users SET first_name=?, last_name=?, phone=?, updated_at=datetime('now') WHERE id=?`).run(first_name, last_name, phone || '', user.id);
-    if (customer) db.prepare(`UPDATE customers SET first_name=?, last_name=?, phone=?, address=?, preferred_contact=?, updated_at=datetime('now') WHERE id=?`).run(first_name, last_name, phone || '', address || '', preferred_contact || 'email', customer.id);
-  })();
+  await db.transaction(async () => {
+    await db.prepare(`UPDATE users SET first_name=?, last_name=?, phone=?, updated_at=NOW() WHERE id=?`).run(first_name, last_name, phone || '', user.id);
+    if (customer) await db.prepare(`UPDATE customers SET first_name=?, last_name=?, phone=?, address=?, preferred_contact=?, updated_at=NOW() WHERE id=?`).run(first_name, last_name, phone || '', address || '', preferred_contact || 'email', customer.id);
+  });
   req.session.user.firstName = first_name;
   req.session.user.lastName = last_name;
   req.session.flash = { success: 'Your profile has been updated.' };
@@ -682,7 +682,7 @@ router.post('/profile/password', requireCustomer, [
   if (!currentOk) allErrors.unshift({ msg: 'Current password is incorrect.' });
   if (allErrors.length > 0) { return res.render('portal/profile', { title: 'Profile Settings – Balai-Reserve', layout: 'layouts/portal', account, customer, errors: [], pwErrors: allErrors, old: {}, activeTab: 'password' }); }
   const hash = bcrypt.hashSync(req.body.new_password, 12);
-  await db.prepare(`UPDATE users SET password_hash=?, updated_at=datetime('now') WHERE id=?`).run(hash, user.id);
+  await db.prepare(`UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?`).run(hash, user.id);
   req.session.flash = { success: 'Your password has been changed.' };
   res.redirect('/portal/profile');
 });
@@ -763,16 +763,16 @@ router.post('/my-reservations/:id/cancel', requireCustomer, async (req, res) => 
   if (!reservation) { req.session.flash = { error: 'Booking not found.' }; return res.redirect('/portal/my-reservations'); }
   const cancellableStatuses = ['pending', 'awaiting_payment'];
   if (!cancellableStatuses.includes(reservation.status)) { req.session.flash = { error: 'This booking cannot be cancelled — status: ' + reservation.status.replace(/_/g,' ') + '.' }; return res.redirect('/portal/my-reservations/' + reservation.id); }
-  const totalPaid = await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(reservation.id).t;
+  const totalPaid = (await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(reservation.id)).t;
   const hasPayment = totalPaid > 0;
-  db.transaction(() => {
-    db.prepare(`UPDATE reservations SET status='cancelled', updated_at=datetime('now') WHERE id=?`).run(reservation.id);
-    db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, notes) VALUES (?,?,?,'Cancelled by guest via portal')`).run(reservation.id, reservation.status, 'cancelled');
-    const items = db.prepare(`SELECT * FROM reservation_items WHERE reservation_id=?`).all(reservation.id);
+  await db.transaction(async () => {
+    await db.prepare(`UPDATE reservations SET status='cancelled', updated_at=NOW() WHERE id=?`).run(reservation.id);
+    await db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, notes) VALUES (?,?,?,'Cancelled by guest via portal')`).run(reservation.id, reservation.status, 'cancelled');
+    const items = await db.prepare(`SELECT * FROM reservation_items WHERE reservation_id=?`).all(reservation.id);
     for (const item of items) {
       const table = { room: 'rooms', venue: 'venues', cottage: 'cottages' }[item.item_type];
       if (!table) continue;
-      const stillReserved = db.prepare(`
+      const stillReserved = await db.prepare(`
         SELECT 1
         FROM reservation_items ri
         JOIN reservations r ON r.id = ri.reservation_id
@@ -781,13 +781,13 @@ router.post('/my-reservations/:id/cancel', requireCustomer, async (req, res) => 
         LIMIT 1
       `).get(item.item_type, item.item_id, reservation.id);
       if (!stillReserved) {
-        db.prepare(`UPDATE ${table} SET status='available', updated_at=datetime('now') WHERE id=? AND status='reserved'`).run(item.item_id);
+        await db.prepare(`UPDATE ${table} SET status='available', updated_at=NOW() WHERE id=? AND status='reserved'`).run(item.item_id);
       }
     }
-    db.prepare(`UPDATE guests SET status='no_show', updated_at=datetime('now') WHERE reservation_id=?`).run(reservation.id);
-  })();
-  notifyAllAdmins('reservation', 'Booking Cancelled by Guest', `${reservation.booking_ref} was cancelled by ${(user.firstName || '')} ${(user.lastName || '')}` + (hasPayment ? ` — ₱${totalPaid.toLocaleString('en-PH')} already paid (NON-REFUNDABLE).` : '.'), '/reservations/' + reservation.id);
-  notifyUser(user.id, 'reservation', 'Booking Cancelled', `Your booking ${reservation.booking_ref} has been cancelled` + (hasPayment ? '. Payments already made are non-refundable.' : '.'), '/portal/my-reservations/' + reservation.id);
+    await db.prepare(`UPDATE guests SET status='no_show', updated_at=NOW() WHERE reservation_id=?`).run(reservation.id);
+  });
+  await notifyAllAdmins('reservation', 'Booking Cancelled by Guest', `${reservation.booking_ref} was cancelled by ${(user.firstName || '')} ${(user.lastName || '')}` + (hasPayment ? ` — ₱${totalPaid.toLocaleString('en-PH')} already paid (NON-REFUNDABLE).` : '.'), '/reservations/' + reservation.id);
+  await notifyUser(user.id, 'reservation', 'Booking Cancelled', `Your booking ${reservation.booking_ref} has been cancelled` + (hasPayment ? '. Payments already made are non-refundable.' : '.'), '/portal/my-reservations/' + reservation.id);
   req.session.flash = { success: `Your booking ${reservation.booking_ref} has been cancelled.` + (hasPayment ? ' Payments already made are non-refundable.' : '') };
   res.redirect('/portal/my-reservations');
 });
@@ -798,7 +798,7 @@ router.post('/my-reservations/:id/request-refund', requireCustomer, async (req, 
   if (!customer) { req.session.flash = { error: 'Session error.' }; return res.redirect('/auth/login'); }
   const reservation = await db.prepare('SELECT * FROM reservations WHERE id = ? AND customer_id = ?').get(req.params.id, customer.id);
   if (!reservation) { req.session.flash = { error: 'Booking not found.' }; return res.redirect('/portal/my-reservations'); }
-  const amountPaid = await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(reservation.id).t;
+  const amountPaid = (await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(reservation.id)).t;
   if (amountPaid <= 0) { req.session.flash = { error: 'There is no payment on record to refund.' }; return res.redirect('/portal/my-reservations/' + reservation.id); }
   if (['cancelled','rejected'].includes(reservation.status)) { req.session.flash = { error: 'A refund cannot be requested for a cancelled or rejected booking.' }; return res.redirect('/portal/my-reservations/' + reservation.id); }
   const existing = await db.prepare("SELECT * FROM refund_requests WHERE reservation_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1").get(reservation.id);
@@ -808,7 +808,7 @@ router.post('/my-reservations/:id/request-refund', requireCustomer, async (req, 
   const gcashNumber = (req.body.gcash_number || '').trim();
   if (gcashNumber && !/^09\d{9}$/.test(gcashNumber)) { req.session.flash = { error: 'Please enter a valid GCash number (11 digits starting with 09).' }; return res.redirect('/portal/my-reservations/' + reservation.id); }
   await db.prepare(`INSERT INTO refund_requests (reservation_id, customer_id, amount, reason, gcash_number, status) VALUES (?, ?, ?, ?, ?, 'pending')`).run(reservation.id, customer.id, amountPaid, reason, gcashNumber || null);
-  notifyAllAdmins('payment', 'Refund Requested', `${(user.firstName || '')} ${(user.lastName || '')} requested a refund of ₱${amountPaid.toLocaleString('en-PH')} for ${reservation.booking_ref}.`, '/reservations/' + reservation.id);
+  await notifyAllAdmins('payment', 'Refund Requested', `${(user.firstName || '')} ${(user.lastName || '')} requested a refund of ₱${amountPaid.toLocaleString('en-PH')} for ${reservation.booking_ref}.`, '/reservations/' + reservation.id);
   req.session.flash = { success: 'Your refund request has been submitted.' };
   res.redirect('/portal/my-reservations/' + reservation.id);
 });
@@ -842,7 +842,7 @@ router.post('/inquire', [
   const errors = validationResult(req);
   if (!errors.isEmpty()) { return res.render('portal/inquire', { title: 'Contact Us', layout: 'layouts/portal', errors: errors.array(), old: req.body }); }
   const { name, email, phone, subject, message, category } = req.body;
-  const customerId = req.session?.user ? (await db.prepare('SELECT id FROM customers WHERE user_id = ?').get(req.session.user.id)?.id || null) : null;
+  const customerId = req.session?.user ? ((await db.prepare('SELECT id FROM customers WHERE user_id = ?').get(req.session.user.id))?.id || null) : null;
   await db.prepare("INSERT INTO inquiries (customer_id, name, email, phone, subject, message, category, source, status) VALUES (?,?,?,?,?,?,?,'website','open')").run(customerId, name, email||'', phone||'', subject, message, category||'general');
   req.session.flash = { success: 'Your inquiry has been received.' };
   res.redirect(req.session?.user ? '/portal/my-inquiries' : '/portal/inquire');

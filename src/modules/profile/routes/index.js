@@ -74,7 +74,7 @@ router.post('/',
     const old = { first_name: user.first_name, last_name: user.last_name, phone: user.phone };
 
     await db.prepare(`
-      UPDATE users SET first_name=?, last_name=?, phone=?, updated_at=datetime('now')
+      UPDATE users SET first_name=?, last_name=?, phone=?, updated_at=NOW()
       WHERE id=?
     `).run(first_name, last_name, phone || '', req.session.user.id);
 
@@ -82,7 +82,7 @@ router.post('/',
     req.session.user.firstName = first_name;
     req.session.user.lastName  = last_name;
 
-    req.audit('update', 'profile', req.session.user.id, old, { first_name, last_name, phone });
+    await req.audit('update', 'profile', req.session.user.id, old, { first_name, last_name, phone });
     req.session.flash = { success: 'Profile updated successfully.' };
     res.redirect('/profile');
   }
@@ -127,9 +127,9 @@ router.post('/password',
     }
 
     const hash = bcrypt.hashSync(req.body.new_password, 12);
-    await db.prepare(`UPDATE users SET password_hash=?, updated_at=datetime('now') WHERE id=?`).run(hash, user.id);
+    await db.prepare(`UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?`).run(hash, user.id);
 
-    req.audit('password_change', 'profile', user.id, null, null);
+    await req.audit('password_change', 'profile', user.id, null, null);
     req.session.flash = { success: 'Password changed successfully.' };
     res.redirect('/profile');
   }

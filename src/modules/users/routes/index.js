@@ -29,9 +29,9 @@ router.get('/', requireAuth, ADMIN_ONLY, async (req, res) => {
   if (status === 'active')   where += ` AND u.is_active = 1`;
   if (status === 'inactive') where += ` AND u.is_active = 0`;
 
-  const total = await db.prepare(`
+  const total = (await db.prepare(`
     SELECT COUNT(*) AS cnt FROM users u JOIN roles r ON r.id=u.role_id ${where}
-  `).get(...params).cnt;
+  `).get(...params)).cnt;
 
   const users = await db.prepare(`
     SELECT u.*, r.name AS role_name, r.label AS role_label
@@ -100,12 +100,12 @@ router.post('/',
     }
 
     const hash = bcrypt.hashSync(password, 12);
-    const id   = await db.prepare(`
+    const id   = (await db.prepare(`
       INSERT INTO users (role_id, first_name, last_name, email, password_hash, phone, is_active)
       VALUES (?, ?, ?, ?, ?, ?, 1)
-    `).run(role_id, first_name, last_name, email, hash, phone || '').lastInsertRowid;
+    `).run(role_id, first_name, last_name, email, hash, phone || '')).lastInsertRowid;
 
-    req.audit('create', 'users', id, null, { first_name, last_name, email, role_id });
+    await req.audit('create', 'users', id, null, { first_name, last_name, email, role_id });
     req.session.flash = { success: `User "${first_name} ${last_name}" created successfully.` };
     res.redirect('/users');
   }
@@ -162,10 +162,10 @@ router.post('/:id/edit',
       });
     }
 
-    await db.prepare(`UPDATE users SET first_name=?,last_name=?,email=?,role_id=?,phone=?,updated_at=datetime('now') WHERE id=?`)
+    await db.prepare(`UPDATE users SET first_name=?,last_name=?,email=?,role_id=?,phone=?,updated_at=NOW() WHERE id=?`)
       .run(first_name, last_name, email, role_id, phone || '', req.params.id);
 
-    req.audit('update', 'users', req.params.id, { email: old.email, role_id: old.role_id }, { email, role_id });
+    await req.audit('update', 'users', req.params.id, { email: old.email, role_id: old.role_id }, { email, role_id });
     req.session.flash = { success: 'User updated successfully.' };
     res.redirect('/users');
   }
@@ -181,8 +181,8 @@ router.post('/:id/toggle', requireAuth, ADMIN_ONLY, async (req, res) => {
   if (!user) { req.session.flash = { error: 'User not found.' }; return res.redirect('/users'); }
 
   const newActive = user.is_active ? 0 : 1;
-  await db.prepare(`UPDATE users SET is_active=?, updated_at=datetime('now') WHERE id=?`).run(newActive, user.id);
-  req.audit('toggle_active', 'users', user.id, { is_active: user.is_active }, { is_active: newActive });
+  await db.prepare(`UPDATE users SET is_active=?, updated_at=NOW() WHERE id=?`).run(newActive, user.id);
+  await req.audit('toggle_active', 'users', user.id, { is_active: user.is_active }, { is_active: newActive });
 
   req.session.flash = {
     success: `${user.first_name} ${user.last_name} has been ${newActive ? 'activated' : 'deactivated'}.`,

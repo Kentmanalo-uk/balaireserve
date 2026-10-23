@@ -17,16 +17,16 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
 
   // ΓöÇΓöÇ Revenue Trend (12 months) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const revenueTrend = await db.prepare(`
-    SELECT strftime('%Y-%m', payment_date) AS month, SUM(amount) AS revenue
-    FROM payments WHERE status IN ('received','verified') AND payment_date >= date('now', '-12 months')
+    SELECT DATE_FORMAT(payment_date, '%Y-%m') AS month, SUM(amount) AS revenue
+    FROM payments WHERE status IN ('received','verified') AND payment_date >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
     GROUP BY month ORDER BY month
   `).all();
 
   // ΓöÇΓöÇ Reservation Trend (12 months) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const resTrend = await db.prepare(`
-    SELECT strftime('%Y-%m', created_at) AS month, COUNT(*) AS total,
+    SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS total,
            SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancelled
-    FROM reservations WHERE created_at >= date('now', '-12 months')
+    FROM reservations WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
     GROUP BY month ORDER BY month
   `).all();
 
@@ -48,14 +48,14 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   // ΓöÇΓöÇ Event Demand ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const eventDemand = await db.prepare(`
     SELECT event_type, COUNT(*) AS cnt, SUM(total_cost) AS revenue
-    FROM events WHERE event_date >= date('now', '-6 months')
+    FROM events WHERE event_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY event_type ORDER BY cnt DESC
   `).all();
 
   // ΓöÇΓöÇ Customer Satisfaction ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const satisfaction = await db.prepare(`
-    SELECT strftime('%Y-%m', created_at) AS month, ROUND(AVG(rating),2) AS avg_rating, COUNT(*) AS reviews
-    FROM feedback WHERE created_at >= date('now', '-6 months')
+    SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, ROUND(AVG(rating),2) AS avg_rating, COUNT(*) AS reviews
+    FROM feedback WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY month ORDER BY month
   `).all();
 
@@ -64,25 +64,25 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
     SELECT
       COUNT(*) AS total,
       SUM(CASE WHEN status='cancelled' THEN 1 ELSE 0 END) AS cancelled
-    FROM reservations WHERE created_at >= date('now', '-3 months')
+    FROM reservations WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
   `).get();
   const cancellationRate = cancRate.total > 0 ? Math.round((cancRate.cancelled / cancRate.total) * 100) : 0;
 
   // ΓöÇΓöÇ Peak Booking Periods ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   const peakDays = await db.prepare(`
-    SELECT strftime('%w', created_at) AS dow, COUNT(*) AS cnt
+    SELECT CAST(DAYOFWEEK(created_at) - 1 AS CHAR) AS dow, COUNT(*) AS cnt
     FROM reservations GROUP BY dow ORDER BY cnt DESC
   `).all();
   const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const peakDaysLabeled = peakDays.map(r => ({ day: dayNames[r.dow] || r.dow, cnt: r.cnt }));
 
   // ΓöÇΓöÇ Month-over-month comparison ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-  const thisMonthRev = await db.prepare(`SELECT COALESCE(SUM(amount),0) AS rev FROM payments WHERE status IN ('received','verified') AND strftime('%Y-%m',payment_date)=?`).get(thisMonth).rev;
-  const lastMonthRev = await db.prepare(`SELECT COALESCE(SUM(amount),0) AS rev FROM payments WHERE status IN ('received','verified') AND strftime('%Y-%m',payment_date)=?`).get(lastMonth).rev;
+  const thisMonthRev = (await db.prepare(`SELECT COALESCE(SUM(amount),0) AS rev FROM payments WHERE status IN ('received','verified') AND DATE_FORMAT(payment_date,'%Y-%m')=?`).get(thisMonth)).rev;
+  const lastMonthRev = (await db.prepare(`SELECT COALESCE(SUM(amount),0) AS rev FROM payments WHERE status IN ('received','verified') AND DATE_FORMAT(payment_date,'%Y-%m')=?`).get(lastMonth)).rev;
   const revChange    = lastMonthRev > 0 ? Math.round(((thisMonthRev - lastMonthRev) / lastMonthRev) * 100) : null;
 
-  const thisMonthRes = await db.prepare(`SELECT COUNT(*) AS cnt FROM reservations WHERE strftime('%Y-%m',created_at)=?`).get(thisMonth).cnt;
-  const lastMonthRes = await db.prepare(`SELECT COUNT(*) AS cnt FROM reservations WHERE strftime('%Y-%m',created_at)=?`).get(lastMonth).cnt;
+  const thisMonthRes = (await db.prepare(`SELECT COUNT(*) AS cnt FROM reservations WHERE DATE_FORMAT(created_at,'%Y-%m')=?`).get(thisMonth)).cnt;
+  const lastMonthRes = (await db.prepare(`SELECT COUNT(*) AS cnt FROM reservations WHERE DATE_FORMAT(created_at,'%Y-%m')=?`).get(lastMonth)).cnt;
   const resChange    = lastMonthRes > 0 ? Math.round(((thisMonthRes - lastMonthRes) / lastMonthRes) * 100) : null;
 
   // ΓöÇΓöÇ AI Insights ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -91,18 +91,18 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   // ΓöÇΓöÇ Forecast (simple linear projection) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   // Uses last 3 months average to project next month
   const last3MonthsRevenue = await db.prepare(`
-    SELECT strftime('%Y-%m', payment_date) AS month, SUM(amount) AS revenue
-    FROM payments WHERE status IN ('received','verified') AND payment_date >= date('now', '-3 months')
+    SELECT DATE_FORMAT(payment_date, '%Y-%m') AS month, SUM(amount) AS revenue
+    FROM payments WHERE status IN ('received','verified') AND payment_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
     GROUP BY month ORDER BY month DESC LIMIT 3
   `).all();
   const avgRevenue = last3MonthsRevenue.length > 0
     ? Math.round(last3MonthsRevenue.reduce((s, r) => s + r.revenue, 0) / last3MonthsRevenue.length)
     : 0;
 
-  const last3MonthsRes = await db.prepare(`
+  const last3MonthsRes = (await db.prepare(`
     SELECT COUNT(*) AS cnt FROM reservations
-    WHERE created_at >= date('now', '-3 months')
-  `).get().cnt;
+    WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
+  `).get()).cnt;
   const projectedRes = Math.round(last3MonthsRes / 3);
 
   res.render('analytics/index', {

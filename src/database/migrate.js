@@ -1,47 +1,54 @@
 /**
  * Balai-Reserve Database Migration
+ * Creates the database (if missing) and applies schema.sql to MySQL.
  * Run: node src/database/migrate.js
  */
 'use strict';
 
 require('dotenv').config();
-const Database = require('better-sqlite3');
-const fs       = require('fs');
-const path     = require('path');
+const mysql = require('mysql2/promise');
+const fs    = require('fs');
+const path  = require('path');
 
-const DB_PATH = process.env.DB_PATH || './src/database/balai_reserve.db';
-const dbDir   = path.dirname(DB_PATH);
+const DB_NAME = process.env.DB_NAME || 'balai_reserve';
 
-// Create database directory if needed
-if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
+async function connect() {
+  return mysql.createConnection({
+    host:     process.env.DB_HOST || 'localhost',
+    port:     parseInt(process.env.DB_PORT || '3306', 10),
+    user:     process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || '',
+    charset:  'utf8mb4',
+    multipleStatements: true,
+  });
 }
 
-console.log(`[Migrate] Using database: ${path.resolve(DB_PATH)}`);
+async function applySchema(conn) {
+  await conn.query(
+    `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`
+  );
+  await conn.query(`USE \`${DB_NAME}\``);
+  const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
+  await conn.query(schema);
+}
 
-const db = new Database(DB_PATH);
-
-// Enable WAL mode and foreign keys
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
-
-// Read and execute schema
-const schemaPath = path.join(__dirname, 'schema.sql');
-const schema     = fs.readFileSync(schemaPath, 'utf8');
-
-// Execute each statement individually (better-sqlite3 exec handles multi-statement)
-try {
-  db.exec(schema);
-  const userColumns = db.pragma('table_info(users)');
-  if (!userColumns.some(column => column.name === 'google_sub')) {
-    db.exec('ALTER TABLE users ADD COLUMN google_sub TEXT');
+async function main() {
+  console.log(`[Migrate] Using MySQL database: ${DB_NAME}`);
+  const conn = await connect();
+  try {
+    await applySchema(conn);
+    console.log('[Migrate] Schema applied successfully.');
+  } finally {
+    await conn.end();
   }
-  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub)');
-  console.log('[Migrate] Schema applied successfully.');
-} catch (err) {
-  console.error('[Migrate] Error applying schema:', err.message);
-  process.exit(1);
+  console.log('[Migrate] Done.');
 }
 
-db.close();
-console.log('[Migrate] Done.');
+if (require.main === module) {
+  main().catch((err) => {
+    console.error('[Migrate] Error applying schema:', err.message);
+    process.exit(1);
+  });
+}
+
+module.exports = { connect, applySchema, DB_NAME };

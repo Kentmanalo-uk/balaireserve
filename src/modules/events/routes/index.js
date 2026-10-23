@@ -28,7 +28,7 @@ router.get('/', requireAuth, async (req, res) => {
   if (from)   { where += ` AND e.event_date >= ?`; params.push(from); }
   if (to)     { where += ` AND e.event_date <= ?`; params.push(to); }
 
-  const total  = await db.prepare(`SELECT COUNT(*) AS cnt FROM events e JOIN customers c ON c.id=e.customer_id ${where}`).get(...params).cnt;
+  const total  = (await db.prepare(`SELECT COUNT(*) AS cnt FROM events e JOIN customers c ON c.id=e.customer_id ${where}`).get(...params)).cnt;
   const events = await db.prepare(`
     SELECT e.*, c.first_name || ' ' || c.last_name AS customer_name,
            v.name AS venue_name, ep.name AS package_name
@@ -106,7 +106,7 @@ router.post('/',
       }
     }
 
-    const id = await db.prepare(`
+    const id = (await db.prepare(`
       INSERT INTO events
         (reservation_id, customer_id, event_package_id, venue_id,
          event_name, event_type, event_date, start_time, end_time,
@@ -116,9 +116,9 @@ router.post('/',
       reservation_id || null, customer_id, event_package_id || null, venue_id || null,
       event_name, event_type, event_date, start_time, end_time,
       num_attendees, special_requests || '', parseFloat(total_cost) || 0, notes || ''
-    ).lastInsertRowid;
+    )).lastInsertRowid;
 
-    req.audit('create', 'events', id, null, { event_name, event_type, event_date });
+    await req.audit('create', 'events', id, null, { event_name, event_type, event_date });
     req.session.flash = { success: `Event "${event_name}" created successfully.` };
     res.redirect(`/events/${id}`);
   }
@@ -152,7 +152,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 // POST /events/:id/status
 router.post('/:id/status', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
   const { status } = req.body;
-  await db.prepare(`UPDATE events SET status=?, updated_at=datetime('now') WHERE id=?`).run(status, req.params.id);
+  await db.prepare(`UPDATE events SET status=?, updated_at=NOW() WHERE id=?`).run(status, req.params.id);
   req.session.flash = { success: `Event status updated to ${status}.` };
   res.redirect(`/events/${req.params.id}`);
 });

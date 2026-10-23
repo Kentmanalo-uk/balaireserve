@@ -33,35 +33,35 @@ async function renderAdmin(req, res) {
   const lastMonth = new Date(new Date().setMonth(new Date().getMonth() - 1))
     .toISOString().slice(0, 7);
 
-  const totalReservations = await db.prepare(`SELECT COUNT(*) AS c FROM reservations`).get().c;
-  const todayCheckIns     = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE DATE(check_in_date)=? AND status IN ('confirmed','checked_in')`).get(today).c;
-  const pendingRes        = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE status='pending'`).get().c;
-  const pendingPayments   = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE payment_status IN ('unpaid','partially_paid') AND status NOT IN ('cancelled','rejected')`).get().c;
-  const availableRooms    = await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE status='available' AND is_active=1`).get().c;
-  const occupiedRooms     = await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE status='occupied'`).get().c;
-  const totalRooms        = await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE is_active=1`).get().c;
-  const availableVenues   = await db.prepare(`SELECT COUNT(*) AS c FROM venues WHERE status='available' AND is_active=1`).get().c;
-  const totalVenues       = await db.prepare(`SELECT COUNT(*) AS c FROM venues WHERE is_active=1`).get().c;
-  const occupiedVenues    = await db.prepare(`SELECT COUNT(*) AS c FROM venues WHERE status IN ('reserved','occupied') AND is_active=1`).get().c;
-  const availableCottages = await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE status='available' AND is_active=1`).get().c;
-  const totalCottages     = await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE is_active=1`).get().c;
-  const occupiedCottages  = await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE status IN ('reserved','occupied') AND is_active=1`).get().c;
-  const upcomingEvents    = await db.prepare(`SELECT COUNT(*) AS c FROM events WHERE event_date>=? AND status NOT IN ('completed','cancelled')`).get(today).c;
-  const openInquiries     = await db.prepare(`SELECT COUNT(*) AS c FROM inquiries WHERE status IN ('open','in_progress')`).get().c;
-  const totalCustomers    = await db.prepare(`SELECT COUNT(*) AS c FROM customers`).get().c;
-  const avgRating         = await db.prepare(`SELECT ROUND(AVG(rating),1) AS a FROM feedback`).get().a || 0;
+  const totalReservations = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations`).get()).c;
+  const todayCheckIns     = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE DATE(check_in_date)=? AND status IN ('confirmed','checked_in')`).get(today)).c;
+  const pendingRes        = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE status='pending'`).get()).c;
+  const pendingPayments   = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE payment_status IN ('unpaid','partially_paid') AND status NOT IN ('cancelled','rejected')`).get()).c;
+  const availableRooms    = (await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE status='available' AND is_active=1`).get()).c;
+  const occupiedRooms     = (await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE status='occupied'`).get()).c;
+  const totalRooms        = (await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE is_active=1`).get()).c;
+  const availableVenues   = (await db.prepare(`SELECT COUNT(*) AS c FROM venues WHERE status='available' AND is_active=1`).get()).c;
+  const totalVenues       = (await db.prepare(`SELECT COUNT(*) AS c FROM venues WHERE is_active=1`).get()).c;
+  const occupiedVenues    = (await db.prepare(`SELECT COUNT(*) AS c FROM venues WHERE status IN ('reserved','occupied') AND is_active=1`).get()).c;
+  const availableCottages = (await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE status='available' AND is_active=1`).get()).c;
+  const totalCottages     = (await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE is_active=1`).get()).c;
+  const occupiedCottages  = (await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE status IN ('reserved','occupied') AND is_active=1`).get()).c;
+  const upcomingEvents    = (await db.prepare(`SELECT COUNT(*) AS c FROM events WHERE event_date>=? AND status NOT IN ('completed','cancelled')`).get(today)).c;
+  const openInquiries     = (await db.prepare(`SELECT COUNT(*) AS c FROM inquiries WHERE status IN ('open','in_progress')`).get()).c;
+  const totalCustomers    = (await db.prepare(`SELECT COUNT(*) AS c FROM customers`).get()).c;
+  const avgRating         = (await db.prepare(`SELECT ROUND(AVG(rating),1) AS a FROM feedback`).get()).a || 0;
 
   // Revenue counts both 'received' and 'verified' payments (a verified payment
   // is real, collected money). Refunded/rejected payments are excluded.
-  const monthRevRow  = await db.prepare(`SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE status IN ('received','verified') AND strftime('%Y-%m',payment_date)=?`).get(thisMonth);
-  const lastMonthRev = await db.prepare(`SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE status IN ('received','verified') AND strftime('%Y-%m',payment_date)=?`).get(lastMonth).t;
+  const monthRevRow  = await db.prepare(`SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE status IN ('received','verified') AND DATE_FORMAT(payment_date,'%Y-%m')=?`).get(thisMonth);
+  const lastMonthRev = (await db.prepare(`SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE status IN ('received','verified') AND DATE_FORMAT(payment_date,'%Y-%m')=?`).get(lastMonth)).t;
   const totalRevRow  = await db.prepare(`SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE status IN ('received','verified')`).get();
   const revChange    = lastMonthRev > 0
     ? Math.round(((monthRevRow.t - lastMonthRev) / lastMonthRev) * 100) : null;
 
   const revenueChart = await db.prepare(`
-    SELECT strftime('%Y-%m',payment_date) AS month, SUM(amount) AS revenue
-    FROM payments WHERE status IN ('received','verified') AND payment_date>=date('now','-6 months')
+    SELECT DATE_FORMAT(payment_date,'%Y-%m') AS month, SUM(amount) AS revenue
+    FROM payments WHERE status IN ('received','verified') AND payment_date>=DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
     GROUP BY month ORDER BY month`).all();
 
   const statusDist = await db.prepare(`SELECT status, COUNT(*) AS cnt FROM reservations GROUP BY status`).all();
@@ -113,14 +113,14 @@ async function renderAdmin(req, res) {
 async function renderStaff(req, res) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const pendingRes      = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE status='pending'`).get().c;
-  const confirmedRes    = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE status='confirmed'`).get().c;
-  const checkedInToday  = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE DATE(check_in_date)=? AND status='checked_in'`).get(today).c;
-  const checkOutsToday  = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE DATE(check_out_date)=? AND status='checked_in'`).get(today).c;
-  const pendingPayments = await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE payment_status IN ('unpaid','partially_paid') AND status NOT IN ('cancelled','rejected','completed')`).get().c;
-  const availableRooms  = await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE status='available' AND is_active=1`).get().c;
-  const openInquiries   = await db.prepare(`SELECT COUNT(*) AS c FROM inquiries WHERE status IN ('open','in_progress')`).get().c;
-  const upcomingEvents  = await db.prepare(`SELECT COUNT(*) AS c FROM events WHERE event_date>=? AND status NOT IN ('completed','cancelled')`).get(today).c;
+  const pendingRes      = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE status='pending'`).get()).c;
+  const confirmedRes    = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE status='confirmed'`).get()).c;
+  const checkedInToday  = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE DATE(check_in_date)=? AND status='checked_in'`).get(today)).c;
+  const checkOutsToday  = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE DATE(check_out_date)=? AND status='checked_in'`).get(today)).c;
+  const pendingPayments = (await db.prepare(`SELECT COUNT(*) AS c FROM reservations WHERE payment_status IN ('unpaid','partially_paid') AND status NOT IN ('cancelled','rejected','completed')`).get()).c;
+  const availableRooms  = (await db.prepare(`SELECT COUNT(*) AS c FROM rooms WHERE status='available' AND is_active=1`).get()).c;
+  const openInquiries   = (await db.prepare(`SELECT COUNT(*) AS c FROM inquiries WHERE status IN ('open','in_progress')`).get()).c;
+  const upcomingEvents  = (await db.prepare(`SELECT COUNT(*) AS c FROM events WHERE event_date>=? AND status NOT IN ('completed','cancelled')`).get(today)).c;
 
   // Today's arrivals
   const arrivals = await db.prepare(`

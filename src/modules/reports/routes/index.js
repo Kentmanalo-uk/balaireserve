@@ -18,7 +18,7 @@ const REPORT_BRAND = {
 // ΓöÇΓöÇ Helper: resort branding for report headers/footers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 async function getResortInfo() {
   const rows = await db.prepare(
-    "SELECT key, value FROM settings WHERE key IN ('resort_name','resort_address','resort_phone','resort_email')"
+    "SELECT `key`, value FROM settings WHERE `key` IN ('resort_name','resort_address','resort_phone','resort_email')"
   ).all();
   const s = {};
   for (const r of rows) s[r.key] = r.value;
@@ -54,9 +54,9 @@ router.get('/sales', requireAuth, requireRole('admin'), async (req, res) => {
 
   let groupBy, labelFormat;
   if (type === 'daily')   { groupBy = `DATE(payment_date)`;           labelFormat = 'Date'; }
-  else if (type === 'weekly') { groupBy = `strftime('%Y-W%W', payment_date)`; labelFormat = 'Week'; }
-  else if (type === 'yearly') { groupBy = `strftime('%Y', payment_date)`;     labelFormat = 'Year'; }
-  else                    { groupBy = `strftime('%Y-%m', payment_date)`;  labelFormat = 'Month'; } // monthly default
+  else if (type === 'weekly') { groupBy = `CONCAT(DATE_FORMAT(payment_date, '%Y'), '-W', LPAD(WEEK(payment_date, 5), 2, '0'))`; labelFormat = 'Week'; }
+  else if (type === 'yearly') { groupBy = `DATE_FORMAT(payment_date, '%Y')`;     labelFormat = 'Year'; }
+  else                    { groupBy = `DATE_FORMAT(payment_date, '%Y-%m')`;  labelFormat = 'Month'; } // monthly default
 
   const salesData = await db.prepare(`
     SELECT ${groupBy} AS period,

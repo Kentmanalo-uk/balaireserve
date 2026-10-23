@@ -81,7 +81,7 @@ async function validateQRToken(token) {
  */
 async function consumeQRToken(token) {
   await db.prepare(`
-    UPDATE qr_codes SET used = 1, used_at = datetime('now') WHERE token = ?
+    UPDATE qr_codes SET used = 1, used_at = NOW() WHERE token = ?
   `).run(token);
 }
 

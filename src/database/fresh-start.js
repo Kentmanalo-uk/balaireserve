@@ -26,21 +26,16 @@
 'use strict';
 
 require('dotenv').config();
-const Database = require('better-sqlite3');
 const fs   = require('fs');
 const path = require('path');
-
-const DB_PATH = process.env.DB_PATH || './src/database/balai_reserve.db';
-const db      = new Database(path.resolve(DB_PATH));
-db.pragma('foreign_keys = OFF');   // disable FK checks while we truncate
-
-console.log('[Fresh Start] Beginning production reset...');
+const db   = require('../config/database');
 
 // Tables whose rows are ALL transactional / demo → clear completely
 const CLEAR_TABLES = [
   'reservation_items',
   'reservation_status_history',
   'payments',
+  'refund_requests',
   'check_ins',
   'check_outs',
   'qr_codes',
@@ -63,52 +58,69 @@ const CLEAR_TABLES = [
   'sessions',
 ];
 
-const run = db.transaction(() => {
-  // 1. Clear all transactional / demo tables
-  for (const table of CLEAR_TABLES) {
+// FOREIGN_KEY_CHECKS is a per-connection setting, so the whole reset runs
+// on ONE dedicated connection taken from the pool.
+async function resetDatabase(conn) {
+  await conn.query('SET FOREIGN_KEY_CHECKS = 0');   // disable FK checks while we truncate
+  try {
+    await conn.beginTransaction();
     try {
-      const info = db.prepare(`DELETE FROM ${table}`).run();
-      console.log(`[Fresh Start]  cleared ${table} (${info.changes} row(s))`);
-    } catch (e) {
-      // Table may not exist in some deployments — non-fatal
-      console.log(`[Fresh Start]  skipped ${table} (${e.message})`);
+      // 1. Clear all transactional / demo tables
+      for (const table of CLEAR_TABLES) {
+        try {
+          const [info] = await conn.query(`DELETE FROM \`${table}\``);
+          console.log(`[Fresh Start]  cleared ${table} (${info.affectedRows} row(s))`);
+        } catch (e) {
+          // Table may not exist in some deployments — non-fatal
+          console.log(`[Fresh Start]  skipped ${table} (${e.message})`);
+        }
+      }
+
+      // 2. Remove all CUSTOMER user accounts (keep admin + staff)
+      const [delUsers] = await conn.query(`
+        DELETE FROM users
+        WHERE role_id IN (SELECT id FROM roles WHERE name = 'customer')
+      `);
+      console.log(`[Fresh Start]  removed ${delUsers.affectedRows} customer user account(s)`);
+
+      // 3. Reset accommodation availability
+      await conn.query(`UPDATE rooms    SET status = 'available' WHERE is_active = 1`);
+      await conn.query(`UPDATE venues   SET status = 'available' WHERE is_active = 1`);
+      await conn.query(`UPDATE cottages SET status = 'available' WHERE is_active = 1`);
+      console.log('[Fresh Start]  reset rooms/venues/cottages to "available"');
+
+      // 4. Zero out inventory reserved/damaged, make everything available
+      try {
+        await conn.query(`UPDATE inventory_items SET available_qty = total_qty, reserved_qty = 0, damaged_qty = 0`);
+        console.log('[Fresh Start]  reset inventory counts (all available, 0 reserved/damaged)');
+      } catch { /* column set may vary */ }
+
+      // 5. Reset equipment availability
+      try {
+        await conn.query(`UPDATE equipment SET available_qty = quantity`);
+        console.log('[Fresh Start]  reset equipment availability');
+      } catch { /* non-critical */ }
+
+      await conn.commit();
+    } catch (err) {
+      await conn.rollback().catch(() => {});
+      throw err;
     }
+
+    // 6. Reset AUTO_INCREMENT counters for the cleared tables so IDs start fresh.
+    //    (ALTER TABLE is DDL and commits implicitly, so it runs after the transaction.)
+    let resetCount = 0;
+    for (const table of CLEAR_TABLES) {
+      try {
+        await conn.query(`ALTER TABLE \`${table}\` AUTO_INCREMENT = 1`);
+        resetCount++;
+      } catch { /* table may not exist / have no AUTO_INCREMENT column */ }
+    }
+    console.log(`[Fresh Start]  reset ID counters for cleared tables (${resetCount} table(s))`);
+  } finally {
+    await conn.query('SET FOREIGN_KEY_CHECKS = 1');
   }
-
-  // 2. Remove all CUSTOMER user accounts (keep admin + staff)
-  const delUsers = db.prepare(`
-    DELETE FROM users
-    WHERE role_id IN (SELECT id FROM roles WHERE name = 'customer')
-  `).run();
-  console.log(`[Fresh Start]  removed ${delUsers.changes} customer user account(s)`);
-
-  // 3. Reset accommodation availability
-  db.prepare(`UPDATE rooms    SET status = 'available' WHERE is_active = 1`).run();
-  db.prepare(`UPDATE venues   SET status = 'available' WHERE is_active = 1`).run();
-  db.prepare(`UPDATE cottages SET status = 'available' WHERE is_active = 1`).run();
-  console.log('[Fresh Start]  reset rooms/venues/cottages to "available"');
-
-  // 4. Zero out inventory reserved/damaged, make everything available
-  try {
-    db.prepare(`UPDATE inventory_items SET available_qty = total_qty, reserved_qty = 0, damaged_qty = 0`).run();
-    console.log('[Fresh Start]  reset inventory counts (all available, 0 reserved/damaged)');
-  } catch { /* column set may vary */ }
-
-  // 5. Reset equipment availability
-  try {
-    db.prepare(`UPDATE equipment SET available_qty = quantity`).run();
-    console.log('[Fresh Start]  reset equipment availability');
-  } catch { /* non-critical */ }
-
-  // 6. Reset AUTOINCREMENT counters for the cleared tables so IDs start fresh
-  const placeholders = CLEAR_TABLES.map(() => '?').join(',');
-  try {
-    db.prepare(`DELETE FROM sqlite_sequence WHERE name IN (${placeholders})`).run(...CLEAR_TABLES);
-    console.log('[Fresh Start]  reset ID counters for cleared tables');
-  } catch { /* sqlite_sequence may not track all */ }
-});
-
-run();
+}
 
 // 7. Delete uploaded payment-proof files and generated QR images from disk
 function emptyDir(dirRel, label) {
@@ -123,29 +135,47 @@ function emptyDir(dirRel, label) {
   }
   console.log(`[Fresh Start]  deleted ${count} file(s) from ${label}`);
 }
-emptyDir('uploads/payment_proofs', 'payment proofs');
-emptyDir('public/qrcodes',         'QR codes');
 
-db.pragma('foreign_keys = ON');
+async function main() {
+  const conn = await db.pool.getConnection();
+  try {
+    const [[{ name: dbName }]] = await conn.query('SELECT DATABASE() AS name');
+    console.log(`[Fresh Start] Using MySQL database: ${dbName}`);
+    console.log('[Fresh Start] Beginning production reset...');
+    await resetDatabase(conn);
+  } finally {
+    conn.release();
+  }
 
-// Report final state
-console.log('\n[Fresh Start] Remaining users:');
-db.prepare(`
-  SELECT u.first_name || ' ' || u.last_name AS name, u.email, r.name AS role
-  FROM users u JOIN roles r ON r.id = u.role_id ORDER BY r.name, u.id
-`).all().forEach(u => console.log(`   [${u.role}] ${u.name} — ${u.email}`));
+  emptyDir('uploads/payment_proofs', 'payment proofs');
+  emptyDir('public/qrcodes',         'QR codes');
 
-const counts = {
-  rooms:    db.prepare('SELECT COUNT(*) c FROM rooms WHERE is_active=1').get().c,
-  venues:   db.prepare('SELECT COUNT(*) c FROM venues WHERE is_active=1').get().c,
-  cottages: db.prepare('SELECT COUNT(*) c FROM cottages WHERE is_active=1').get().c,
-  packages: db.prepare('SELECT COUNT(*) c FROM event_packages WHERE is_active=1').get().c,
-  reservations: db.prepare('SELECT COUNT(*) c FROM reservations').get().c,
-  customers:    db.prepare('SELECT COUNT(*) c FROM customers').get().c,
-};
-console.log('\n[Fresh Start] Data snapshot:');
-console.log(`   active rooms=${counts.rooms}, venues=${counts.venues}, cottages=${counts.cottages}, packages=${counts.packages}`);
-console.log(`   reservations=${counts.reservations}, customers=${counts.customers}  (should both be 0)`);
+  // Report final state
+  console.log('\n[Fresh Start] Remaining users:');
+  (await db.prepare(`
+    SELECT CONCAT(u.first_name, ' ', u.last_name) AS name, u.email, r.name AS role
+    FROM users u JOIN roles r ON r.id = u.role_id ORDER BY r.name, u.id
+  `).all()).forEach(u => console.log(`   [${u.role}] ${u.name} — ${u.email}`));
 
-db.close();
-console.log('\n[Fresh Start] Done. The database is clean and ready for deployment.');
+  const count = async (sql) => (await db.prepare(sql).get()).c;
+  const counts = {
+    rooms:    await count('SELECT COUNT(*) c FROM rooms WHERE is_active=1'),
+    venues:   await count('SELECT COUNT(*) c FROM venues WHERE is_active=1'),
+    cottages: await count('SELECT COUNT(*) c FROM cottages WHERE is_active=1'),
+    packages: await count('SELECT COUNT(*) c FROM event_packages WHERE is_active=1'),
+    reservations: await count('SELECT COUNT(*) c FROM reservations'),
+    customers:    await count('SELECT COUNT(*) c FROM customers'),
+  };
+  console.log('\n[Fresh Start] Data snapshot:');
+  console.log(`   active rooms=${counts.rooms}, venues=${counts.venues}, cottages=${counts.cottages}, packages=${counts.packages}`);
+  console.log(`   reservations=${counts.reservations}, customers=${counts.customers}  (should both be 0)`);
+
+  console.log('\n[Fresh Start] Done. The database is clean and ready for deployment.');
+}
+
+main()
+  .catch((err) => {
+    console.error('[Fresh Start] Error:', err.message);
+    process.exitCode = 1;
+  })
+  .finally(() => db.close());

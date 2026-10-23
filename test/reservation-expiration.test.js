@@ -47,7 +47,33 @@ function createTestDatabase() {
   return { db, directory };
 }
 
-test('expired checked-in and confirmed reservations release their resources', () => {
+// Mirrors the async src/config/database.js API (MySQL) on top of SQLite.
+function asAppDatabase(db) {
+  const toSqlite = sql => sql.replace(/NOW\(\)/g,"datetime('now')");
+  return {
+    prepare(sql) {
+      const statement = db.prepare(toSqlite(sql));
+      return {
+        get: async (...params) => statement.get(...params),
+        all: async (...params) => statement.all(...params),
+        run: async (...params) => statement.run(...params),
+      };
+    },
+    async transaction(fn) {
+      db.exec('BEGIN');
+      try {
+        const result = await fn();
+        db.exec('COMMIT');
+        return result;
+      } catch (error) {
+        db.exec('ROLLBACK');
+        throw error;
+      }
+    },
+  };
+}
+
+test('expired checked-in and confirmed reservations release their resources', async () => {
   const { db, directory } = createTestDatabase();
   try {
     const today = new Date();
@@ -81,7 +107,7 @@ test('expired checked-in and confirmed reservations release their resources', ()
       (5, 'cottage', 5)
     `).run();
 
-    assert.doesNotThrow(() => reconcileExpiredReservations(db));
+    await assert.doesNotReject(() => reconcileExpiredReservations(asAppDatabase(db)));
 
     assert.equal(db.prepare('SELECT status FROM reservations WHERE booking_ref = ?').get('ROOM-EXPIRED').status, 'completed');
     assert.equal(db.prepare('SELECT status FROM reservations WHERE booking_ref = ?').get('VENUE-EXPIRED').status, 'completed');
@@ -99,7 +125,7 @@ test('expired checked-in and confirmed reservations release their resources', ()
   }
 });
 
-test('checked-out reservations are not re-marked as completed by the expiry reconciler', () => {
+test('checked-out reservations are not re-marked as completed by the expiry reconciler', async () => {
   const { db, directory } = createTestDatabase();
   try {
     const yesterday = new Date();
@@ -112,7 +138,7 @@ test('checked-out reservations are not re-marked as completed by the expiry reco
     `).run(date(yesterday), date(yesterday));
     db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id) VALUES (1, 'room', 1)`).run();
 
-    assert.doesNotThrow(() => reconcileExpiredReservations(db));
+    await assert.doesNotReject(() => reconcileExpiredReservations(asAppDatabase(db)));
     assert.equal(db.prepare('SELECT status FROM reservations WHERE booking_ref = ?').get('ROOM-CHECKEDOUT').status, 'checked_out');
     assert.equal(db.prepare('SELECT status FROM rooms WHERE id = 1').get().status, 'occupied');
   } finally {

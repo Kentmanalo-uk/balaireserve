@@ -12,8 +12,8 @@ const { guestOnly } = require('../../../middleware/auth');
 
 const router = express.Router();
 
-function get(sql, params = []) {
-  return db.prepare(sql).get(...params) || null;
+async function get(sql, params = []) {
+  return (await db.prepare(sql).get(...params)) || null;
 }
 
 function getGoogleOAuthConfig() {
@@ -137,7 +137,7 @@ router.get('/google/callback', async (req, res, next) => {
     }
 
     const email = profile.email.trim().toLowerCase();
-    let user = get(`
+    let user = await get(`
       SELECT u.*, r.name AS role, r.label AS role_label
       FROM users u
       JOIN roles r ON r.id = u.role_id
@@ -149,7 +149,7 @@ router.get('/google/callback', async (req, res, next) => {
     }
 
     if (!user) {
-      const emailUser = get(`
+      const emailUser = await get(`
         SELECT u.*, r.name AS role, r.label AS role_label
         FROM users u
         JOIN roles r ON r.id = u.role_id
@@ -161,43 +161,42 @@ router.get('/google/callback', async (req, res, next) => {
       }
 
       if (!emailUser) {
-        const customerRole = get("SELECT id FROM roles WHERE name = 'customer'");
+        const customerRole = await get("SELECT id FROM roles WHERE name = 'customer'");
         if (!customerRole) throw new Error('Customer registration is not configured.');
 
         const firstName = (profile.given_name || profile.name || email.split('@')[0]).trim();
         const lastName = (profile.family_name || '').trim();
-        const createGoogleCustomer = db.transaction(() => {
-          const result = db.prepare(`
+        await db.transaction(async () => {
+          const result = await db.prepare(`
             INSERT INTO users
               (role_id, first_name, last_name, email, password_hash, google_sub, last_login, is_active)
-            VALUES (?, ?, ?, ?, '', ?, datetime('now'), 1)
+            VALUES (?, ?, ?, ?, '', ?, NOW(), 1)
           `).run(customerRole.id, firstName, lastName, email, profile.sub);
           const userId = Number(result.lastInsertRowid);
 
-          db.prepare(`
+          await db.prepare(`
             INSERT INTO customers (user_id, customer_code, first_name, last_name, email)
             VALUES (?, ?, ?, ?, ?)
           `).run(userId, `CUS-G-${profile.sub}`, firstName, lastName, email);
 
           return userId;
         });
-        createGoogleCustomer();
       } else {
-        db.prepare(`
+        await db.prepare(`
           UPDATE users
-          SET google_sub = ?, last_login = datetime('now')
+          SET google_sub = ?, last_login = NOW()
           WHERE id = ?
         `).run(profile.sub, emailUser.id);
       }
 
-      user = get(`
+      user = await get(`
         SELECT u.*, r.name AS role, r.label AS role_label
         FROM users u
         JOIN roles r ON r.id = u.role_id
         WHERE u.google_sub = ?
       `, [profile.sub]);
     } else {
-      db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
+      await db.prepare('UPDATE users SET last_login = NOW() WHERE id = ?').run(user.id);
     }
 
     if (!user || !user.is_active) {
@@ -237,7 +236,7 @@ router.post('/login',
 
     try {
       const { email, password } = req.body;
-      const user = get(`
+      const user = await get(`
         SELECT u.*, r.name AS role, r.label AS role_label
         FROM users u
         JOIN roles r ON r.id = u.role_id
@@ -252,7 +251,7 @@ router.post('/login',
         });
       }
 
-      db.prepare("UPDATE users SET last_login = datetime('now') WHERE id = ?").run(user.id);
+      await db.prepare('UPDATE users SET last_login = NOW() WHERE id = ?').run(user.id);
       const returnTo = req.session.returnTo;
       return req.session.regenerate(error => {
         if (error) return next(error);
@@ -303,7 +302,7 @@ router.post('/register',
     const { first_name, last_name, email, password, phone } = req.body;
 
     try {
-      const existing = get('SELECT id FROM users WHERE email = ?', [email]);
+      const existing = await get('SELECT id FROM users WHERE email = ?', [email]);
       if (existing) {
         return res.render('auth/register', {
           title: 'Create Account - Balai-Reserve',
@@ -313,7 +312,7 @@ router.post('/register',
         });
       }
 
-      const customerRole = get("SELECT id FROM roles WHERE name = 'customer'");
+      const customerRole = await get("SELECT id FROM roles WHERE name = 'customer'");
       if (!customerRole) {
         return res.status(503).render('auth/register', {
           title: 'Create Account - Balai-Reserve',
@@ -323,8 +322,8 @@ router.post('/register',
         });
       }
 
-      const createCustomer = db.transaction(() => {
-        const userResult = db.prepare(`
+      const userId = await db.transaction(async () => {
+        const userResult = await db.prepare(`
           INSERT INTO users (role_id, first_name, last_name, email, password_hash, phone, is_active)
           VALUES (?, ?, ?, ?, ?, ?, 1)
         `).run(
@@ -337,7 +336,7 @@ router.post('/register',
         );
         const userId = Number(userResult.lastInsertRowid);
 
-        db.prepare(`
+        await db.prepare(`
           INSERT INTO customers
             (user_id, customer_code, first_name, last_name, email, phone)
           VALUES (?, ?, ?, ?, ?, ?)
@@ -351,9 +350,8 @@ router.post('/register',
         );
         return userId;
       });
-      const userId = createCustomer();
 
-      const newUser = get(`
+      const newUser = await get(`
         SELECT u.*, r.name AS role, r.label AS role_label
         FROM users u
         JOIN roles r ON r.id = u.role_id
@@ -372,7 +370,7 @@ router.post('/register',
         return postLoginRedirect(req, res, newUser.role);
       });
     } catch (error) {
-      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      if (error.code === 'ER_DUP_ENTRY') {
         return res.render('auth/register', {
           title: 'Create Account - Balai-Reserve',
           layout: 'layouts/auth',

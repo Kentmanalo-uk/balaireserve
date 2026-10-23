@@ -58,7 +58,7 @@ async function notifyReservationCustomer(reservationId, type, title, message, li
       WHERE r.id = ?
     `).get(reservationId);
     if (row && row.user_id) {
-      notifyUser(row.user_id, type, title, message, link);
+      await notifyUser(row.user_id, type, title, message, link);
     }
   } catch { /* non-critical */ }
 }
@@ -73,11 +73,11 @@ async function notifyAllAdmins(type, title, message, link = null) {
       JOIN roles r ON r.id = u.role_id
       WHERE r.name = 'admin' AND u.is_active = 1
     `).all();
-    const stmt = await db.prepare(`
+    const stmt = db.prepare(`
       INSERT INTO notifications (user_id, type, title, message, link)
       VALUES (?, ?, ?, ?, ?)
     `);
-    for (const a of admins) stmt.run(a.id, type, title, message, link);
+    for (const a of admins) await stmt.run(a.id, type, title, message, link);
   } catch { /* non-critical */ }
 }
 

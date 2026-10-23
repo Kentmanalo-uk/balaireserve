@@ -57,7 +57,7 @@ router.get('/', requireAuth, async (req, res) => {
   if (search) { where += ` AND (name LIKE ? OR description LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
   if (status) { where += ` AND status = ?`; params.push(status); }
 
-  const total    = await db.prepare(`SELECT COUNT(*) AS cnt FROM cottages ${where}`).get(...params).cnt;
+  const total    = (await db.prepare(`SELECT COUNT(*) AS cnt FROM cottages ${where}`).get(...params)).cnt;
   const cottages = await db.prepare(`SELECT * FROM cottages ${where} ORDER BY name LIMIT ? OFFSET ?`).all(...params, limit, offset);
 
   // Attach parsed images
@@ -66,7 +66,7 @@ router.get('/', requireAuth, async (req, res) => {
   const statuses = ['available', 'reserved', 'occupied', 'maintenance', 'unavailable'];
   const counts   = {};
   for (const s of statuses) {
-    counts[s] = await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE status=? AND is_active=1`).get(s).c;
+    counts[s] = (await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE status=? AND is_active=1`).get(s)).c;
   }
 
   res.render('cottages/index', {
@@ -118,12 +118,12 @@ router.post('/',
     const imagePaths = (req.files || []).map(f => `/uploads/cottages/${f.filename}`);
     const imagesJson = JSON.stringify(imagePaths);
 
-    const id = await db.prepare(`
+    const id = (await db.prepare(`
       INSERT INTO cottages (name, description, capacity, price, amenities, images, status)
       VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(name, description || '', capacity, price, amenitiesJson, imagesJson, status || 'available').lastInsertRowid;
+    `).run(name, description || '', capacity, price, amenitiesJson, imagesJson, status || 'available')).lastInsertRowid;
 
-    req.audit('create', 'cottages', id, null, { name, price });
+    await req.audit('create', 'cottages', id, null, { name, price });
     req.session.flash = { success: `Cottage "${name}" created successfully.` };
     res.redirect('/cottages');
   }
@@ -225,11 +225,11 @@ router.post('/:id/edit',
     const imagesJson = JSON.stringify(allImages);
 
     await db.prepare(`
-      UPDATE cottages SET name=?, description=?, capacity=?, price=?, amenities=?, images=?, status=?, updated_at=datetime('now')
+      UPDATE cottages SET name=?, description=?, capacity=?, price=?, amenities=?, images=?, status=?, updated_at=NOW()
       WHERE id=?
     `).run(name, description || '', capacity, price, amenitiesJson, imagesJson, status || 'available', req.params.id);
 
-    req.audit('update', 'cottages', req.params.id, { name: old.name, price: old.price }, { name, price });
+    await req.audit('update', 'cottages', req.params.id, { name: old.name, price: old.price }, { name, price });
     req.session.flash = { success: 'Cottage updated successfully.' };
     res.redirect(`/cottages/${req.params.id}`);
   }
@@ -239,8 +239,8 @@ router.post('/:id/edit',
 router.post('/:id/status', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
   const { status } = req.body;
   const old = await db.prepare(`SELECT status FROM cottages WHERE id=?`).get(req.params.id);
-  await db.prepare(`UPDATE cottages SET status=?, updated_at=datetime('now') WHERE id=?`).run(status, req.params.id);
-  req.audit('status_change', 'cottages', req.params.id, old, { status });
+  await db.prepare(`UPDATE cottages SET status=?, updated_at=NOW() WHERE id=?`).run(status, req.params.id);
+  await req.audit('status_change', 'cottages', req.params.id, old, { status });
   req.session.flash = { success: 'Cottage status updated.' };
   res.redirect(req.get('Referer') || '/cottages');
 });

@@ -16,7 +16,7 @@ const router     = express.Router();
 const CAN_MANAGE = ['admin', 'staff'];
 
 // Only room types that have at least one active room
-function getActiveRoomTypes() {
+async function getActiveRoomTypes() {
   return db.prepare(
     `SELECT rt.* FROM room_types rt
      WHERE EXISTS (SELECT 1 FROM rooms r WHERE r.room_type_id = rt.id AND r.is_active = 1)
@@ -62,7 +62,7 @@ router.get('/', requireAuth, async (req, res) => {
   if (status) { where += ` AND r.status = ?`;  params.push(status); }
   if (type)   { where += ` AND rt.name = ?`;   params.push(type); }
 
-  const total = await db.prepare(`SELECT COUNT(*) AS cnt FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id ${where}`).get(...params).cnt;
+  const total = (await db.prepare(`SELECT COUNT(*) AS cnt FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id ${where}`).get(...params)).cnt;
   const rooms = await db.prepare(`
     SELECT r.*, rt.name AS type_name
     FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id
@@ -71,7 +71,7 @@ router.get('/', requireAuth, async (req, res) => {
 
   for (const r of rooms) r.imagesList = parseImages(r.images);
 
-  const roomTypes = getActiveRoomTypes();
+  const roomTypes = await getActiveRoomTypes();
   const statuses  = ['available','reserved','occupied','cleaning','maintenance','unavailable'];
 
   res.render('rooms/index', {
@@ -84,7 +84,7 @@ router.get('/', requireAuth, async (req, res) => {
 
 // GET /rooms/new
 router.get('/new', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
-  const roomTypes = getActiveRoomTypes();
+  const roomTypes = await getActiveRoomTypes();
   res.render('rooms/form', {
     title: 'Add New Room', layout: 'layouts/main',
     room: null, roomTypes, errors: [], old: {},
@@ -105,7 +105,7 @@ router.post('/',
   ],
   async (req, res) => {
     const errors    = validationResult(req);
-    const roomTypes = getActiveRoomTypes();
+    const roomTypes = await getActiveRoomTypes();
     if (!errors.isEmpty()) {
       if (req.files) req.files.forEach(f => fs.unlink(f.path, () => {}));
       return res.render('rooms/form', { title: 'Add New Room', layout: 'layouts/main', room: null, roomTypes, errors: errors.array(), old: req.body });
@@ -116,12 +116,12 @@ router.post('/',
     const imagePaths    = (req.files || []).map(f => `/uploads/rooms/${f.filename}`);
     const imagesJson    = JSON.stringify(imagePaths);
 
-    const id = await db.prepare(`
+    const id = (await db.prepare(`
       INSERT INTO rooms (room_type_id, room_number, name, description, capacity, price, amenities, images, floor, status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(room_type_id, room_number, name, description || '', capacity, price, amenitiesJson, imagesJson, floor || '', status || 'available').lastInsertRowid;
+    `).run(room_type_id, room_number, name, description || '', capacity, price, amenitiesJson, imagesJson, floor || '', status || 'available')).lastInsertRowid;
 
-    req.audit('create', 'rooms', id, null, { room_number, name });
+    await req.audit('create', 'rooms', id, null, { room_number, name });
     req.session.flash = { success: `Room ${room_number} created successfully.` };
     res.redirect('/rooms');
   }
@@ -158,7 +158,7 @@ router.get('/:id', requireAuth, async (req, res) => {
 router.get('/:id/edit', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
   const room      = await db.prepare(`SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=?`).get(req.params.id);
   if (!room) { req.session.flash = { error: 'Room not found.' }; return res.redirect('/rooms'); }
-  const roomTypes = getActiveRoomTypes();
+  const roomTypes = await getActiveRoomTypes();
   try { room.amenitiesStr = JSON.parse(room.amenities || '[]').join(', '); } catch { room.amenitiesStr = ''; }
   room.imagesList = parseImages(room.images);
   res.render('rooms/form', {
@@ -179,7 +179,7 @@ router.post('/:id/edit',
   ],
   async (req, res) => {
     const old       = await db.prepare(`SELECT * FROM rooms WHERE id=?`).get(req.params.id);
-    const roomTypes = getActiveRoomTypes();
+    const roomTypes = await getActiveRoomTypes();
     const errors    = validationResult(req);
 
     if (!errors.isEmpty()) {
@@ -209,11 +209,11 @@ router.post('/:id/edit',
     const imagesJson = JSON.stringify([...keepImages, ...newImages]);
 
     await db.prepare(`
-      UPDATE rooms SET name=?,description=?,room_type_id=?,capacity=?,price=?,amenities=?,images=?,floor=?,status=?,updated_at=datetime('now')
+      UPDATE rooms SET name=?,description=?,room_type_id=?,capacity=?,price=?,amenities=?,images=?,floor=?,status=?,updated_at=NOW()
       WHERE id=?
     `).run(name, description || '', room_type_id, capacity, price, amenitiesJson, imagesJson, floor || '', status, req.params.id);
 
-    req.audit('update', 'rooms', req.params.id, { name: old.name, price: old.price }, { name, price, status });
+    await req.audit('update', 'rooms', req.params.id, { name: old.name, price: old.price }, { name, price, status });
     req.session.flash = { success: 'Room updated successfully.' };
     res.redirect(`/rooms/${req.params.id}`);
   }
@@ -223,8 +223,8 @@ router.post('/:id/edit',
 router.post('/:id/status', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
   const { status } = req.body;
   const old = await db.prepare(`SELECT status FROM rooms WHERE id=?`).get(req.params.id);
-  await db.prepare(`UPDATE rooms SET status=?,updated_at=datetime('now') WHERE id=?`).run(status, req.params.id);
-  req.audit('status_change', 'rooms', req.params.id, old, { status });
+  await db.prepare(`UPDATE rooms SET status=?,updated_at=NOW() WHERE id=?`).run(status, req.params.id);
+  await req.audit('status_change', 'rooms', req.params.id, old, { status });
   req.session.flash = { success: 'Room status updated.' };
   res.redirect(req.get('Referer') || '/rooms');
 });

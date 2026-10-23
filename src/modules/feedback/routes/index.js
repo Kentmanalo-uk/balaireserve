@@ -23,9 +23,9 @@ router.get('/', requireAuth, requireRole(...CAN_RESPOND), async (req, res) => {
   if (rating)   { where += ` AND f.rating = ?`;    params.push(parseInt(rating)); }
   if (category) { where += ` AND f.category = ?`;  params.push(category); }
 
-  const total = await db.prepare(`
+  const total = (await db.prepare(`
     SELECT COUNT(*) AS cnt FROM feedback f ${where}
-  `).get(...params).cnt;
+  `).get(...params)).cnt;
 
   const feedbackList = await db.prepare(`
     SELECT f.*,
@@ -119,11 +119,11 @@ router.post('/:id/respond',
       UPDATE feedback
       SET admin_response = ?,
           responded_by   = ?,
-          responded_at   = datetime('now')
+          responded_at   = NOW()
       WHERE id = ?
     `).run(req.body.admin_response.trim(), req.session.user.id, req.params.id);
 
-    req.audit('respond', 'feedback', req.params.id, null, { responded: true });
+    await req.audit('respond', 'feedback', req.params.id, null, { responded: true });
     req.session.flash = { success: 'Response saved successfully.' };
     res.redirect(`/feedback/${req.params.id}`);
   }

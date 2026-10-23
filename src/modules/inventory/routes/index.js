@@ -29,7 +29,7 @@ router.get('/', requireAuth, async (req, res) => {
   `).all(...params);
 
   const categories = await db.prepare(`SELECT * FROM inventory_categories ORDER BY name`).all();
-  const alertCount = await db.prepare(`SELECT COUNT(*) AS cnt FROM inventory_items WHERE available_qty <= reorder_level AND is_active=1`).get().cnt;
+  const alertCount = (await db.prepare(`SELECT COUNT(*) AS cnt FROM inventory_items WHERE available_qty <= reorder_level AND is_active=1`).get()).cnt;
 
   // Equipment list
   const equipment = await db.prepare(`
@@ -93,7 +93,7 @@ router.post('/:id/adjust', requireAuth, requireRole(...CAN_MANAGE), async (req, 
     return res.redirect('/inventory');
   }
 
-  db.transaction(() => {
+  await db.transaction(async () => {
     let newAvail = item.available_qty;
     let newDamaged = item.damaged_qty;
     let newTotal = item.total_qty;
@@ -116,9 +116,9 @@ router.post('/:id/adjust', requireAuth, requireRole(...CAN_MANAGE), async (req, 
       newAvail += repaired;
     }
 
-    db.prepare(`UPDATE inventory_items SET available_qty=?, damaged_qty=?, total_qty=?, updated_at=datetime('now') WHERE id=?`).run(newAvail, newDamaged, newTotal, item.id);
-    db.prepare(`INSERT INTO inventory_transactions (item_id, transaction_type, quantity, performed_by, notes) VALUES (?,?,?,?,?)`).run(item.id, adjust_type, qty, req.session.user.id, notes || '');
-  })();
+    await db.prepare(`UPDATE inventory_items SET available_qty=?, damaged_qty=?, total_qty=?, updated_at=NOW() WHERE id=?`).run(newAvail, newDamaged, newTotal, item.id);
+    await db.prepare(`INSERT INTO inventory_transactions (item_id, transaction_type, quantity, performed_by, notes) VALUES (?,?,?,?,?)`).run(item.id, adjust_type, qty, req.session.user.id, notes || '');
+  });
 
   req.session.flash = { success: 'Inventory adjusted successfully.' };
   res.redirect('/inventory');
@@ -148,7 +148,7 @@ router.post('/equipment',
     const code = `EQ-${Date.now()}`;
 
     await db.prepare(`
-      INSERT INTO equipment (category_id, equipment_code, name, description, quantity, condition, available_qty)
+      INSERT INTO equipment (category_id, equipment_code, name, description, quantity, \`condition\`, available_qty)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(category_id || null, code, name, description || '', safeQuantity, condition || 'good', safeQuantity);
 

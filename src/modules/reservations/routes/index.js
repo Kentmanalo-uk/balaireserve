@@ -31,9 +31,9 @@ router.get('/', requireAuth, async (req, res) => {
   if (from)    { where += ` AND r.created_at >= ?`;       params.push(from); }
   if (to)      { where += ` AND r.created_at <= ?`;       params.push(to + ' 23:59:59'); }
 
-  const total = await db.prepare(`
+  const total = (await db.prepare(`
     SELECT COUNT(*) AS cnt FROM reservations r JOIN customers c ON c.id = r.customer_id ${where}
-  `).get(...params).cnt;
+  `).get(...params)).cnt;
 
   const reservations = await db.prepare(`
     SELECT r.*,
@@ -156,10 +156,10 @@ router.post('/',
       }
     }
 
-    const bookingRef = generateBookingRef();
+    const bookingRef = await generateBookingRef();
 
-    const result = db.transaction(() => {
-      const resId = db.prepare(`
+    const result = await db.transaction(async () => {
+      const resId = (await db.prepare(`
         INSERT INTO reservations
           (booking_ref, customer_id, reservation_type, check_in_date, check_out_date,
            event_date, start_time, end_time, num_guests, special_requests,
@@ -173,47 +173,47 @@ router.post('/',
         parseFloat(total_amount) || 0,
         parseFloat(downpayment_req) || 0,
         notes || '', source || 'walk_in'
-      ).lastInsertRowid;
+      )).lastInsertRowid;
 
       // Insert reservation item — and mark the resource reserved so it stops
       // showing as available while the booking is active.
       if (item_id) {
         let itemName = '';
         if (reservation_type === 'room') {
-          const room = db.prepare(`SELECT name, price FROM rooms WHERE id=?`).get(item_id);
+          const room = await db.prepare(`SELECT name, price FROM rooms WHERE id=?`).get(item_id);
           itemName = room?.name || '';
-          db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'room',item_id,itemName,room?.price||0,parseFloat(total_amount)||0);
-          db.prepare("UPDATE rooms SET status='reserved', updated_at=datetime('now') WHERE id=?").run(item_id);
+          await db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'room',item_id,itemName,room?.price||0,parseFloat(total_amount)||0);
+          await db.prepare("UPDATE rooms SET status='reserved', updated_at=NOW() WHERE id=?").run(item_id);
         } else if (reservation_type === 'venue') {
-          const venue = db.prepare(`SELECT name, price FROM venues WHERE id=?`).get(item_id);
+          const venue = await db.prepare(`SELECT name, price FROM venues WHERE id=?`).get(item_id);
           itemName = venue?.name || '';
-          db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'venue',item_id,itemName,venue?.price||0,parseFloat(total_amount)||0);
-          db.prepare("UPDATE venues SET status='reserved', updated_at=datetime('now') WHERE id=?").run(item_id);
+          await db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'venue',item_id,itemName,venue?.price||0,parseFloat(total_amount)||0);
+          await db.prepare("UPDATE venues SET status='reserved', updated_at=NOW() WHERE id=?").run(item_id);
         } else if (reservation_type === 'cottage') {
-          const cottage = db.prepare(`SELECT name, price FROM cottages WHERE id=?`).get(item_id);
+          const cottage = await db.prepare(`SELECT name, price FROM cottages WHERE id=?`).get(item_id);
           itemName = cottage?.name || '';
-          db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'cottage',item_id,itemName,cottage?.price||0,parseFloat(total_amount)||0);
-          db.prepare("UPDATE cottages SET status='reserved', updated_at=datetime('now') WHERE id=?").run(item_id);
+          await db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'cottage',item_id,itemName,cottage?.price||0,parseFloat(total_amount)||0);
+          await db.prepare("UPDATE cottages SET status='reserved', updated_at=NOW() WHERE id=?").run(item_id);
         }
       }
       if (package_id) {
-        const pkg = db.prepare(`SELECT name, price FROM event_packages WHERE id=?`).get(package_id);
-        db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'event_package',package_id,pkg?.name||'',pkg?.price||0,pkg?.price||0);
+        const pkg = await db.prepare(`SELECT name, price FROM event_packages WHERE id=?`).get(package_id);
+        await db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`).run(resId,'event_package',package_id,pkg?.name||'',pkg?.price||0,pkg?.price||0);
       }
 
       // Status history
-      db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by) VALUES (?,null,'pending',?)`).run(resId, req.session.user.id);
+      await db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by) VALUES (?,null,'pending',?)`).run(resId, req.session.user.id);
 
       return resId;
-    })();
+    });
 
     // Generate QR code
     try { await generateReservationQR(result, bookingRef); } catch { /* non-critical */ }
 
     // Notify admins
-    notifyAllAdmins('reservation', 'New Reservation', `${bookingRef} has been created.`, `/reservations/${result}`);
+    await notifyAllAdmins('reservation', 'New Reservation', `${bookingRef} has been created.`, `/reservations/${result}`);
 
-    req.audit('create', 'reservations', result, null, { bookingRef, reservation_type });
+    await req.audit('create', 'reservations', result, null, { bookingRef, reservation_type });
     req.session.flash = { success: `Reservation ${bookingRef} created successfully.` };
     res.redirect(`/reservations/${result}`);
   }
@@ -269,9 +269,9 @@ router.post('/:id/status', requireAuth, requireRole('admin','staff'), async (req
 
   // ΓöÇΓöÇ Fix 5: Block checkout (completed) if balance is still outstanding ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   if (status === 'completed') {
-    const totalPaidCheck = await db.prepare(
+    const totalPaidCheck = (await db.prepare(
       "SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')"
-    ).get(req.params.id).t;
+    ).get(req.params.id)).t;
     const totalAmt = old.total_amount || 0;
     if (totalAmt > 0 && totalPaidCheck < totalAmt) {
       req.session.flash = { error: `Cannot check out: balance of ₱${(totalAmt - totalPaidCheck).toLocaleString('en-PH', {minimumFractionDigits:2})} is still outstanding. Collect full payment before checking out.` };
@@ -279,15 +279,15 @@ router.post('/:id/status', requireAuth, requireRole('admin','staff'), async (req
     }
   }
 
-  db.transaction(() => {
-    db.prepare(`UPDATE reservations SET status=?, updated_at=datetime('now') WHERE id=?`).run(status, req.params.id);
-    db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?,?,?,?,?)`).run(req.params.id, old.status, status, req.session.user.id, notes || null);
+  await db.transaction(async () => {
+    await db.prepare(`UPDATE reservations SET status=?, updated_at=NOW() WHERE id=?`).run(status, req.params.id);
+    await db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?,?,?,?,?)`).run(req.params.id, old.status, status, req.session.user.id, notes || null);
 
     // Sync payment_status when status changes to confirmed / awaiting_payment
     if (status === 'confirmed' || status === 'awaiting_payment') {
-      const totalPaid = db.prepare(
+      const totalPaid = (await db.prepare(
         "SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')"
-      ).get(req.params.id).t;
+      ).get(req.params.id)).t;
 
       const totalAmt = old.total_amount || 0;
       let newPayStatus = old.payment_status;
@@ -301,51 +301,51 @@ router.post('/:id/status', requireAuth, requireRole('admin','staff'), async (req
       }
 
       if (newPayStatus !== old.payment_status) {
-        db.prepare("UPDATE reservations SET payment_status = ? WHERE id = ?").run(newPayStatus, req.params.id);
+        await db.prepare("UPDATE reservations SET payment_status = ? WHERE id = ?").run(newPayStatus, req.params.id);
       }
     }
 
     // ΓöÇΓöÇ Fix 5: On checkout (completed), force payment_status = fully_paid ΓöÇΓöÇΓöÇ
     if (status === 'completed') {
-      db.prepare("UPDATE reservations SET payment_status = 'fully_paid', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
+      await db.prepare("UPDATE reservations SET payment_status = 'fully_paid', updated_at = NOW() WHERE id = ?").run(req.params.id);
     }
 
     // Handle room/venue/cottage status side effects
     if (status === 'checked_in') {
-      const items = db.prepare(`SELECT * FROM reservation_items WHERE reservation_id = ?`).all(req.params.id);
+      const items = await db.prepare(`SELECT * FROM reservation_items WHERE reservation_id = ?`).all(req.params.id);
       for (const item of items) {
-        if (item.item_type === 'room')    db.prepare(`UPDATE rooms SET status='occupied' WHERE id=?`).run(item.item_id);
-        if (item.item_type === 'venue')   db.prepare(`UPDATE venues SET status='occupied' WHERE id=?`).run(item.item_id);
-        if (item.item_type === 'cottage') db.prepare(`UPDATE cottages SET status='occupied' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'room')    await db.prepare(`UPDATE rooms SET status='occupied' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'venue')   await db.prepare(`UPDATE venues SET status='occupied' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'cottage') await db.prepare(`UPDATE cottages SET status='occupied' WHERE id=?`).run(item.item_id);
       }
-      db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_by) VALUES (?, 'manual', ?)`).run(req.params.id, req.session.user.id);
-      db.prepare(`UPDATE guests SET status='checked_in' WHERE reservation_id=?`).run(req.params.id);
+      await db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_by) VALUES (?, 'manual', ?)`).run(req.params.id, req.session.user.id);
+      await db.prepare(`UPDATE guests SET status='checked_in' WHERE reservation_id=?`).run(req.params.id);
     }
 
     if (status === 'completed') {
       // On checkout, free the resource back to available immediately.
-      const items = db.prepare(`SELECT * FROM reservation_items WHERE reservation_id = ?`).all(req.params.id);
+      const items = await db.prepare(`SELECT * FROM reservation_items WHERE reservation_id = ?`).all(req.params.id);
       for (const item of items) {
-        if (item.item_type === 'room')    db.prepare(`UPDATE rooms SET status='available' WHERE id=?`).run(item.item_id);
-        if (item.item_type === 'venue')   db.prepare(`UPDATE venues SET status='available' WHERE id=?`).run(item.item_id);
-        if (item.item_type === 'cottage') db.prepare(`UPDATE cottages SET status='available' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'room')    await db.prepare(`UPDATE rooms SET status='available' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'venue')   await db.prepare(`UPDATE venues SET status='available' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'cottage') await db.prepare(`UPDATE cottages SET status='available' WHERE id=?`).run(item.item_id);
       }
-      db.prepare(`INSERT INTO check_outs (reservation_id, checked_out_by) VALUES (?, ?)`).run(req.params.id, req.session.user.id);
-      db.prepare(`UPDATE guests SET status='checked_out' WHERE reservation_id=?`).run(req.params.id);
+      await db.prepare(`INSERT INTO check_outs (reservation_id, checked_out_by) VALUES (?, ?)`).run(req.params.id, req.session.user.id);
+      await db.prepare(`UPDATE guests SET status='checked_out' WHERE reservation_id=?`).run(req.params.id);
     }
 
     // Cancelled / rejected / no-show all free the resource back to available.
     if (status === 'cancelled' || status === 'rejected' || status === 'no_show') {
-      const items = db.prepare(`SELECT * FROM reservation_items WHERE reservation_id = ?`).all(req.params.id);
+      const items = await db.prepare(`SELECT * FROM reservation_items WHERE reservation_id = ?`).all(req.params.id);
       for (const item of items) {
-        if (item.item_type === 'room')    db.prepare(`UPDATE rooms SET status='available' WHERE id=?`).run(item.item_id);
-        if (item.item_type === 'venue')   db.prepare(`UPDATE venues SET status='available' WHERE id=?`).run(item.item_id);
-        if (item.item_type === 'cottage') db.prepare(`UPDATE cottages SET status='available' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'room')    await db.prepare(`UPDATE rooms SET status='available' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'venue')   await db.prepare(`UPDATE venues SET status='available' WHERE id=?`).run(item.item_id);
+        if (item.item_type === 'cottage') await db.prepare(`UPDATE cottages SET status='available' WHERE id=?`).run(item.item_id);
       }
     }
-  })();
+  });
 
-  req.audit('status_change', 'reservations', req.params.id, old, { status });
+  await req.audit('status_change', 'reservations', req.params.id, old, { status });
 
   // ΓöÇΓöÇ Fix 6: Mark reservation-related notifications as read when the booking
   // reaches a terminal/resolved state so the bell count drops correctly ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -359,7 +359,7 @@ router.post('/:id/status', requireAuth, requireRole('admin','staff'), async (req
 
   // ΓöÇΓöÇ Notify the customer of the new booking status ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
   if (status !== old.status) {
-    const ref = await db.prepare(`SELECT booking_ref FROM reservations WHERE id=?`).get(req.params.id)?.booking_ref || '';
+    const ref = (await db.prepare(`SELECT booking_ref FROM reservations WHERE id=?`).get(req.params.id))?.booking_ref || '';
     const statusMessages = {
       confirmed:        { t: 'Booking Confirmed',        m: `Great news! Your booking ${ref} is confirmed. We look forward to your visit.` },
       awaiting_payment: { t: 'Awaiting Payment',         m: `Your booking ${ref} is awaiting payment. Please complete your downpayment to confirm.` },
@@ -371,7 +371,7 @@ router.post('/:id/status', requireAuth, requireRole('admin','staff'), async (req
     };
     const info = statusMessages[status];
     if (info) {
-      notifyReservationCustomer(
+      await notifyReservationCustomer(
         req.params.id, 'reservation', info.t, info.m,
         '/portal/my-reservations/' + req.params.id
       );
@@ -391,15 +391,15 @@ router.post('/:id/payment', requireAuth, requireRole('admin','staff'), async (re
   const res_row = await db.prepare(`SELECT * FROM reservations WHERE id=?`).get(req.params.id);
   if (!res_row) return res.redirect('/reservations');
 
-  db.transaction(() => {
+  await db.transaction(async () => {
     const refNum = `PAY-${Date.now()}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, received_by, notes, submitted_by)
       VALUES (?, ?, ?, ?, ?, ?, 'received', ?, ?, 'staff')
     `).run(req.params.id, refNum, paidAmt, payment_method || 'cash', payment_date || new Date().toISOString().slice(0,10), payment_type || 'balance', req.session.user.id, notes || '');
 
     // Recalculate payment status (count received + verified toward the balance)
-    const totalPaid = db.prepare(`SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE reservation_id=? AND status IN ('received','verified')`).get(req.params.id).total;
+    const totalPaid = (await db.prepare(`SELECT COALESCE(SUM(amount),0) AS total FROM payments WHERE reservation_id=? AND status IN ('received','verified')`).get(req.params.id)).total;
     let payStatus = 'partially_paid';
     if (totalPaid >= res_row.total_amount && res_row.total_amount > 0) payStatus = 'fully_paid';
 
@@ -408,22 +408,22 @@ router.post('/:id/payment', requireAuth, requireRole('admin','staff'), async (re
       newStatus = payStatus === 'fully_paid' ? 'confirmed' : 'awaiting_payment';
     }
 
-    db.prepare(`UPDATE reservations SET payment_status=?, status=?, updated_at=datetime('now') WHERE id=?`).run(payStatus, newStatus, req.params.id);
+    await db.prepare(`UPDATE reservations SET payment_status=?, status=?, updated_at=NOW() WHERE id=?`).run(payStatus, newStatus, req.params.id);
     if (newStatus !== res_row.status) {
-      db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?,?,?,?,?)`).run(req.params.id, res_row.status, newStatus, req.session.user.id, 'Auto-updated after payment');
+      await db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?,?,?,?,?)`).run(req.params.id, res_row.status, newStatus, req.session.user.id, 'Auto-updated after payment');
     }
-  })();
+  });
 
-  notifyAllAdmins('payment', 'Payment Received', `₱${paidAmt.toLocaleString()} received for ${res_row.booking_ref}`, `/reservations/${req.params.id}`);
+  await notifyAllAdmins('payment', 'Payment Received', `₱${paidAmt.toLocaleString()} received for ${res_row.booking_ref}`, `/reservations/${req.params.id}`);
 
   // Notify the customer their payment was recorded
-  notifyReservationCustomer(
+  await notifyReservationCustomer(
     req.params.id, 'payment', 'Payment Recorded',
     `We recorded your ₱${paidAmt.toLocaleString('en-PH')} payment for ${res_row.booking_ref}. Thank you!`,
     '/portal/my-reservations/' + req.params.id
   );
 
-  req.audit('payment', 'reservations', req.params.id, null, { amount: paidAmt, payment_method });
+  await req.audit('payment', 'reservations', req.params.id, null, { amount: paidAmt, payment_method });
   req.session.flash = { success: `Payment of ₱${paidAmt.toLocaleString()} recorded successfully.` };
   res.redirect(`/reservations/${req.params.id}`);
 });
@@ -439,12 +439,12 @@ router.post('/:id/verify-payment/:paymentId', requireAuth, requireRole('admin','
   if (!reservation) return res.redirect('/reservations');
 
   if (action === 'verify') {
-    db.transaction(() => {
+    await db.transaction(async () => {
       // Mark as verified
-      db.prepare('UPDATE payments SET status = \'verified\', verified_by = ?, verified_at = datetime(\'now\') WHERE id = ?').run(req.session.user.id, payment.id);
+      await db.prepare('UPDATE payments SET status = \'verified\', verified_by = ?, verified_at = NOW() WHERE id = ?').run(req.session.user.id, payment.id);
 
       // Recalculate payment_status on reservation
-      const totalPaid = db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(req.params.id).t;
+      const totalPaid = (await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(req.params.id)).t;
       const totalAmt  = reservation.total_amount || 0;
       let newPayStatus = 'partially_paid';
       if (totalAmt > 0 && totalPaid >= totalAmt) newPayStatus = 'fully_paid';
@@ -455,36 +455,36 @@ router.post('/:id/verify-payment/:paymentId', requireAuth, requireRole('admin','
         newResStatus = newPayStatus === 'fully_paid' ? 'confirmed' : 'awaiting_payment';
       }
 
-      db.prepare("UPDATE reservations SET payment_status = ?, status = ?, updated_at = datetime('now') WHERE id = ?").run(newPayStatus, newResStatus, req.params.id);
+      await db.prepare("UPDATE reservations SET payment_status = ?, status = ?, updated_at = NOW() WHERE id = ?").run(newPayStatus, newResStatus, req.params.id);
 
       if (newResStatus !== reservation.status) {
-        db.prepare('INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?,?,?,?,?)').run(
+        await db.prepare('INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?,?,?,?,?)').run(
           req.params.id, reservation.status, newResStatus, req.session.user.id, 'Auto-confirmed after payment verified'
         );
       }
 
       // Notify the customer's user account if linked
-      const customer = db.prepare('SELECT * FROM customers WHERE id = ?').get(reservation.customer_id);
+      const customer = await db.prepare('SELECT * FROM customers WHERE id = ?').get(reservation.customer_id);
       if (customer?.user_id) {
         const { notifyStaff } = require('../../../utils/notifications');
-        notifyStaff(customer.user_id, 'payment', 'Payment Verified', 'Your payment of ₱' + payment.amount.toLocaleString() + ' for booking ' + reservation.booking_ref + ' has been verified. Your booking is now ' + newResStatus.replace(/_/g,' ') + '.', '/portal/my-reservations/' + reservation.id);
+        await notifyStaff(customer.user_id, 'payment', 'Payment Verified', 'Your payment of ₱' + payment.amount.toLocaleString() + ' for booking ' + reservation.booking_ref + ' has been verified. Your booking is now ' + newResStatus.replace(/_/g,' ') + '.', '/portal/my-reservations/' + reservation.id);
       }
-    })();
+    });
 
-    req.audit('verify_payment', 'payments', payment.id, { status: payment.status }, { status: 'verified' });
+    await req.audit('verify_payment', 'payments', payment.id, { status: payment.status }, { status: 'verified' });
     req.session.flash = { success: 'Payment verified. Booking status updated.' };
 
   } else if (action === 'reject') {
     // Mark as rejected — remove from balance calculation
-    await db.prepare("UPDATE payments SET status = 'refunded', notes = COALESCE(notes,'') || ' [Rejected by staff: ' || datetime('now') || ']' WHERE id = ?").run(payment.id);
+    await db.prepare("UPDATE payments SET status = 'refunded', notes = COALESCE(notes,'') || ' [Rejected by staff: ' || NOW() || ']' WHERE id = ?").run(payment.id);
 
     // Recalculate payment_status
-    const totalPaid = await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(req.params.id).t;
+    const totalPaid = (await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')").get(req.params.id)).t;
     const totalAmt  = reservation.total_amount || 0;
     let newPayStatus = totalPaid <= 0 ? 'unpaid' : (totalAmt > 0 && totalPaid >= totalAmt ? 'fully_paid' : 'partially_paid');
     await db.prepare("UPDATE reservations SET payment_status = ? WHERE id = ?").run(newPayStatus, req.params.id);
 
-    req.audit('reject_payment', 'payments', payment.id, { status: payment.status }, { status: 'refunded' });
+    await req.audit('reject_payment', 'payments', payment.id, { status: payment.status }, { status: 'refunded' });
     req.session.flash = { warning: 'Payment proof rejected. Customer will need to resubmit.' };
   }
 
@@ -500,9 +500,9 @@ router.post('/:id/collect-balance', requireAuth, requireRole('admin','staff'), a
   if (!reservation) { req.session.flash = { error: 'Reservation not found.' }; return res.redirect('/reservations'); }
 
   const totalAmt = reservation.total_amount || 0;
-  const paid = await db.prepare(
+  const paid = (await db.prepare(
     "SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status IN ('received','verified')"
-  ).get(req.params.id).t;
+  ).get(req.params.id)).t;
   const balance = Math.round((totalAmt - paid) * 100) / 100;
 
   if (balance <= 0) {
@@ -512,11 +512,11 @@ router.post('/:id/collect-balance', requireAuth, requireRole('admin','staff'), a
 
   const method = (req.body.payment_method || 'cash').trim();
 
-  db.transaction(() => {
+  await db.transaction(async () => {
     const refNum = `PAY-${Date.now()}`;
-    db.prepare(`
+    await db.prepare(`
       INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, received_by, notes, submitted_by, verified_by, verified_at)
-      VALUES (?, ?, ?, ?, ?, 'balance', 'verified', ?, ?, 'staff', ?, datetime('now'))
+      VALUES (?, ?, ?, ?, ?, 'balance', 'verified', ?, ?, 'staff', ?, NOW())
     `).run(
       req.params.id, refNum, balance, method,
       new Date().toISOString().slice(0, 10),
@@ -526,17 +526,17 @@ router.post('/:id/collect-balance', requireAuth, requireRole('admin','staff'), a
     );
 
     // Booking is now fully paid.
-    db.prepare("UPDATE reservations SET payment_status = 'fully_paid', updated_at = datetime('now') WHERE id = ?").run(req.params.id);
-  })();
+    await db.prepare("UPDATE reservations SET payment_status = 'fully_paid', updated_at = NOW() WHERE id = ?").run(req.params.id);
+  });
 
-  notifyAllAdmins('payment', 'Balance Collected', `Remaining ₱${balance.toLocaleString('en-PH',{minimumFractionDigits:2})} collected for ${reservation.booking_ref}.`, `/reservations/${req.params.id}`);
-  notifyReservationCustomer(
+  await notifyAllAdmins('payment', 'Balance Collected', `Remaining ₱${balance.toLocaleString('en-PH',{minimumFractionDigits:2})} collected for ${reservation.booking_ref}.`, `/reservations/${req.params.id}`);
+  await notifyReservationCustomer(
     req.params.id, 'payment', 'Payment Complete',
     `Your remaining balance of ₱${balance.toLocaleString('en-PH',{minimumFractionDigits:2})} for ${reservation.booking_ref} has been paid in full. Thank you!`,
     '/portal/my-reservations/' + req.params.id
   );
 
-  req.audit('collect_balance', 'reservations', req.params.id, { payment_status: reservation.payment_status }, { payment_status: 'fully_paid', amount: balance });
+  await req.audit('collect_balance', 'reservations', req.params.id, { payment_status: reservation.payment_status }, { payment_status: 'fully_paid', amount: balance });
   req.session.flash = { success: `Remaining balance of ₱${balance.toLocaleString('en-PH',{minimumFractionDigits:2})} collected. Booking is now fully paid and ready for checkout.` };
   res.redirect(`/reservations/${req.params.id}`);
 });

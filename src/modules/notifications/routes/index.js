@@ -15,7 +15,7 @@ router.get('/', requireAuth, async (req, res) => {
   const limit  = 20;
   const offset = (parseInt(page) - 1) * limit;
 
-  const total = await db.prepare(`SELECT COUNT(*) AS cnt FROM notifications WHERE user_id=?`).get(req.session.user.id).cnt;
+  const total = (await db.prepare(`SELECT COUNT(*) AS cnt FROM notifications WHERE user_id=?`).get(req.session.user.id)).cnt;
   const notifications = await db.prepare(`
     SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?
   `).all(req.session.user.id, limit, offset);
@@ -37,9 +37,9 @@ router.get('/', requireAuth, async (req, res) => {
 router.get('/feed', requireAuth, async (req, res) => {
   try {
     const uid = req.session.user.id;
-    const unread = await db.prepare(
+    const unread = (await db.prepare(
       `SELECT COUNT(*) AS c FROM notifications WHERE user_id=? AND is_read=0`
-    ).get(uid).c;
+    ).get(uid)).c;
 
     const items = await db.prepare(`
       SELECT id, type, title, message, link, is_read, created_at

@@ -9,7 +9,7 @@ With CRM, Inventory Management, Automated Customer Assistance, Analytics, and AI
 
 Balai-Reserve is a full-featured, web-based management platform for resorts and event venues. It replaces fragmented manual processes with a centralized system for managing room reservations, event bookings, guests, customers, inventory, payments, inquiries, reports, and analytics.
 
-**Stack:** Node.js · Express · SQLite (better-sqlite3) · Xianfire (.xian templates) · Bootstrap 5 · Chart.js
+**Stack:** Node.js · Express · MySQL 8 (mysql2) · Xianfire (.xian templates) · Bootstrap 5 · Chart.js
 
 ---
 
@@ -67,7 +67,7 @@ npm install
 copy .env.example .env
 ```
 
-Edit `.env` if needed (defaults work for local development).
+Edit `.env` if needed. The defaults (`DB_HOST=localhost`, `DB_PORT=3306`, `DB_USER=root`, empty `DB_PASSWORD`, `DB_NAME=balai_reserve`) match a stock Laragon MySQL install. Make sure MySQL is running.
 
 ### 3. Create the database and seed demo data
 
@@ -80,9 +80,11 @@ This runs the migration (creates all tables) and seeds realistic demo data in on
 Or run them separately:
 
 ```bash
-npm run migrate   # creates tables
+npm run migrate   # creates the database and tables
 npm run seed      # inserts demo data
 ```
+
+Moving from the old SQLite file? `npm run migrate:sqlite` **drops all tables** in the MySQL database and copies every row from `src/database/balai_reserve.db`.
 
 ### 4. Start the server
 
@@ -119,7 +121,7 @@ balai-reserve/
 │
 ├── src/
 │   ├── config/
-│   │   └── database.js           # SQLite connection singleton
+│   │   └── database.js           # MySQL connection pool (async)
 │   ├── database/
 │   │   ├── schema.sql            # Full database schema (30+ tables)
 │   │   ├── migrate.js            # Run schema on the database
@@ -243,12 +245,12 @@ The project is structured for incremental development:
 ## Security Features
 
 - Password hashing with bcryptjs
-- Session-based authentication with SQLite session store
+- Session-based authentication with MySQL session store
 - Role-based access control on every route
 - HTTP security headers via Helmet
 - Rate limiting on login and API routes (express-rate-limit)
 - Input validation on all forms (express-validator)
-- Parameterized SQL queries (better-sqlite3 prepared statements)
+- Parameterized SQL queries (mysql2 placeholders)
 - QR tokens are UUID-based, single-use, and time-limited
 - Audit logging on all important mutations
 
@@ -260,7 +262,12 @@ The project is structured for incremental development:
 |---|---|---|
 | `PORT` | `3000` | HTTP port |
 | `SESSION_SECRET` | *(set in .env)* | Session signing secret — **change in production** |
-| `DB_PATH` | `./src/database/balai_reserve.db` | SQLite database file path |
+| `DB_HOST` | `localhost` | MySQL host |
+| `DB_PORT` | `3306` | MySQL port |
+| `DB_USER` | `root` | MySQL user |
+| `DB_PASSWORD` | *(empty)* | MySQL password |
+| `DB_NAME` | `balai_reserve` | MySQL database name |
+| `DATABASE_URL` | — | Optional `mysql://user:pass@host:port/db`; overrides the `DB_*` values |
 | `QR_PATH` | `./public/qrcodes` | QR code image output directory |
 | `NODE_ENV` | `development` | Set to `production` for secure cookies |
 
