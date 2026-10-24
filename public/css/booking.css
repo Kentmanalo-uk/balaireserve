@@ -1,0 +1,122 @@
+/* ============================================================
+   Balai-Reserve — booking wizard (/portal/book), V3 §07
+   Loaded from views/portal/book.xian after portal.css + listing.css,
+   so equal-specificity rules here win. The shared date picker styles
+   (.dp-*) live in listing.css.
+   Desktop: 65/35 split, focused step form left, stable summary right.
+   Phones: full-width steps, small expandable price summary at the top,
+   the next action pinned above the safe area.
+   ============================================================ */
+
+.bw-page { max-width: 1240px; }
+.bw-head .pt-title { font-family: var(--font-display); font-size: clamp(1.75rem, 1.3rem + 1.6vw, 2.375rem); letter-spacing: -.01em; }
+.bw-head .pt-lede { max-width: 62ch; }
+
+/* ── Progress: "Step 2 of 4 · Dates & details" + a thin bar ── */
+.bw-progress { margin: 0 0 var(--space-6); max-width: 760px; }
+.bw-progress .wiz-caption { margin: 0 0 var(--space-2); font-size: var(--text-small); font-weight: 600; color: var(--color-ocean-900); }
+.bw-progress .wiz-progress { display: flex; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.bw-progress .wiz-progress .wizard-step-btn {
+  flex: 1 1 0; height: 4px; padding: 0; border: 0; border-radius: 2px;
+  background: var(--color-divider); overflow: hidden; position: relative;
+  transition: background-color var(--dur-panel) var(--ease-out);
+}
+.bw-progress .wizard-step-btn.done { background: var(--color-seaglass-400); }
+.bw-progress .wizard-step-btn.active { background: var(--color-ocean-700); flex: 1 1 0; }
+.bw-progress .wizard-step-btn .step-num, .bw-progress .wizard-step-btn .step-label {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap;
+}
+
+/* ── Layout: 65 / 35 ──────────────────────────────────────── */
+@media (min-width: 992px) {
+  .bw-page .wiz-layout { grid-template-columns: minmax(0, 65fr) minmax(300px, 35fr); gap: var(--space-9); }
+  .bw-page .wiz-aside { top: 96px; }
+}
+
+/* ── Step surfaces: grouped sections, calm ───────────────── */
+.bw-page .wizard-panel > .pt-surface { padding: var(--space-6); border-radius: var(--radius-media); }
+@media (max-width: 575.98px) { .bw-page .wizard-panel > .pt-surface { padding: var(--space-5) var(--space-4); } }
+.bw-page .wiz-step-title { font-size: 1.375rem; font-weight: 700; color: var(--color-ocean-900); letter-spacing: -.005em; }
+.bw-page .wiz-step-title:focus { outline: none; }
+.bw-page .wiz-step-title:focus-visible { outline: 3px solid var(--color-focus); outline-offset: 4px; border-radius: 4px; }
+.bw-page .wiz-step-lede { font-size: var(--text-body); margin-bottom: var(--space-6); }
+.bw-page .wizard-panel.active { animation: bw-in var(--dur-panel) var(--ease-out); }
+@keyframes bw-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Step 1: what to book */
+.bw-page .type-card { padding: var(--space-4) var(--space-5) var(--space-4) 72px; min-height: 112px; border-radius: var(--radius-media); transition: border-color var(--dur-press) var(--ease-out), background-color var(--dur-press) var(--ease-out), transform var(--dur-press) var(--ease-out); }
+.bw-page .type-card:active:not(:disabled) { transform: scale(.985); }
+.bw-page .type-icon {
+  position: absolute; left: var(--space-4); top: var(--space-4);
+  width: 40px; height: 40px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--color-sand-100); color: var(--color-ocean-700);
+}
+.bw-page .type-card.selected .type-icon { background: var(--color-white); }
+.bw-page .type-card .label { font-size: 1.0625rem; }
+
+/* Step 2: dates — inline calendar below the native date fields */
+.bw-cal { margin-top: var(--space-5); padding: var(--space-4); border: 1px solid var(--color-divider); border-radius: var(--radius-media); background: var(--color-white); }
+.bw-cal:empty { display: none; }
+@media (max-width: 575.98px) { .bw-cal { padding: var(--space-3) var(--space-2); } }
+.bw-page .field-warn { margin-top: var(--space-3); border-radius: var(--radius-input); }
+.bw-page .field-ok { border-color: #b8e0d5; border-left-color: var(--color-ocean-700); background: var(--color-seaglass-100); color: var(--color-ocean-900); }
+.bw-page .wiz-hint { padding: 10px 12px; border-radius: var(--radius-input); background: var(--color-sand-100); }
+.bw-page .inclusions-panel { border-radius: var(--radius-media); }
+.bw-page .addon-item { min-height: 48px; border-radius: var(--radius-input); }
+
+/* Step 4: payment */
+.bw-page .pay-card { border-radius: var(--radius-media); min-height: 64px; }
+.bw-page .pay-details { border-radius: var(--radius-media); background: var(--color-sand-100); }
+.bw-page .pay-qr img { width: 260px; max-width: 100%; padding: 10px; border-radius: var(--radius-input); }
+.bw-page .pay-acct { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bw-page .acct-num { font-size: 1.125rem; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: var(--color-ocean-900); }
+.bw-page .copy-btn { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; }
+
+/* Navigation: one primary action, a quiet but visible Back */
+.bw-page .wiz-nav { margin-top: var(--space-5); }
+.bw-page .wiz-nav .btn-outline-secondary { --bs-btn-color: var(--color-text); --bs-btn-border-color: var(--color-divider); --bs-btn-bg: var(--color-white); --bs-btn-hover-bg: var(--color-seaglass-100); --bs-btn-hover-color: var(--color-ocean-900); --bs-btn-hover-border-color: #cfe3de; }
+.bw-page .wiz-nav .btn-primary { min-height: 48px; padding: 0 var(--space-6); }
+
+/* ── Summary: stable, elevated, with a clear price breakdown ── */
+.bw-page .wiz-summary { border-radius: var(--radius-media); box-shadow: var(--shadow-raised); }
+@media (min-width: 992px) { .bw-page .wiz-sum-title { padding: var(--space-5) var(--space-5) 4px; font-size: 1.0625rem; } .bw-page .wiz-sum-body { padding: 0 var(--space-5) var(--space-5); } }
+.bw-page .sum-photo { border-radius: var(--radius-input); aspect-ratio: 21 / 9; }
+.bw-page .sum-line > span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bw-page .sum-totals { margin-top: var(--space-3); padding-top: var(--space-3); }
+.bw-page .sum-total > span { font-size: 1.125rem; }
+.bw-page .sum-dp > span:last-child { color: var(--color-ocean-900) !important; }
+.sum-pay-note { margin: var(--space-2) 0 0; padding: 8px 10px; border-radius: var(--radius-input); background: var(--color-seaglass-100); font-size: var(--text-meta); color: var(--color-ocean-900); }
+
+/* ── Phones / tablets ─────────────────────────────────────── */
+@media (max-width: 991.98px) {
+  /* Next action pinned above the safe area while the step is in view */
+  .bw-page .wizard-panel.active .wiz-nav {
+    position: sticky; bottom: 0; z-index: 25;
+    margin: var(--space-4) calc(-1 * var(--space-4)) 0; padding: 12px var(--space-4) max(12px, env(safe-area-inset-bottom));
+    background: rgba(252, 251, 248, .97); border-top: 1px solid var(--color-divider);
+    flex-direction: row; flex-wrap: nowrap; align-items: center;
+  }
+  .bw-page .wizard-panel.active .wiz-nav .btn { width: auto; }
+  .bw-page .wizard-panel.active .wiz-nav .btn-primary { flex: 1; margin-left: 0; }
+  .bw-page .wizard-panel.active .wiz-nav .btn-outline-secondary { flex-shrink: 0; }
+  /* keep the floating chat button clear of the pinned action */
+  body:has(#bookingForm) #chatbotWidget { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  .bw-progress { margin-bottom: var(--space-4); }
+}
+@media (max-width: 575.98px) {
+  .bw-page .wizard-panel.active .wiz-nav .btn-outline-secondary { padding: 0 14px; }
+  .bw-page .type-card { min-height: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bw-page .wizard-panel.active { animation: none; }
+}
+
+/* Very small phones: keep the collapsed summary on one line */
+@media (max-width: 399.98px) {
+  .bw-page .wiz-sum-toggle { gap: 8px; padding-left: 14px; padding-right: 14px; }
+  .bw-page .wiz-sum-toggle .t { font-size: 0; flex-shrink: 0; }
+  .bw-page .wiz-sum-toggle .t::before { content: 'Summary'; font-size: var(--text-small); }
+  .bw-page .wiz-sum-toggle .v { min-width: 0; font-size: var(--text-meta); }
+  .bw-page .wiz-sum-toggle .v .pt-meta { font-size: 12px; }
+}

@@ -1,0 +1,101 @@
+<%#
+  ONE listing design for rooms, cottages and the function hall (V3 §5.3: photo-led 4:3 tile).
+  Used on the landing page, the /stay detail pages ("more places") and the portal catalogue.
+
+  Include with:  include('partials/listing-card', Object.assign({}, __locals, { card: { ... } }))
+    card.row      catalogue row (withExistingPhotos applied → row.imagesList)
+    card.kind     'room' | 'cottage' | 'venue'
+    card.variant  'tile' (photo above facts) | 'row' (image-plus-facts) | 'feature' (editorial split)
+    card.h        heading tag, default 'h3'
+    card.qs       query string carried to the detail page (dates from a search), e.g. '?checkin=…'
+    card.avail    true / false when availability was checked for the searched dates (omit otherwise)
+    card.availNote text for the availability line
+    card.bookHref show a "Book" action (portal catalogue)
+    card.dp       downpayment % — shows the downpayment line
+    card.nights   rooms: number of searched nights — shows the stay total
+    card.desc     true to show the description's first line (default true)
+
+  Order is fixed: photos · name · capacity/type · differentiators · price + unit · actions.
+  The whole listing opens the detail page; photo arrows and Book sit above that link.
+%>
+<%
+  const _c    = card || {};
+  const _r    = _c.row || {};
+  const _kind = _c.kind || 'room';
+  const _var  = _c.variant || 'tile';
+  const _H    = _c.h || 'h3';
+  const _href = '/stay/' + _kind + '/' + _r.id + (_c.qs || '');
+  const _photos = (Array.isArray(_r.imagesList) ? _r.imagesList : []).slice(0, _var === 'row' ? 5 : 6);
+  let _amen = [];
+  try { _amen = JSON.parse(_r.amenities || '[]'); } catch {}
+  if (!Array.isArray(_amen)) _amen = [];
+  _amen = _amen.filter(a => typeof a === 'string' && a.trim()).map(a => a.trim().charAt(0).toUpperCase() + a.trim().slice(1));
+  const _first = String(_r.description || '').split(/\r?\n/).map(s => s.trim()).find(Boolean) || '';
+  const _unit  = _kind === 'room' ? '/ night' : '/ booking';
+  const _type  = _kind === 'room' ? 'Overnight' : (_kind === 'cottage' ? 'Day use · flat rate' : 'Events · flat rate');
+  const _cap   = _kind === 'room' ? 'Sleeps up to ' + _r.capacity : 'Up to ' + _r.capacity + ' guests';
+  const _extra = _kind === 'room' ? (_r.floor || '') : (_kind === 'venue' ? (_r.location || '') : '');
+  const _hl    = _amen.slice(0, _var === 'tile' ? 3 : 4);
+  const _more  = _amen.length - _hl.length;
+  const _showDesc = _c.desc !== false && _first;
+  const _dpPct = Number(_c.dp) || 0;
+%>
+<article class="lst lst--<%= _var %><%= _c.avail === false ? ' is-unavailable' : '' %>" data-kind="<%= _kind %>">
+  <div class="lst-media<%= _photos.length > 1 ? ' has-many' : '' %>" <%- _photos.length > 1 ? 'data-carousel' : '' %>>
+    <div class="lst-track">
+      <% if (_photos.length) { %>
+        <% _photos.forEach(function (src, i) { %>
+        <a class="lst-slide" href="<%= _href %>" tabindex="-1" aria-hidden="true">
+          <img src="<%= src %>" alt="" loading="lazy" decoding="async" width="900" height="675" />
+        </a>
+        <% }) %>
+      <% } else { %>
+        <a class="lst-slide" href="<%= _href %>" tabindex="-1" aria-hidden="true">
+          <span class="photo-pending"><i class="fas fa-camera" aria-hidden="true"></i>Photos coming soon</span>
+        </a>
+      <% } %>
+    </div>
+    <% if (_photos.length > 1) { %>
+    <button type="button" class="lst-nav lst-prev" data-carousel-step="-1" aria-label="Previous photo of <%= _r.name %>"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+    <button type="button" class="lst-nav lst-next" data-carousel-step="1" aria-label="Next photo of <%= _r.name %>"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+    <span class="lst-count" aria-hidden="true"><span data-carousel-index>1</span> / <%= _photos.length %></span>
+    <% } %>
+    <% if (_c.avail === false) { %><span class="lst-flag"><%= _c.availNote || 'Booked for these dates' %></span><% } %>
+  </div>
+
+  <div class="lst-body">
+    <<%= _H %> class="lst-name"><a href="<%= _href %>"><%= _r.name %></a></<%= _H %>>
+    <p class="lst-meta"><span><%= _cap %></span><span><%= _type %></span><% if (_extra) { %><span><%= _extra %></span><% } %></p>
+    <% if (_showDesc && _var !== 'tile') { %><p class="lst-desc"><%= _first %></p><% } %>
+    <% if (_hl.length) { %>
+    <ul class="lst-hl" role="list" aria-label="Includes">
+      <% for (const a of _hl) { %><li><%= a %></li><% } %>
+      <% if (_more > 0) { %><li class="lst-hl-more">+<%= _more %> more</li><% } %>
+    </ul>
+    <% } %>
+
+    <div class="lst-foot">
+      <p class="lst-price">
+        <strong><%= formatPrice(_r.price) %></strong> <span class="lst-unit"><%= _unit %></span>
+        <% if (_kind === 'room' && _c.nights > 0) { %>
+        <span class="lst-sub"><%= _c.nights %> night<%= _c.nights === 1 ? '' : 's' %>: <%= formatPrice(_r.price * _c.nights) %> total<% if (_dpPct) { %> · <%= formatPeso(Math.ceil(_r.price * _c.nights * _dpPct / 100)) %> down<% } %></span>
+        <% } else if (_dpPct) { %>
+        <span class="lst-sub"><%= _dpPct %>% downpayment: <%= formatPeso(Math.ceil(_r.price * _dpPct / 100)) %><%= _kind === 'room' ? ' a night' : '' %></span>
+        <% } %>
+      </p>
+      <% if (_c.avail === true && _c.availNote) { %><p class="lst-avail"><i class="fas fa-check" aria-hidden="true"></i> <%= _c.availNote %></p><% } %>
+      <% if (_c.bookHref) { %>
+      <div class="lst-actions">
+        <% if (_c.avail === false) { %>
+        <a href="<%= _href %>" class="btn btn-outline-primary">See open dates<span class="br-sr-only"> for <%= _r.name %></span></a>
+        <% } else { %>
+        <a href="<%= _c.bookHref %>" class="btn btn-primary">Book<span class="br-sr-only"> <%= _r.name %></span></a>
+        <a href="<%= _href %>" class="btn btn-outline-primary lst-details">Details<span class="br-sr-only"> of <%= _r.name %></span></a>
+        <% } %>
+      </div>
+      <% } else { %>
+      <span class="lst-go" aria-hidden="true">See dates &amp; details <i class="fas fa-arrow-right"></i></span>
+      <% } %>
+    </div>
+  </div>
+</article>

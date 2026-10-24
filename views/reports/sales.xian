@@ -1,4 +1,9 @@
 <% layout('layouts/main') %>
+<%
+  const exportQs = 'from=' + filters.from + '&to=' + filters.to + '&type=' + filters.type;
+  const GROUPS = { daily: 'Day', weekly: 'Week', monthly: 'Month', yearly: 'Year' };
+%>
+<div class="ap-page rpt-page">
 
 <%# Print-only branded header (hidden on screen, shown when printing) %>
 <div class="print-header d-none">
@@ -8,80 +13,102 @@
 </div>
 
 <div class="page-header no-print">
-  <div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/reports">Reports</a></li><li class="breadcrumb-item active">Sales Report</li></ol></nav><h3 class="mb-0">Sales Report</h3></div>
-  <div class="page-header-actions d-flex gap-2">
-    <div class="btn-group btn-group-sm">
-      <a href="/reports/export/sales?format=xlsx&from=<%= filters.from %>&to=<%= filters.to %>&type=<%= filters.type %>" class="btn btn-outline-success"><i class="fas fa-file-excel me-1"></i>Excel</a>
-      <a href="/reports/export/sales?format=docx&from=<%= filters.from %>&to=<%= filters.to %>&type=<%= filters.type %>" class="btn btn-outline-primary"><i class="fas fa-file-word me-1"></i>Word</a>
-      <a href="/reports/export/sales?format=csv&from=<%= filters.from %>&to=<%= filters.to %>&type=<%= filters.type %>" class="btn btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
+  <div>
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/reports">Reports</a></li><li class="breadcrumb-item active" aria-current="page">Sales</li></ol></nav>
+    <h1>Sales report</h1>
+    <p class="ap-sub">Payments received (recorded or verified) from <strong><%= formatDate(filters.from) %></strong> to <strong><%= formatDate(filters.to) %></strong>, by payment date.</p>
+  </div>
+  <div class="page-header-actions rpt-actions">
+    <span class="ap-meta rpt-actions-label">Download</span>
+    <a href="/reports/export/sales?format=xlsx&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-excel rpt-ic-xlsx" aria-hidden="true"></i>Excel</a>
+    <a href="/reports/export/sales?format=docx&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-word rpt-ic-docx" aria-hidden="true"></i>Word</a>
+    <a href="/reports/export/sales?format=csv&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-csv rpt-ic-csv" aria-hidden="true"></i>CSV</a>
+    <button type="button" class="btn btn-outline-secondary btn-print" data-action="print"><i class="fas fa-print" aria-hidden="true"></i>Print</button>
+  </div>
+</div>
+
+<form method="GET" action="/reports/sales" class="ap-toolbar no-print" aria-label="Report period">
+  <div class="ap-field"><label for="rptFrom">From</label><input type="date" id="rptFrom" name="from" value="<%= filters.from %>" class="form-control" /></div>
+  <div class="ap-field"><label for="rptTo">To</label><input type="date" id="rptTo" name="to" value="<%= filters.to %>" class="form-control" /></div>
+  <div class="ap-field"><label for="rptGroup">Group by</label><select id="rptGroup" name="type" class="form-select"><% for (const t of ['daily','weekly','monthly','yearly']) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= GROUPS[t] %></option><% } %></select></div>
+  <div class="ap-toolbar-actions"><button type="submit" class="btn btn-primary">Update report</button></div>
+</form>
+
+<div class="ap-kpis" role="group" aria-label="Totals for this period">
+  <div class="ap-kpi"><span class="ap-kpi-label">Total received</span><span class="ap-kpi-value"><%= formatPeso(totalRevenue) %></span></div>
+  <div class="ap-kpi"><span class="ap-kpi-label">Payments</span><span class="ap-kpi-value"><%= totalTxns %></span></div>
+  <div class="ap-kpi"><span class="ap-kpi-label">Average payment</span><span class="ap-kpi-value"><%= totalTxns > 0 ? formatPeso(totalRevenue / totalTxns) : '—' %></span></div>
+</div>
+
+<div class="rpt-charts">
+  <section class="ap-panel" aria-labelledby="rptChartHeading">
+    <div class="ap-panel-head"><h2 id="rptChartHeading">Received by <%= labelFormat.toLowerCase() %></h2></div>
+    <div class="ap-panel-body">
+      <% if (salesData && salesData.length) { %>
+      <div class="rpt-chart-box"><canvas id="salesChart" role="img" aria-label="Bar chart of payments received by <%= labelFormat.toLowerCase() %>. The same figures are in the table below."></canvas></div>
+      <% } else { %>
+      <div class="ap-empty"><strong>No payments in this period</strong>Try a wider date range.</div>
+      <% } %>
     </div>
-    <button type="button" class="btn btn-sm btn-dark" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
-  </div>
+  </section>
+  <section class="ap-panel" aria-labelledby="rptTypeHeading">
+    <div class="ap-panel-head"><h2 id="rptTypeHeading">By booking type</h2></div>
+    <div class="ap-panel-body">
+      <% if (byType && byType.length) { %>
+      <dl class="ap-amounts">
+        <% for (const t of byType) { %>
+        <div><dt class="text-capitalize"><%= t.reservation_type %></dt><dd><%= formatPeso(t.total) %></dd></div>
+        <% } %>
+      </dl>
+      <% } else { %>
+      <p class="ap-meta mb-0">No payments in this period.</p>
+      <% } %>
+    </div>
+  </section>
 </div>
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/reports/sales" class="row g-2 align-items-end">
-      <div class="col-6 col-md-2"><label class="form-label-sm">From</label><input type="date" name="from" value="<%= filters.from %>" class="form-control form-control-sm" /></div>
-      <div class="col-6 col-md-2"><label class="form-label-sm">To</label><input type="date" name="to" value="<%= filters.to %>" class="form-control form-control-sm" /></div>
-      <div class="col-6 col-md-2"><label class="form-label-sm">Group By</label><select name="type" class="form-select form-select-sm"><% for (const t of ['daily','weekly','monthly','yearly']) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t %></option><% } %></select></div>
-      <div class="col-6 col-md-2 pt-3"><button type="submit" class="btn btn-sm btn-primary w-100">Generate</button></div>
-    </form>
-  </div>
-</div>
-<div class="row g-3 mb-3">
-  <div class="col-md-4"><div class="stat-card stat-success"><div class="stat-icon"><i class="fas fa-coins"></i></div><div class="stat-body"><div class="stat-value"><%= formatPeso(totalRevenue) %></div><div class="stat-label">Total Revenue</div></div></div></div>
-  <div class="col-md-4"><div class="stat-card stat-primary"><div class="stat-icon"><i class="fas fa-receipt"></i></div><div class="stat-body"><div class="stat-value"><%= totalTxns %></div><div class="stat-label">Total Transactions</div></div></div></div>
-  <div class="col-md-4"><div class="stat-card stat-info"><div class="stat-icon"><i class="fas fa-chart-pie"></i></div><div class="stat-body"><div class="stat-value"><%= totalTxns > 0 ? formatPeso(totalRevenue / totalTxns) : '—' %></div><div class="stat-label">Avg. Transaction</div></div></div></div>
-</div>
-<div class="row g-3 mb-3">
-  <div class="col-lg-8"><div class="card"><div class="card-header"><h6 class="card-title mb-0">Revenue by <%= labelFormat %></h6></div><div class="card-body"><canvas id="salesChart" height="100"></canvas></div></div></div>
-  <div class="col-lg-4"><div class="card"><div class="card-header"><h6 class="card-title mb-0">Revenue by Type</h6></div><div class="card-body"><canvas id="byTypeChart" height="200"></canvas></div></div></div>
-</div>
-<div class="card">
-  <div class="card-header"><h6 class="card-title mb-0">Sales Data</h6></div>
-  <div class="card-body p-0">
-    <table class="table table-sm mb-0">
-      <thead><tr><th><%= labelFormat %></th><th>Transactions</th><th>Revenue</th></tr></thead>
+
+<section class="ap-panel" aria-labelledby="rptDataHeading">
+  <div class="ap-panel-head"><h2 id="rptDataHeading">Sales by <%= labelFormat.toLowerCase() %></h2></div>
+  <% if (!salesData || salesData.length === 0) { %>
+  <div class="ap-empty"><strong>No sales data in this range</strong>Payments appear here once they are recorded or verified.</div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table">
+      <thead><tr><th scope="col"><%= labelFormat %></th><th scope="col" class="num">Payments</th><th scope="col" class="num">Received</th></tr></thead>
       <tbody>
-        <% if (!salesData || salesData.length === 0) { %><tr><td colspan="3" class="text-center py-4 text-muted">No sales data in this range.</td></tr>
-        <% } else { %>
-          <% for (const d of salesData) { %>
-          <tr><td class="fw-medium"><%= d.period %></td><td><%= d.transactions %></td><td class="text-success fw-medium"><%= formatPeso(d.total) %></td></tr>
-          <% } %>
+        <% for (const d of salesData) { %>
+        <tr><td class="fw-semibold"><%= d.period %></td><td class="num"><%= d.transactions %></td><td class="num"><%= formatPeso(d.total) %></td></tr>
         <% } %>
       </tbody>
+      <tfoot><tr><th scope="row">Total</th><td class="num"><%= totalTxns %></td><td class="num"><%= formatPeso(totalRevenue) %></td></tr></tfoot>
     </table>
   </div>
-</div>
-<script>
-const sd = <%- salesDataJson || '[]' %>;
-const bt = <%- JSON.stringify(byType) || '[]' %>;
-const sc = document.getElementById('salesChart');
-if (sc && sd.length) new Chart(sc, { type:'bar', data:{ labels:sd.map(d=>d.period), datasets:[{ label:'Revenue (₱)', data:sd.map(d=>d.total), backgroundColor:'rgba(16,185,129,0.7)' }]}, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{callback:v=>'₱'+v.toLocaleString()} }}}});
-const btc = document.getElementById('byTypeChart');
-if (btc && bt.length) new Chart(btc, { type:'doughnut', data:{ labels:bt.map(d=>d.reservation_type), datasets:[{ data:bt.map(d=>d.total), backgroundColor:['#4f46e5','#10b981','#f59e0b','#ef4444'] }]}, options:{ responsive:true, plugins:{legend:{position:'bottom'}}, cutout:'60%' }});
-</script>
+  <% } %>
+</section>
 
 <%# Print-only footer %>
 <div class="print-footer d-none">Generated by <%= resort.name %> Booking System</div>
+</div>
 
-<style>
-@media print {
-  /* Hide app chrome: sidebar, navbar, footer, and no-print controls */
-  .sidebar, .app-navbar, .navbar, .app-footer, .no-print, #toastContainer, .breadcrumb { display: none !important; }
-  .main-wrapper, .page-content, .content-wrapper { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-  body { background: #fff !important; }
-  .print-header { display: block !important; text-align: center; border-bottom: 2px solid #15803d; padding-bottom: 8px; margin-bottom: 16px; }
-  .print-resort-name { font-size: 20px; font-weight: 700; color: #15803d; }
-  .print-resort-addr { font-size: 11px; color: #555; }
-  .print-report-title { font-size: 14px; font-weight: 700; margin-top: 6px; }
-  .print-footer { display: block !important; text-align: center; font-size: 10px; color: #777; border-top: 1px solid #cbd5e1; padding-top: 6px; margin-top: 18px; }
-  .card { border: none !important; box-shadow: none !important; }
-  .stat-card { border: 1px solid #e5e7eb !important; }
-  table { font-size: 11px; }
-  /* Repeat table headers on each printed page */
-  thead { display: table-header-group; }
-  tr { page-break-inside: avoid; }
-  @page { margin: 14mm; }
-}
-</style>
+<script>
+(function () {
+  const sd = <%- salesDataJson || '[]' %>;
+  const sc = document.getElementById('salesChart');
+  if (!sc || !sd.length || typeof Chart === 'undefined') return;
+  const peso = v => '₱' + Number(v).toLocaleString('en-PH');
+  Chart.defaults.font.family = "Inter, 'Segoe UI', system-ui, sans-serif";
+  Chart.defaults.color = '#627174';
+  new Chart(sc, {
+    type: 'bar',
+    data: { labels: sd.map(d => d.period), datasets: [{ label: 'Received', data: sd.map(d => d.total), backgroundColor: '#0f5c66', borderRadius: 4, maxBarThickness: 48 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => peso(c.parsed.y) } } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, grid: { color: '#e5e9e7' }, border: { display: false }, ticks: { callback: peso } },
+      },
+    },
+  });
+})();
+</script>

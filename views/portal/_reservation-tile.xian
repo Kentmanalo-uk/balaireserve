@@ -1,0 +1,70 @@
+<%#
+  Reservation tile (V3 §10: task-led — item, dates, amount, payment status, the next action).
+  Used by the portal home ("Your reservations") and My reservations.
+
+  Include with:  include('portal/_reservation-tile', Object.assign({}, __locals, { tile: { r: row, h: 'h3' } }))
+    tile.r  reservation row with item_names, amount_paid, proofs_pending, last_proof_rejected, photo (optional)
+    tile.h  heading tag (default h3)
+%>
+<%
+  const _r = tile.r;
+  const _H = tile.h || 'h3';
+  const _ACTIVE = ['pending', 'pencil', 'on_hold', 'awaiting_payment', 'confirmed', 'checked_in'];
+  const _type = { room: 'Room', cottage: 'Cottage', venue: 'Venue', event: 'Event package' }[_r.reservation_type] || 'Booking';
+  const _pm = { gcash: 'GCash', maya: 'Maya', bank_transfer: 'bank transfer' };
+  const _t12 = (v) => { if (!v) return ''; const [h, m] = String(v).split(':'); const n = parseInt(h, 10); return isNaN(n) ? String(v).slice(0, 5) : ((n % 12) || 12) + ':' + (m || '00') + ' ' + (n < 12 ? 'AM' : 'PM'); };
+  let _when, _sub = '';
+  if (_r.reservation_type === 'room' && _r.check_in_date) {
+    const n = _r.check_out_date ? Math.round((new Date(_r.check_out_date) - new Date(_r.check_in_date)) / 864e5) : 0;
+    _when = formatDate(_r.check_in_date, 'ddd, MMM D') + ' – ' + formatDate(_r.check_out_date, 'ddd, MMM D, YYYY');
+    _sub = n > 0 ? n + ' night' + (n === 1 ? '' : 's') : '';
+  } else {
+    const d = _r.check_in_date || _r.event_date;
+    _when = d ? formatDate(d, 'ddd, MMM D, YYYY') : 'Date to be confirmed';
+    _sub = _r.start_time ? _t12(_r.start_time) + (_r.end_time ? ' – ' + _t12(_r.end_time) : '') : '';
+  }
+  const _total = Number(_r.total_amount) || 0, _paid = Number(_r.amount_paid) || 0;
+  const _closed = ['cancelled', 'rejected', 'no_show'].includes(_r.status);
+  const _open = _ACTIVE.includes(_r.status);
+  const _due = Number(_r.downpayment_req) > 0 ? Number(_r.downpayment_req) : Math.ceil(_total * downpaymentPercent / 100);
+  const _review = Number(_r.proofs_pending) > 0;
+  const _rejected = !_review && Number(_r.last_proof_rejected) === 1;
+  const _href = '/portal/my-reservations/' + _r.id;
+
+  // The one thing the guest has to do (or know) next.
+  let _task = { text: '', cta: 'View booking', href: _href };
+  if (_r.status === 'pending' || _r.status === 'awaiting_payment') {
+    if (_review)        _task = { text: 'Payment proof under review — staff will verify it', cta: 'View booking', href: _href };
+    else if (_rejected) _task = { text: 'Proof not accepted — upload it again', cta: 'Upload again', href: _href + '#pay', primary: true, tone: 'bad' };
+    else if (_paid <= 0) _task = { text: 'Pay ' + formatPeso(_due) + ' by ' + (_pm[_r.payment_method] || 'your method') + ', then upload proof', cta: 'Pay and upload', href: _href + '#pay', primary: true, tone: 'warn' };
+    else                _task = { text: 'Downpayment verified · balance paid at the resort', cta: 'Show QR', href: _href + '#qr' };
+  } else if (_r.status === 'confirmed')  _task = { text: 'Show your check-in QR at the front desk', cta: 'Show QR', href: _href + '#qr', primary: true, tone: 'ok' };
+  else if (_r.status === 'checked_in')   _task = { text: 'Checked in — enjoy your stay', cta: 'View booking', href: _href, tone: 'ok' };
+  else if (_r.status === 'pencil')       _task = { text: 'Dates held while the resort finalises it', cta: 'View booking', href: _href };
+  else if (_r.status === 'on_hold')      _task = { text: 'On hold — the resort will contact you', cta: 'View booking', href: _href };
+  else if (_r.status === 'completed')    _task = { text: '', cta: 'View booking', href: _href };
+
+  let _moneyNote;
+  if (_closed) _moneyNote = _paid > 0 ? formatPeso(_paid) + ' paid' : 'Booking closed';
+  else if (_total > 0 && _paid >= _total) _moneyNote = 'Paid in full' + (_review ? ' (incl. under review)' : '');
+  else _moneyNote = formatPeso(_paid) + ' paid · ' + formatPeso(Math.max(_total - _paid, 0)) + (_open ? ' due' : ' balance') + (_review ? ' (incl. under review)' : '');
+%>
+<article class="rt<%= _closed ? ' is-closed' : '' %><%= _task.tone ? ' rt--' + _task.tone : '' %>" aria-labelledby="rt-<%= _r.id %>">
+  <a class="rt-thumb pt-photo" href="<%= _href %>" tabindex="-1" aria-hidden="true">
+    <% if (_r.photo) { %><img src="<%= _r.photo %>" alt="" loading="lazy" decoding="async" width="240" height="180" /><% } else { %><span class="photo-pending"><i class="far fa-image" aria-hidden="true"></i><span>No photo yet</span></span><% } %>
+  </a>
+  <div class="rt-main">
+    <p class="booking-line"><span class="booking-ref"><%= _r.booking_ref %></span><span><%= _type %><% if (_r.num_guests) { %> · <%= _r.num_guests %> guest<%= Number(_r.num_guests) === 1 ? '' : 's' %><% } %></span></p>
+    <<%= _H %> class="rt-title" id="rt-<%= _r.id %>"><a href="<%= _href %>"><%= _r.item_names || _type %></a></<%= _H %>>
+    <p class="rt-when"><%= _when %><% if (_sub) { %><span class="rt-when-sub"> · <%= _sub %></span><% } %></p>
+    <p class="rt-status"><span class="br-sr-only">Reservation status: </span><%- statusBadge(_r.status) %> <span class="br-sr-only">Payment status: </span><%- statusBadge(_r.payment_status) %></p>
+  </div>
+  <div class="rt-money">
+    <span class="rt-amt pt-num"><%= formatPeso(_total) %></span>
+    <span class="rt-money-note"><%= _moneyNote %></span>
+  </div>
+  <div class="rt-task">
+    <% if (_task.text) { %><p class="rt-task-text"><%= _task.text %></p><% } %>
+    <a href="<%= _task.href %>" class="btn btn-sm <%= _task.primary ? 'btn-primary' : 'btn-secondary-quiet' %>"><%= _task.cta %><span class="br-sr-only"> for <%= _r.booking_ref %></span></a>
+  </div>
+</article>

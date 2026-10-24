@@ -1,88 +1,96 @@
 <% layout('layouts/auth') %>
+<%
+  const errList = errors || [];
+  const errFor = (k) => errList.filter(e => (e.path || e.param) === k).map(e => e.msg);
+  const invalid = (k) => errFor(k).length ? 'is-invalid' : '';
+  const generalErrors = errList.filter(e => !(e.path || e.param));
+%>
 
-<% if (errors && errors.length > 0) { %>
-<div class="alert alert-danger">
-  <% for (const e of errors) { %>
-    <div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div>
-  <% } %>
+<% if (errList.length > 0) { %>
+<div class="alert alert-danger auth-alert" role="alert">
+  <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+  <div>
+    <% if (generalErrors.length) { %><% for (const e of generalErrors) { %><div><%= e.msg %></div><% } %>
+    <% } else { %><div>Please check the highlighted fields.</div><% } %>
+  </div>
 </div>
 <% } %>
 
-<h4 class="auth-title">Create Account</h4>
-<p class="auth-subtitle">Join Balai-Reserve and book your stay today</p>
+<h1 class="auth-title">Create an account</h1>
+<p class="auth-subtitle">Book rooms, cottages and event venues, pay your downpayment online and track every booking in one place.</p>
 
-<form action="/auth/register" method="POST" novalidate>
-  <div class="row g-2 mb-2">
-    <div class="col-6">
-      <label class="form-label">First Name <span class="text-danger">*</span></label>
-      <input type="text" name="first_name" class="form-control"
+<form action="/auth/register" method="POST" novalidate class="auth-form">
+  <div class="row g-3 mb-3">
+    <div class="col-sm-6">
+      <label class="form-label" for="regFirstName">First name <span class="auth-req" aria-hidden="true">*</span></label>
+      <input type="text" id="regFirstName" name="first_name" class="form-control <%= invalid('first_name') %>"
         value="<%= old && old.first_name ? old.first_name : '' %>"
-        placeholder="Juan" required autocomplete="given-name" />
+        required autocomplete="given-name" />
+      <% for (const m of errFor('first_name')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
     </div>
-    <div class="col-6">
-      <label class="form-label">Last Name <span class="text-danger">*</span></label>
-      <input type="text" name="last_name" class="form-control"
+    <div class="col-sm-6">
+      <label class="form-label" for="regLastName">Last name <span class="auth-req" aria-hidden="true">*</span></label>
+      <input type="text" id="regLastName" name="last_name" class="form-control <%= invalid('last_name') %>"
         value="<%= old && old.last_name ? old.last_name : '' %>"
-        placeholder="dela Cruz" required autocomplete="family-name" />
+        required autocomplete="family-name" />
+      <% for (const m of errFor('last_name')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
     </div>
   </div>
-  <div class="mb-2">
-    <label class="form-label">Email Address <span class="text-danger">*</span></label>
-    <div class="input-group">
-      <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-      <input type="email" name="email" class="form-control"
-        value="<%= old && old.email ? old.email : '' %>"
-        placeholder="your@email.com" required autocomplete="email" />
-    </div>
+  <div class="auth-field">
+    <label class="form-label" for="regEmail">Email address <span class="auth-req" aria-hidden="true">*</span></label>
+    <input type="email" id="regEmail" name="email" class="form-control <%= invalid('email') %>"
+      value="<%= old && old.email ? old.email : '' %>"
+      placeholder="you@example.com" required autocomplete="email" inputmode="email" />
+    <% for (const m of errFor('email')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
   </div>
-  <div class="mb-2">
-    <label class="form-label">Phone <span style="color:rgba(255,255,255,.4);font-size:.75rem;">(optional)</span></label>
-    <div class="input-group">
-      <span class="input-group-text"><i class="fas fa-phone"></i></span>
-      <input type="text" name="phone" class="form-control"
-        value="<%= old && old.phone ? old.phone : '' %>"
-        placeholder="09XX-XXX-XXXX" autocomplete="tel" />
-    </div>
+  <div class="auth-field">
+    <label class="form-label" for="regPhone">Mobile number <span class="auth-optional">(optional)</span></label>
+    <input type="tel" id="regPhone" name="phone" class="form-control <%= invalid('phone') %>"
+      value="<%= old && old.phone ? old.phone : '' %>"
+      placeholder="09XX XXX XXXX" autocomplete="tel" inputmode="tel" />
+    <% for (const m of errFor('phone')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
   </div>
-  <div class="mb-2">
-    <label class="form-label">Password <span class="text-danger">*</span></label>
-    <div class="input-group">
-      <span class="input-group-text"><i class="fas fa-lock"></i></span>
-      <input type="password" name="password" id="regPassword" class="form-control"
-        placeholder="Minimum 8 characters" required minlength="8" autocomplete="new-password" />
-      <button type="button" class="input-group-text" id="togglePass">
-        <i class="fas fa-eye"></i>
+  <div class="auth-field">
+    <label class="form-label" for="regPassword">Password <span class="auth-req" aria-hidden="true">*</span></label>
+    <div class="auth-pass">
+      <input type="password" name="password" id="regPassword" class="form-control <%= invalid('password') %>"
+        required minlength="8" autocomplete="new-password" aria-describedby="pwHelp" />
+      <button type="button" class="auth-pass-toggle" id="togglePass" aria-controls="regPassword" aria-pressed="false" aria-label="Show password">
+        <i class="fas fa-eye" aria-hidden="true"></i><span class="auth-pass-label">Show</span>
       </button>
     </div>
-    <div id="pwStrength" class="mt-1" style="height:4px;border-radius:2px;background:#333;overflow:hidden;">
-      <div id="pwStrengthBar" style="height:100%;width:0;transition:width .3s,background .3s;"></div>
-    </div>
+    <div id="pwStrength" class="auth-strength" aria-hidden="true"><div id="pwStrengthBar"></div></div>
+    <div class="form-text" id="pwHelp">At least 8 characters. Adding capitals, numbers and symbols makes it stronger.</div>
+    <% for (const m of errFor('password')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
   </div>
-  <div class="mb-3">
-    <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
-    <div class="input-group">
-      <span class="input-group-text"><i class="fas fa-lock"></i></span>
-      <input type="password" name="password_confirm" id="regPasswordConfirm" class="form-control"
-        placeholder="Re-enter password" required autocomplete="new-password" />
-    </div>
-    <div id="pwMatchMsg" class="form-text" style="font-size:.72rem;"></div>
+  <div class="auth-field">
+    <label class="form-label" for="regPasswordConfirm">Confirm password <span class="auth-req" aria-hidden="true">*</span></label>
+    <input type="password" name="password_confirm" id="regPasswordConfirm" class="form-control <%= invalid('password_confirm') %>"
+      required autocomplete="new-password" />
+    <div id="pwMatchMsg" class="form-text" aria-live="polite"></div>
+    <% for (const m of errFor('password_confirm')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
   </div>
-  <div class="form-check mb-3">
-    <input class="form-check-input" type="checkbox" id="agreeTerms" name="agree_terms" required />
-    <label class="form-check-label" for="agreeTerms" style="font-size:.8rem;color:rgba(255,255,255,.7);">
+  <div class="form-check auth-check">
+    <input class="form-check-input <%= invalid('agree_terms') %>" type="checkbox" id="agreeTerms" name="agree_terms" required <%= old && old.agree_terms ? 'checked' : '' %> />
+    <label class="form-check-label" for="agreeTerms">
       I agree to the
-      <a href="/portal/inquire" target="_blank" style="color:#00e5ff;">Terms and Conditions</a>
-      and <a href="/portal/inquire" target="_blank" style="color:#00e5ff;">Privacy Policy</a>
+      <a href="/portal/inquire" target="_blank">Terms and Conditions</a>
+      and <a href="/portal/inquire" target="_blank">Privacy Policy</a>
     </label>
+    <% for (const m of errFor('agree_terms')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
   </div>
-  <button type="submit" class="btn btn-primary btn-auth w-100">
-    <i class="fas fa-user-plus me-2"></i>Create Account
-  </button>
+  <button type="submit" class="btn btn-primary btn-auth w-100">Create account</button>
 </form>
 
-<div class="text-center mt-3">
-  <span style="color:rgba(255,255,255,.5);font-size:.82rem;">Already have an account?</span>
-  <a href="/auth/login" style="color:#00e5ff;font-size:.82rem;font-weight:600;margin-left:.35rem;">Sign in</a>
+<% if (googleLoginEnabled) { %>
+<div class="auth-divider"><span>or</span></div>
+<a href="/auth/google" class="btn auth-google w-100">
+  <i class="fab fa-google" aria-hidden="true"></i>Sign up with Google
+</a>
+<% } %>
+
+<div class="auth-alt">
+  <p>Already have an account? <a href="/auth/login">Sign in</a></p>
 </div>
 
 <script>
@@ -96,10 +104,14 @@
 
   toggleBtn.addEventListener('click', function () {
     var icon = toggleBtn.querySelector('i');
+    var label = toggleBtn.querySelector('.auth-pass-label');
     var showPassword = passInput.type === 'password';
     passInput.type = showPassword ? 'text' : 'password';
     icon.classList.toggle('fa-eye', !showPassword);
     icon.classList.toggle('fa-eye-slash', showPassword);
+    toggleBtn.setAttribute('aria-pressed', String(showPassword));
+    toggleBtn.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+    if (label) label.textContent = showPassword ? 'Hide' : 'Show';
   });
 
   passInput.addEventListener('input', function () {
@@ -110,17 +122,18 @@
     if (/[0-9]/.test(value)) score++;
     if (/[^A-Za-z0-9]/.test(value)) score++;
     bar.style.width = (score * 25) + '%';
-    bar.style.background = ['', '#ef4444', '#f59e0b', '#10b981', '#10b981'][score] || '#ef4444';
+    bar.className = ['', 'is-weak', 'is-fair', 'is-good', 'is-good'][score] || 'is-weak';
   });
 
   function checkMatch() {
+    matchMsg.classList.remove('is-ok', 'is-bad');
     if (!confirmField.value) {
       matchMsg.textContent = '';
     } else if (confirmField.value === passInput.value) {
-      matchMsg.style.color = '#4ade80';
+      matchMsg.classList.add('is-ok');
       matchMsg.textContent = 'Passwords match';
     } else {
-      matchMsg.style.color = '#f87171';
+      matchMsg.classList.add('is-bad');
       matchMsg.textContent = 'Passwords do not match';
     }
   }

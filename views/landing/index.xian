@@ -1,604 +1,351 @@
-﻿<%# Landing page â€” layout is set by the route handler in app.js %>
-<nav class="landing-nav" id="topNav">
-  <a href="/" class="nav-brand">
-    <div class="nav-logo-icon"><i class="fas fa-home"></i></div>
-    <div>
-      <div class="nav-brand-text">Balai-Reserve</div>
-      <span class="nav-brand-sub">Gloria, Oriental Mindoro</span>
+<%# Landing page (V3 §05) — layout (header, drawer, footer) is views/layouts/landing.xian; data comes from GET / in app.js %>
+<%
+  // ── Data prep ──────────────────────────────────────────────
+  // Landing photos are managed by admins in Settings > Landing Page.
+  const DEFAULT_HERO_IMAGE = '/images/landing/beachfront-gazebo.jpg';
+  const DEFAULT_HERO_ALT   = 'Thatched-roof gazebo on the lawn beside the beach at Balai-Reserve';
+  const heroImage = site.landing_hero_image || DEFAULT_HERO_IMAGE;
+  const heroIsDefault = !site.landing_hero_image;
+
+  const rooms    = featuredRooms || [];
+  const cottages = featuredCottages || [];
+  const venues   = featuredVenues || [];
+  const packages = eventPackages || [];
+
+  // About: the admin's About photo; otherwise a real catalogue photo (never the hero again).
+  let aboutImage = site.landing_about_image || '';
+  let aboutAlt   = site.landing_about_alt || 'Photo of Balai-Reserve';
+  let aboutCaption = '';
+  if (!aboutImage && !heroIsDefault) { aboutImage = DEFAULT_HERO_IMAGE; aboutAlt = DEFAULT_HERO_ALT; }
+  if (!aboutImage) {
+    const pick = [...cottages, ...venues, ...rooms].find(x => x.imagesList && x.imagesList.length > 1)
+              || [...cottages, ...venues, ...rooms].find(x => x.imagesList && x.imagesList.length);
+    if (pick) {
+      aboutImage = pick.imagesList[pick.imagesList.length > 1 ? pick.imagesList.length - 1 : 0];
+      aboutAlt = pick.name + ' at Balai-Reserve';
+      aboutCaption = 'The ' + pick.name;
+    }
+  }
+
+  // Gallery: the admin's landing photos, else real catalogue photos (one per place first, for variety).
+  const galleryFromSettings = (landingGallery || []).length > 0;
+  let galleryPhotos;
+  if (galleryFromSettings) {
+    galleryPhotos = landingGallery.map((g, i) => ({ src: g.path, caption: g.caption || '', alt: g.caption || ('Balai-Reserve photo ' + (i + 1) + ' of ' + landingGallery.length) }));
+  } else {
+    const byPlace = {};
+    for (const p of (catalogPhotos || [])) (byPlace[p.caption] = byPlace[p.caption] || []).push(p);
+    const places = Object.keys(byPlace);
+    galleryPhotos = [];
+    for (let round = 0; galleryPhotos.length < 15; round++) {
+      let added = false;
+      for (const pl of places) { if (byPlace[pl][round]) { galleryPhotos.push(byPlace[pl][round]); added = true; } }
+      if (!added) break;
+    }
+    galleryPhotos = galleryPhotos.map(p => ({ src: p.path, caption: p.caption, alt: p.caption + ' at Balai-Reserve' }));
+  }
+  const galleryJson = JSON.stringify(galleryPhotos);
+  const mosaic = galleryPhotos.slice(0, 5);
+
+  // Amenities appear only once the resort lists them (Settings > Landing Page, one per line).
+  // A line ending in ":" starts a group, e.g. "Comfort:".
+  const amenityGroups = [];
+  for (const raw of String(site.landing_amenities || '').split(/\r?\n/)) {
+    const line = raw.replace(/^\s*[-*•]\s*/, '').trim();
+    if (!line) continue;
+    if (/:$/.test(line)) { amenityGroups.push({ title: line.slice(0, -1).trim(), items: [] }); continue; }
+    if (!amenityGroups.length) amenityGroups.push({ title: '', items: [] });
+    amenityGroups[amenityGroups.length - 1].items.push(line);
+  }
+  const hasAmenities = amenityGroups.some(g => g.items.length);
+
+  const dpRaw = Number.parseFloat(site.downpayment_percent);
+  const dpPercent = Number.isFinite(dpRaw) && dpRaw > 0 && dpRaw <= 100 ? dpRaw : 50;
+
+  const fmtTime = t => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''));
+    if (!m) return t || '';
+    const h = Number(m[1]);
+    return (h % 12 || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM');
+  };
+  const checkIn  = fmtTime(site.check_in_time || '14:00');
+  const checkOut = fmtTime(site.check_out_time || '12:00');
+
+  const minOf  = list => list.length ? Math.min(...list.map(x => Number(x.price))) : null;
+  const maxCap = list => list.length ? Math.max(...list.map(x => Number(x.capacity) || 0)) : 0;
+  const orList = names => names.length < 2 ? names.join('') : names.slice(0, -1).join(', ') + ' or ' + names[names.length - 1];
+
+  const address  = site.resort_address || 'Brgy. San Antonio, Gloria, Oriental Mindoro, Philippines';
+  const tagline  = site.resort_tagline || 'Your Home Away From Home';
+  const mapsUrl  = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(address);
+
+  // Occasions that have real packages, in a familiar order.
+  const OCC = [['wedding', 'Weddings'], ['debut', 'Debuts'], ['birthday', 'Birthdays'], ['corporate', 'Corporate events'], ['meeting', 'Meetings']];
+  const occasions = OCC.map(([k, l]) => ({ key: k, label: l, list: packages.filter(p => p.event_type === k) })).filter(o => o.list.length);
+  const otherPkgs = packages.filter(p => !OCC.some(([k]) => k === p.event_type));
+  if (otherPkgs.length) occasions.push({ key: 'other', label: 'Other gatherings', list: otherPkgs });
+  const occOf = p => (OCC.find(([k]) => k === p.event_type) || [null, 'Gathering'])[1].replace(/s$/, '');
+
+  const tabs = [];
+  if (rooms.length)    tabs.push({ id: 'rooms', label: 'Rooms', n: rooms.length });
+  if (cottages.length) tabs.push({ id: 'cottages', label: 'Cottages', n: cottages.length });
+  if (venues.length)   tabs.push({ id: 'venue', label: venues.length === 1 ? 'Venue' : 'Venues', n: venues.length });
+  if (packages.length) tabs.push({ id: 'packages', label: 'Packages', n: packages.length });
+%>
+
+<%# ── Hero: the beach first, then one calm search ── %>
+<section class="hero<%= heroIsDefault ? ' hero--default' : '' %>" id="home" aria-labelledby="heroTitle">
+  <div class="hero-media">
+    <img src="<%= heroImage %>" alt="<%= heroIsDefault ? DEFAULT_HERO_ALT : 'The beachfront at Balai-Reserve' %>"
+      <% if (heroIsDefault) { %>width="1382" height="2048"<% } %> fetchpriority="high" decoding="async" />
+  </div>
+  <div class="wrap hero-inner">
+    <div class="hero-copy">
+      <p class="hero-place"><i class="fas fa-location-dot" aria-hidden="true"></i> Brgy. San Antonio, Gloria, Oriental Mindoro</p>
+      <h1 class="hero-title" id="heroTitle">Make room for a beach&nbsp;day.</h1>
+      <p class="hero-intro"><strong><%= tagline %>.</strong> Rooms for the night, cottages by the shore and a function hall for the celebrations in between.</p>
     </div>
-  </a>
-
-  <div class="nav-links">
-    <a href="#about">About</a>
-    <a href="#accommodations">Accommodations</a>
-    <a href="#events">Events</a>
-    <a href="#amenities">Amenities</a>
-    <a href="#how-to-book">How to Book</a>
-    <a href="#contact">Contact</a>
   </div>
+</section>
 
-  <div class="nav-actions">
-    <% if (currentUser) { %>
-      <%# Logged-in user: show role-appropriate links %>
-      <% if (currentUser.role === 'customer') { %>
-        <a href="/portal/my-reservations" class="btn-outline-white btn-sm d-none d-md-inline-block" style="padding:.45rem 1.25rem;font-size:.82rem;">
-          <i class="fas fa-calendar-check me-1"></i>My Bookings
-        </a>
-        <a href="/portal/book" class="btn-gold" style="padding:.45rem 1.5rem;font-size:.88rem;">
-          <i class="fas fa-calendar-plus me-1"></i>Book Now
-        </a>
-      <% } else { %>
-        <%# Staff user: show dashboard link %>
-        <a href="/dashboard" class="btn-gold" style="padding:.45rem 1.5rem;font-size:.88rem;">
-          <i class="fas fa-tachometer-alt me-1"></i>Dashboard
-        </a>
-      <% } %>
-    <% } else { %>
-      <%# Guest: show browse + sign in %>
-      <a href="/portal/rooms" class="btn-outline-white btn-sm d-none d-md-inline-block" style="padding:.45rem 1.25rem;font-size:.82rem;">Browse</a>
-      <a href="/auth/login"   class="btn-gold" style="padding:.45rem 1.5rem;font-size:.88rem;">
-        <i class="fas fa-sign-in-alt me-1"></i>Sign In
-      </a>
-    <% } %>
-  </div>
-
-  <button class="nav-toggle" id="navToggle" aria-label="Open menu">
-    <i class="fas fa-bars"></i>
-  </button>
-</nav>
-
-<%# Mobile Nav Drawer %>
-<div class="mobile-menu" id="mobileMenu">
-  <button class="mobile-close" id="menuClose"><i class="fas fa-times"></i></button>
-  <a href="#about"          onclick="closeMobileMenu()">About</a>
-  <a href="#accommodations" onclick="closeMobileMenu()">Accommodations</a>
-  <a href="#events"         onclick="closeMobileMenu()">Events</a>
-  <a href="#amenities"      onclick="closeMobileMenu()">Amenities</a>
-  <a href="#how-to-book"    onclick="closeMobileMenu()">How to Book</a>
-  <a href="#contact"        onclick="closeMobileMenu()">Contact</a>
-  <div class="mt-3 d-flex flex-column gap-3">
-    <% if (currentUser) { %>
-      <% if (currentUser.role === 'customer') { %>
-        <a href="/portal/my-reservations" class="btn-outline-white text-center">My Bookings</a>
-        <a href="/portal/book" class="btn-gold text-center"><i class="fas fa-calendar-plus me-1"></i>Book Now</a>
-      <% } else { %>
-        <a href="/dashboard" class="btn-gold text-center"><i class="fas fa-tachometer-alt me-1"></i>Dashboard</a>
-      <% } %>
-    <% } else { %>
-      <a href="/portal/rooms" class="btn-outline-white text-center">Browse Accommodations</a>
-      <a href="/auth/login"   class="btn-gold text-center"><i class="fas fa-sign-in-alt me-1"></i>Sign In</a>
-    <% } %>
+<div class="dock-wrap">
+  <div class="wrap">
+    <form class="search" id="search" action="/portal/rooms" method="GET" role="search" aria-labelledby="searchTitle">
+      <h2 class="br-sr-only" id="searchTitle">Check availability</h2>
+      <fieldset class="search-kind">
+        <legend>What are you booking?</legend>
+        <div class="seg">
+          <input type="radio" name="kind" id="kindRoom" value="room" checked /><label for="kindRoom"><i class="fas fa-bed" aria-hidden="true"></i>Stay<span>overnight</span></label>
+          <input type="radio" name="kind" id="kindCottage" value="cottage" /><label for="kindCottage"><i class="fas fa-umbrella-beach" aria-hidden="true"></i>Cottage<span>day use</span></label>
+          <% if (venues.length) { %><input type="radio" name="kind" id="kindVenue" value="venue" /><label for="kindVenue"><i class="fas fa-people-roof" aria-hidden="true"></i>Venue<span>your event</span></label><% } %>
+          <% if (packages.length) { %><input type="radio" name="kind" id="kindEvent" value="event" /><label for="kindEvent"><i class="fas fa-champagne-glasses" aria-hidden="true"></i>Event<span>packages</span></label><% } %>
+        </div>
+      </fieldset>
+      <div class="search-row">
+        <div class="search-fields">
+          <div class="field">
+            <label for="heroCheckin" id="heroCheckinLabel">Check-in</label>
+            <input type="date" name="checkin" id="heroCheckin" class="form-control" />
+          </div>
+          <div class="field" id="heroCheckoutField" data-for="room">
+            <label for="heroCheckout">Check-out</label>
+            <input type="date" name="checkout" id="heroCheckout" class="form-control" />
+          </div>
+          <div class="field" data-for="cottage venue" hidden>
+            <label for="heroStart" id="heroStartLabel">Time in</label>
+            <input type="time" name="start_time" id="heroStart" class="form-control" value="14:00" step="900" disabled />
+          </div>
+          <div class="field" data-for="cottage venue" hidden>
+            <label for="heroEnd" id="heroEndLabel">Time out</label>
+            <input type="time" name="end_time" id="heroEnd" class="form-control" value="22:00" step="900" disabled />
+          </div>
+          <div class="field field-guests">
+            <label for="heroGuests">Guests</label>
+            <input type="number" name="guests" id="heroGuests" class="form-control" min="1" max="500" inputmode="numeric" placeholder="Any" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary btn-lg search-submit" id="heroSearchBtn"><i class="fas fa-magnifying-glass" aria-hidden="true"></i> Check availability</button>
+      </div>
+      <p class="search-error" id="heroError" role="alert" hidden></p>
+      <p class="search-help">Choose your dates to see what’s open, with live prices. Online bookings stay <strong>Awaiting payment</strong> until staff verify your <%= dpPercent %>% downpayment.</p>
+    </form>
   </div>
 </div>
 
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ HERO SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<section class="hero" id="home">
-  <div class="hero-bg"></div>
-  <div class="hero-overlay"></div>
-
-  <%# Floating particles %>
-  <div class="hero-particles">
-    <span></span><span></span><span></span><span></span><span></span>
-    <span></span><span></span><span></span><span></span><span></span>
-  </div>
-
-  <div class="hero-content">
-    <div class="container-lp">
-      <div class="row align-items-center g-5">
-
-        <%# Left column - copy %>
-        <div class="col-lg-6">
-          <div class="hero-eyebrow">
-            <i class="fas fa-map-marker-alt"></i>
-            Brgy. San Antonio, Gloria, Oriental Mindoro, Philippines
-          </div>
-          <h1 class="hero-title">
-            Your <span>Home Away</span><br />From Home
-          </h1>
-          <p class="hero-desc">
-            Balai-Reserve is a premier resort destination offering comfortable rooms,
-            elegant event venues, cozy cottages, and a full suite of event management
-            services &mdash; all in Gloria, Oriental Mindoro.
-          </p>
-          <div class="hero-actions">
-            <a href="/portal/rooms" class="btn-gold">
-              <i class="fas fa-search me-2"></i>Browse Accommodations
-            </a>
-            <a href="/portal/book" class="btn-outline-white">
-              <i class="fas fa-calendar-plus me-2"></i>Book Now
-            </a>
-          </div>
-          <div class="hero-stats">
-            <div class="hero-stat-pill">
-              <div>
-                <div class="hero-stat-val"><%= stats.totalRooms %>+</div>
-                <div class="hero-stat-lbl">Rooms</div>
-              </div>
-            </div>
-            <div class="hero-stat-pill">
-              <div>
-                <div class="hero-stat-val"><%= stats.totalVenues %>+</div>
-                <div class="hero-stat-lbl">Venues</div>
-              </div>
-            </div>
-            <div class="hero-stat-pill">
-              <div>
-                <div class="hero-stat-val"><%= stats.totalPackages %>+</div>
-                <div class="hero-stat-lbl">Packages</div>
-              </div>
-            </div>
-            <div class="hero-stat-pill">
-              <div>
-                <div class="hero-stat-val"><%= stats.avgRating || '4.5' %>&#9733;</div>
-                <div class="hero-stat-lbl">Rating</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <%# Right column - glass booking widget %>
-        <div class="col-lg-6 d-none d-lg-block">
-          <div class="hero-glass-card">
-            <div class="glass-card-title">
-              <i class="fas fa-calendar-check"></i>
-              Quick Check Availability
-            </div>
-            <form action="/portal/rooms" method="GET">
-              <div class="mb-3">
-                <label class="d-block mb-1">Type</label>
-                <select name="type_redirect" class="form-select" id="heroType">
-                  <option value="rooms">Room Stay</option>
-                  <option value="venues">Venue / Event</option>
-                  <option value="cottages">Cottage</option>
-                </select>
-              </div>
-              <div class="row g-3 mb-3">
-                <div class="col-6">
-                  <label class="d-block mb-1">Check-in</label>
-                  <input type="date" name="checkin" class="form-control" id="heroCheckin" />
-                </div>
-                <div class="col-6">
-                  <label class="d-block mb-1">Check-out</label>
-                  <input type="date" name="checkout" class="form-control" id="heroCheckout" />
-                </div>
-              </div>
-              <div class="mb-3">
-                <label class="d-block mb-1">Guests</label>
-                <input type="number" name="guests" class="form-control" min="1" value="2" />
-              </div>
-              <button type="submit" class="glass-submit-btn" id="heroSearchBtn">
-                <i class="fas fa-search"></i> Check Availability
-              </button>
-            </form>
-            <p class="glass-footer-note">
-              Free cancellation &middot; No booking fees &middot; Instant confirmation
-            </p>
-          </div>
-        </div>
-
+<%# ── Find your spot: rooms (per night), cottages, the venue, event packages ── %>
+<section class="section stay" id="stay" aria-labelledby="stayTitle">
+  <span id="accommodations" class="anchor-alias" aria-hidden="true"></span>
+  <div class="wrap">
+    <div class="section-head section-head--split">
+      <div>
+        <h2 class="section-title" id="stayTitle">Find your spot by the sea</h2>
+        <p class="section-sub">Rooms are priced per night. Cottages, the function hall and event packages are one flat price per booking.</p>
       </div>
-    </div>
-  </div>
-</section>
-
-<%# â”€â”€ STATS BAR â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<div class="stats-bar">
-  <div class="container-lp">
-    <div class="row g-3 text-center">
-      <div class="col-6 col-md-3">
-        <div class="stat-number"><%= stats.totalRooms %></div>
-        <div class="stat-label">Room Types</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-number"><%= stats.totalVenues %></div>
-        <div class="stat-label">Event Venues</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-number"><%= stats.totalCottages %></div>
-        <div class="stat-label">Cottages</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="stat-number"><%= stats.totalPackages %></div>
-        <div class="stat-label">Event Packages</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ ABOUT SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<section id="about">
-  <div class="container-lp">
-    <div class="row align-items-center g-5">
-      <div class="col-lg-6">
-        <div class="about-img-wrap">
-          <div class="about-img-placeholder">
-            <i class="fas fa-home"></i>
-          </div>
-          <div class="about-img-badge">
-            <i class="fas fa-map-marker-alt me-1"></i>Gloria, Oriental Mindoro
-          </div>
-        </div>
-      </div>
-      <div class="col-lg-6">
-        <div class="section-tag">About Balai-Reserve</div>
-        <h2 class="section-title" style="text-align:left;">
-          A Resort That Feels Like Home
-        </h2>
-        <p style="color:var(--text-muted);margin-bottom:1.75rem;font-size:.95rem;">
-          Balai-Reserve is a full-service resort and event venue nestled in Gloria, Oriental Mindoro.
-          Whether you're planning a quiet family weekend, a grand wedding, a corporate gathering,
-          or simply looking for a peaceful getaway, Balai-Reserve is the place to be.
-        </p>
-        <div class="about-feature">
-          <div class="about-feature-icon"><i class="fas fa-bed"></i></div>
-          <div>
-            <div class="about-feature-title">Comfortable Accommodations</div>
-            <div class="about-feature-text">Standard, Deluxe, Suite, and Family rooms â€” all air-conditioned with modern amenities, free WiFi, and daily housekeeping.</div>
-          </div>
-        </div>
-        <div class="about-feature">
-          <div class="about-feature-icon"><i class="fas fa-star"></i></div>
-          <div>
-            <div class="about-feature-title">World-Class Event Spaces</div>
-            <div class="about-feature-text">From intimate garden gatherings to grand receptions for 300 guests â€” our venues can handle any celebration in style.</div>
-          </div>
-        </div>
-        <div class="about-feature">
-          <div class="about-feature-icon"><i class="fas fa-leaf"></i></div>
-          <div>
-            <div class="about-feature-title">Nature-Inspired Cottages</div>
-            <div class="about-feature-text">Our nipa hut and bamboo cottages provide a serene, nature-immersed retreat perfect for family bonding and relaxation.</div>
-          </div>
-        </div>
-        <div class="d-flex gap-3 mt-3">
-          <a href="/portal" class="btn-brand"><i class="fas fa-compass me-2"></i>Explore Resort</a>
-          <a href="#contact" class="about-cta-outline">
-            <i class="fas fa-phone me-2"></i>Contact Us
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ ACCOMMODATIONS SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<section id="accommodations" class="bg-off">
-  <div class="container-lp">
-    <div class="text-center mb-5">
-      <div class="section-tag">Accommodations</div>
-      <h2 class="section-title">Rooms, Venues & Cottages</h2>
-      <p class="section-sub">Choose from a variety of accommodation types designed for every kind of visit â€” from a quick getaway to a multi-day celebration.</p>
+      <a href="/portal/calendar" class="text-link">Availability calendar <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
     </div>
 
-    <%# Room Types overview %>
-    <h5 class="accom-section-heading">
-      <i class="fas fa-bed me-2 text-brand"></i>Room Types
-    </h5>
-    <div class="accom-grid mb-5">
-      <% for (const r of featuredRooms) { %>
-      <%
-        let imgs = [];
-        try { imgs = JSON.parse(r.images || '[]'); } catch {}
-      %>
-      <div class="accom-card">
-        <div class="accom-img">
-          <% if (imgs.length > 0) { %>
-          <img src="<%= imgs[0] %>" alt="<%= r.name %>" loading="lazy" />
-          <% } else { %>
-          <div class="accom-img-placeholder"><i class="fas fa-bed"></i></div>
-          <% } %>
-          <div class="accom-img-badge"><%= r.type_name %></div>
-        </div>
-        <div class="accom-body">
-          <div class="accom-type"><%= r.type_name %></div>
-          <div class="accom-name"><%= r.name %></div>
-          <div class="accom-meta">
-            <i class="fas fa-users me-1"></i>Up to <%= r.capacity %> guests
-            <% if (r.floor) { %>&nbsp;&middot;&nbsp;<%= r.floor %><% } %>
-          </div>
-          <div class="accom-price-row">
-            <div class="accom-price"><%= formatPeso(r.price) %><small>/night</small></div>
-            <a href="/portal/book?type=room&item_id=<%= r.id %>" class="btn-brand" style="padding:.4rem 1rem;font-size:.8rem;border-radius:6px;">Book</a>
-          </div>
-        </div>
+    <% if (tabs.length > 1) { %>
+    <div class="cat-switch" data-tabs hidden>
+      <div class="cat-tabs-row" role="tablist" aria-label="Browse by type">
+        <% tabs.forEach(function (t, i) { %>
+        <button type="button" class="cat-tab" role="tab" id="tab-<%= t.id %>" aria-controls="<%= t.id %>" aria-selected="<%= i === 0 ? 'true' : 'false' %>" tabindex="<%= i === 0 ? '0' : '-1' %>"><%= t.label %> <span class="cat-n"><%= t.n %></span></button>
+        <% }) %>
       </div>
-      <% } %>
-    </div>
-
-    <%# Venues overview %>
-    <h5 class="accom-section-heading">
-      <i class="fas fa-map-marker-alt me-2 text-brand"></i>Event Venues
-    </h5>
-    <div class="accom-grid mb-5">
-      <% for (const v of featuredVenues) { %>
-      <%
-        let vImgs = [];
-        try { vImgs = JSON.parse(v.images || '[]'); } catch {}
-      %>
-      <div class="accom-card">
-        <div class="accom-img">
-          <% if (vImgs.length > 0) { %>
-          <img src="<%= vImgs[0] %>" alt="<%= v.name %>" loading="lazy" />
-          <% } else { %>
-          <div class="accom-img-placeholder"><i class="fas fa-map-marker-alt"></i></div>
-          <% } %>
-          <div class="accom-img-badge"><%= v.venue_type.replace(/_/g,' ') %></div>
-        </div>
-        <div class="accom-body">
-          <div class="accom-type">Venue</div>
-          <div class="accom-name"><%= v.name %></div>
-          <div class="accom-meta">
-            <i class="fas fa-users me-1"></i>Up to <%= v.capacity %>
-            <% if (v.location) { %>&nbsp;&middot;&nbsp;<%= v.location %><% } %>
-          </div>
-          <div class="accom-price-row">
-            <div class="accom-price"><%= formatPeso(v.price) %></div>
-            <a href="/portal/book?type=venue&item_id=<%= v.id %>" class="btn-brand" style="padding:.4rem 1rem;font-size:.8rem;border-radius:6px;">Book</a>
-          </div>
-        </div>
-      </div>
-      <% } %>
-    </div>
-
-    <%# Cottages overview %>
-    <% if (featuredCottages && featuredCottages.length > 0) { %>
-    <h5 class="accom-section-heading">
-      <i class="fas fa-home me-2 text-brand"></i>Cottages
-    </h5>
-    <div class="accom-grid mb-4">
-      <% for (const c of featuredCottages) { %>
-      <%
-        let cImgs = [];
-        try { cImgs = JSON.parse(c.images || '[]'); } catch {}
-      %>
-      <div class="accom-card">
-        <div class="accom-img">
-          <% if (cImgs.length > 0) { %>
-          <img src="<%= cImgs[0] %>" alt="<%= c.name %>" loading="lazy" />
-          <% } else { %>
-          <div class="accom-img-placeholder"><i class="fas fa-home"></i></div>
-          <% } %>
-          <div class="accom-img-badge">Cottage</div>
-        </div>
-        <div class="accom-body">
-          <div class="accom-type">Cottage</div>
-          <div class="accom-name"><%= c.name %></div>
-          <div class="accom-meta"><i class="fas fa-users me-1"></i>Up to <%= c.capacity %> guests</div>
-          <div class="accom-price-row">
-            <div class="accom-price"><%= formatPeso(c.price) %></div>
-            <a href="/portal/book?type=cottage&item_id=<%= c.id %>" class="btn-brand" style="padding:.4rem 1rem;font-size:.8rem;border-radius:6px;">Book</a>
-          </div>
-        </div>
-      </div>
-      <% } %>
     </div>
     <% } %>
 
-    <div class="text-center">
-      <a href="/portal/rooms" class="btn-brand me-3"><i class="fas fa-search me-2"></i>Browse All Rooms</a>
-      <a href="/portal/venues" class="btn-gold"><i class="fas fa-map-marker-alt me-2"></i>Browse All Venues</a>
-    </div>
-  </div>
-</section>
-
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ EVENTS SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<section id="events">
-  <div class="container-lp">
-    <div class="text-center mb-5">
-      <div class="section-tag">Events & Celebrations</div>
-      <h2 class="section-title">We Make Every Occasion Unforgettable</h2>
-      <p class="section-sub">From intimate gatherings to grand celebrations â€” Balai-Reserve has the perfect venue, package, and team to bring your vision to life.</p>
-    </div>
-
-    <%# Event types pills %>
-    <div class="event-type-strip justify-content-center mb-5">
-      <% for (const [icon, label] of [
-        ['fas fa-ring',          'Weddings'],
-        ['fas fa-birthday-cake', 'Birthdays'],
-        ['fas fa-crown',         'Debut (18th)'],
-        ['fas fa-briefcase',     'Corporate Events'],
-        ['fas fa-users',         'Meetings'],
-        ['fas fa-glass-cheers',  'Parties'],
-        ['fas fa-home',          'Family Gatherings'],
-        ['fas fa-star',          'Custom Events']
-      ]) { %>
-      <div class="event-type-pill">
-        <i class="<%= icon %>"></i><%= label %>
+    <% if (rooms.length) { %>
+    <div class="cat-panel" id="rooms" aria-labelledby="roomsTitle">
+      <div class="cat-panel-head">
+        <h3 class="group-title" id="roomsTitle">Rooms <span>overnight · check-in <%= checkIn %>, check-out <%= checkOut %></span></h3>
+        <a href="/portal/rooms" class="text-link">Compare rooms by date <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
       </div>
-      <% } %>
-    </div>
-
-    <%# Event Packages %>
-    <div class="row g-3">
-      <% for (const p of eventPackages) { %>
-      <%
-        const pkgColors = {
-          wedding:          ['#7c3aed','#ede9fe'],
-          birthday:         ['#d97706','#fef3c7'],
-          debut:            ['#db2777','#fce7f3'],
-          corporate:        ['#1d4ed8','#dbeafe'],
-          meeting:          ['#059669','#d1fae5'],
-          party:            ['#ea580c','#fee2e2'],
-          family_gathering: ['#0891b2','#cffafe'],
-          other:            ['#374151','#f3f4f6'],
-        };
-        const type = (p.event_type || 'other').toLowerCase();
-        const [iconColor, bgColor] = pkgColors[type] || pkgColors.other;
-        let inclusions = [];
-        try { inclusions = JSON.parse(p.inclusions || '[]'); } catch {}
-      %>
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="event-card">
-          <div class="event-icon" style="background:<%= bgColor %>;color:<%= iconColor %>;">
-            <% if (type==='wedding') { %><i class="fas fa-ring"></i>
-            <% } else if (type==='birthday') { %><i class="fas fa-birthday-cake"></i>
-            <% } else if (type==='debut') { %><i class="fas fa-crown"></i>
-            <% } else if (type==='corporate') { %><i class="fas fa-briefcase"></i>
-            <% } else if (type==='meeting') { %><i class="fas fa-chalkboard-teacher"></i>
-            <% } else { %><i class="fas fa-star"></i><% } %>
-          </div>
-          <div class="event-type" style="color:<%= iconColor %>;"><%= p.event_type ? p.event_type.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase()) : 'Event' %></div>
-          <div class="event-name"><%= p.name %></div>
-          <% if (p.description) { %>
-          <div class="event-desc"><%= p.description.slice(0,120) %><%= p.description.length>120?'â€¦':'' %></div>
-          <% } %>
-          <% if (p.capacity) { %>
-          <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:.75rem;"><i class="fas fa-users me-1"></i>Up to <%= p.capacity %> guests</div>
-          <% } %>
-          <% if (inclusions.length > 0) { %>
-          <ul class="event-incl">
-            <% for (const inc of inclusions.slice(0,5)) { %>
-            <li><%= inc %></li>
-            <% } %>
-            <% if (inclusions.length > 5) { %>
-            <li style="color:var(--text-muted);font-style:italic;">+<%= inclusions.length-5 %> more inclusions</li>
-            <% } %>
-          </ul>
-          <% } %>
-          <div class="event-price-row">
-            <div>
-              <div class="event-price"><%= formatPeso(p.price) %></div>
-              <div style="font-size:.7rem;color:var(--text-muted);">50% DP: <%= formatPeso(Math.ceil(p.price*0.5)) %></div>
-            </div>
-            <a href="/portal/book?type=event&package_id=<%= p.id %>" class="btn-brand" style="padding:.45rem 1.1rem;font-size:.82rem;border-radius:6px;">Book Package</a>
-          </div>
-        </div>
-      </div>
-      <% } %>
-    </div>
-
-    <div class="text-center mt-4">
-      <p style="color:var(--text-muted);font-size:.9rem;">Need a custom event package? We'll work with you to create the perfect celebration.</p>
-      <a href="/portal/inquire" class="btn-brand"><i class="fas fa-envelope me-2"></i>Inquire About Custom Events</a>
-    </div>
-  </div>
-</section>
-
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ AMENITIES / FACILITIES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<section id="amenities" class="bg-off">
-  <div class="container-lp">
-    <div class="text-center mb-5">
-      <div class="section-tag">Facilities & Amenities</div>
-      <h2 class="section-title">Everything You Need for a Perfect Stay</h2>
-      <p class="section-sub">Balai-Reserve is equipped with all the facilities to make your stay comfortable, memorable, and hassle-free.</p>
-    </div>
-
-    <div class="facility-grid">
-      <% for (const [icon, name, desc] of [
-        ['fas fa-wifi',              'Free WiFi',          'High-speed internet throughout the property'],
-        ['fas fa-snowflake',         'Air Conditioning',   'Climate-controlled rooms and function halls'],
-        ['fas fa-swimming-pool',     'Swimming Pool',      'Refreshing pool for guests and events'],
-        ['fas fa-parking',           'Free Parking',       'Spacious, secure parking area on-site'],
-        ['fas fa-utensils',          'Dining',             'In-house catering and on-site restaurant'],
-        ['fas fa-video',             'Projector & AV',     'Full AV equipment for events and meetings'],
-        ['fas fa-microphone',        'Sound System',       'Professional PA system for all events'],
-        ['fas fa-spa',               'Garden & Grounds',   'Beautifully maintained garden areas'],
-        ['fas fa-concierge-bell',    '24/7 Front Desk',    'Our team is always here to assist you'],
-        ['fas fa-broom',             'Housekeeping',       'Daily room cleaning and turndown service'],
-        ['fas fa-qrcode',            'QR Check-in',        'Fast, contactless check-in on arrival'],
-        ['fas fa-shield-alt',        'Security',           'On-site security and CCTV monitoring'],
-      ]) { %>
-      <div class="facility-card">
-        <div class="facility-icon"><i class="<%= icon %>"></i></div>
-        <div class="facility-name"><%= name %></div>
-        <div class="facility-desc"><%= desc %></div>
-      </div>
-      <% } %>
-    </div>
-  </div>
-</section>
-
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ HOW TO BOOK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<section id="how-to-book">
-  <div class="container-lp">
-    <div class="text-center mb-5">
-      <div class="section-tag">Booking Process</div>
-      <h2 class="section-title">Book Your Stay in 4 Easy Steps</h2>
-      <p class="section-sub">Our online booking system makes reserving a room, venue, or event package quick and hassle-free.</p>
-    </div>
-
-    <div class="row g-4">
-      <% for (const [num, icon, title, desc, color] of [
-        ['1', 'fas fa-search',        'Browse',          'Explore our rooms, venues, and cottages with photos, prices, and availability in real time.', '#4f46e5'],
-        ['2', 'fas fa-calendar-plus', 'Select & Book',   'Choose your preferred dates, select a room or package, fill in your details, and submit.', '#10b981'],
-        ['3', 'fas fa-money-bill-wave','Pay Downpayment', 'Send 50% downpayment via GCash, bank transfer, Maya, or cash at our front desk.', '#d97706'],
-        ['4', 'fas fa-qrcode',        'Arrive & Enjoy',  'Receive your QR code by email. Scan it at check-in for fast, contactless entry.', '#ef4444'],
-      ]) { %>
-      <div class="col-6 col-md-3">
-        <div class="step-card">
-          <div class="step-number" style="background:<%= color %>;box-shadow:0 4px 16px <%= color %>44;"><%= num %></div>
-          <div class="step-icon"><i class="<%= icon %>" style="color:<%= color %>;"></i></div>
-          <div class="step-title"><%= title %></div>
-          <div class="step-desc"><%= desc %></div>
-        </div>
-      </div>
-      <% } %>
-    </div>
-
-    <%# Payment methods accepted %>
-    <div class="payment-methods-box mt-5">
-      <div class="text-center mb-3">
-        <strong style="font-size:.85rem;color:var(--text);">Accepted Payment Methods</strong>
-      </div>
-      <div class="d-flex flex-wrap justify-content-center gap-3">
-        <% for (const [icon, label, color] of [
-          ['fas fa-mobile-alt', 'GCash',         '#007945'],
-          ['fas fa-university', 'BDO / BPI',     '#1d4ed8'],
-          ['fas fa-wallet',     'Maya',          '#7c3aed'],
-          ['fas fa-money-bills','Cash (Front Desk)','#d97706'],
-        ]) { %>
-        <div class="d-flex align-items-center gap-2 px-3 py-2 bg-white rounded-3 border" style="font-size:.85rem;font-weight:600;">
-          <i class="<%= icon %>" style="color:<%= color %>;"></i><%= label %>
-        </div>
+      <div class="lst-grid lst-grid--<%= rooms.length % 3 === 1 || rooms.length === 2 ? 2 : 3 %>">
+        <% for (const r of rooms) { %>
+        <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: r, kind: 'room', variant: 'tile', h: 'h4' } }))%>
         <% } %>
       </div>
-      <p class="text-center mb-0 mt-2" style="font-size:.78rem;color:var(--text-muted);">
-        50% downpayment required to confirm. Balance payable before or upon check-in.
-        <a href="/portal/inquire" style="color:var(--neon-cyan);">Questions? Contact us.</a>
-      </p>
     </div>
+    <% } %>
 
-    <div class="text-center mt-4">
-      <a href="/auth/login" class="btn-brand me-2"><i class="fas fa-sign-in-alt me-2"></i>Sign In to Book</a>
-      <a href="/portal" class="btn-gold"><i class="fas fa-compass me-2"></i>Browse Without Account</a>
+    <% if (cottages.length) { %>
+    <div class="cat-panel" id="cottages" aria-labelledby="cottagesTitle">
+      <div class="cat-panel-head">
+        <h3 class="group-title" id="cottagesTitle">Cottages <span>day use · one flat rate, whatever the hours</span></h3>
+        <a href="/portal/cottages" class="text-link">Compare cottages by date <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      <div class="lst-grid lst-grid--<%= cottages.length % 3 === 1 || cottages.length === 2 ? 2 : 3 %>">
+        <% for (const c of cottages) { %>
+        <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: c, kind: 'cottage', variant: 'tile', h: 'h4' } }))%>
+        <% } %>
+      </div>
+    </div>
+    <% } %>
+
+    <% if (venues.length) { %>
+    <div class="cat-panel" id="venue" aria-labelledby="hallTitle">
+      <span id="hall" class="anchor-alias" aria-hidden="true"></span>
+      <div class="cat-panel-head">
+        <h3 class="group-title" id="hallTitle">Function hall <span>for your own event · one flat rate</span></h3>
+        <% if (packages.length) { %><a href="#events" class="text-link">Or choose an event package <i class="fas fa-arrow-right" aria-hidden="true"></i></a><% } %>
+      </div>
+      <% for (const v of venues) { %>
+      <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: v, kind: 'venue', variant: 'feature', h: 'h4', dp: dpPercent } }))%>
+      <% } %>
+    </div>
+    <% } %>
+
+    <% if (packages.length) { %>
+    <div class="cat-panel" id="packages" aria-labelledby="pkgTabTitle">
+      <div class="cat-panel-head">
+        <h3 class="group-title" id="pkgTabTitle">Event packages <span>one price per event · add-ons optional</span></h3>
+        <a href="#events" class="text-link">Compare inclusions <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      <ul class="pk-mini" role="list">
+        <% for (const p of packages) { %>
+        <li>
+          <a href="/stay/package/<%= p.id %>" class="pk-mini-link">
+            <span class="pk-mini-occ"><%= occOf(p) %></span>
+            <span class="pk-mini-name"><%= p.name %></span>
+            <span class="pk-mini-meta"><%= p.capacity ? 'Up to ' + p.capacity + ' guests' : '' %><%= p.capacity && p.includedItems.length ? ' · ' : '' %><%= p.includedItems.length ? p.includedItems.length + ' included' : '' %></span>
+            <span class="pk-mini-price"><strong><%= formatPrice(p.price) %></strong> / event</span>
+            <i class="fas fa-arrow-right" aria-hidden="true"></i>
+          </a>
+        </li>
+        <% } %>
+      </ul>
+    </div>
+    <% } %>
+  </div>
+</section>
+
+<%# ── About: a real photo and a short, factual story ── %>
+<section class="section about<%= aboutImage ? ' has-photo' : '' %>" id="about" aria-labelledby="aboutTitle">
+  <div class="wrap about-grid">
+    <% if (aboutImage) { %>
+    <figure class="about-photo">
+      <img src="<%= aboutImage %>" alt="<%= aboutAlt %>" loading="lazy" decoding="async" width="1200" height="1500" />
+      <% if (aboutCaption) { %><figcaption><%= aboutCaption %></figcaption><% } %>
+    </figure>
+    <% } %>
+    <div class="about-text">
+      <h2 class="section-title" id="aboutTitle">A small resort on the Gloria shoreline</h2>
+      <p class="lede">
+        Balai-Reserve sits right on the beach in Brgy. San Antonio, Gloria, Oriental Mindoro.
+        Families and barkadas come to stay the night, to spend a day under a cottage by the sea,
+        or to celebrate with everyone in one place.
+      </p>
+      <p>
+        <% if (rooms.length) { %>Stay overnight in the <%= orList(rooms.map(r => r.name)) %>.<% } %>
+        <% if (cottages.length) { %> For a day trip, book the <%= orList(cottages.map(c => c.name)) %> at one flat rate.<% } %>
+        <% if (venues.length) { %> Receptions and parties are held at the <%= venues[0].name %>, which takes up to <%= venues[0].capacity %> guests.<% } %>
+      </p>
+      <dl class="about-facts">
+        <% if (rooms.length) { %><div><dt><%= rooms.length %> <%= rooms.length === 1 ? 'room' : 'rooms' %></dt><dd>From <%= formatPrice(minOf(rooms)) %> a night · up to <%= maxCap(rooms) %> guests</dd></div><% } %>
+        <% if (cottages.length) { %><div><dt><%= cottages.length %> <%= cottages.length === 1 ? 'cottage' : 'cottages' %></dt><dd>From <%= formatPrice(minOf(cottages)) %> per booking</dd></div><% } %>
+        <% if (venues.length) { %><div><dt><%= venues.length === 1 ? 'Function hall' : venues.length + ' venues' %></dt><dd>Up to <%= maxCap(venues) %> guests · <%= formatPrice(minOf(venues)) %> per booking</dd></div><% } %>
+        <div><dt>Check-in <%= checkIn %></dt><dd>Check-out by <%= checkOut %></dd></div>
+      </dl>
     </div>
   </div>
 </section>
 
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ TESTIMONIALS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<% if (reviews && reviews.length > 0) { %>
-<section class="bg-off" id="reviews">
-  <div class="container-lp">
-    <div class="text-center mb-5">
-      <div class="section-tag">Guest Reviews</div>
-      <h2 class="section-title">What Our Guests Say</h2>
-      <p class="section-sub">Real reviews from guests who have experienced Balai-Reserve.</p>
+<%# ── Gallery mosaic: one dominant photo + supporting photos, all open in the photo viewer ── %>
+<% if (galleryPhotos.length > 0) { %>
+<section id="gallery" class="section gallery-section" aria-labelledby="galleryTitle">
+  <div class="wrap">
+    <div class="section-head section-head--split">
+      <div>
+        <h2 class="section-title" id="galleryTitle">Around the resort</h2>
+        <% if (!galleryFromSettings) { %><p class="section-sub">Photos of our rooms and cottages. Tap any photo to see it full size.</p><% } %>
+      </div>
     </div>
-    <div class="row g-3">
-      <% for (const r of reviews) { %>
-      <div class="col-12 col-md-4">
-        <div class="testimonial-card">
-          <div class="testimonial-stars">
-            <% for (let s=1;s<=5;s++) { %><i class="fas fa-star<%= s<=r.rating?'':'-o' %>"></i><% } %>
-          </div>
-          <div class="testimonial-text">"<%= r.comments ? r.comments.slice(0,180) + (r.comments.length>180?'â€¦':'') : '' %>"</div>
-          <div class="testimonial-author"><%= r.customer_name %></div>
-          <div class="testimonial-date"><%= formatDate(r.created_at) %></div>
-        </div>
+    <div class="gal gal--n<%= Math.min(mosaic.length, 5) %>" data-photos="<%= galleryJson %>" data-photos-name="Balai-Reserve">
+      <% mosaic.forEach(function (photo, i) { %>
+      <figure class="gal-item<%= i === 0 ? ' gal-main' : '' %>">
+        <%# Plain link to the full image; listing.js opens it in the photo viewer instead. %>
+        <a href="<%= photo.src %>" class="gal-open" data-photo-index="<%= i %>" aria-label="Open photo <%= i + 1 %> of <%= galleryPhotos.length %><%= photo.caption ? ': ' + photo.caption : '' %>">
+          <img src="<%= photo.src %>" alt="<%= photo.alt %>" loading="lazy" decoding="async" width="1200" height="900" />
+        </a>
+        <% if (photo.caption) { %><figcaption><%= photo.caption %></figcaption><% } %>
+      </figure>
+      <% }) %>
+      <% if (galleryPhotos.length > 1) { %>
+      <button type="button" class="btn gal-all" data-photo-index="0"><i class="fas fa-images" aria-hidden="true"></i> View all <%= galleryPhotos.length %> photos</button>
+      <% } %>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<%# ── Events: lead with real occasions, then comparison rows ── %>
+<% if (packages.length) { %>
+<section class="section events" id="events" aria-labelledby="eventsTitle">
+  <div class="wrap">
+    <div class="events-head">
+      <div>
+        <h2 class="section-title" id="eventsTitle">Celebrate with everyone in one place</h2>
+        <p class="section-sub">
+          Each package is one price for the event, including the items listed under it.
+          Add-ons are priced per item. A <%= dpPercent %>% downpayment holds your booking while staff review it.
+        </p>
+      </div>
+      <p class="events-more">Planning something different? <a href="/portal/inquire">Ask a question</a><% if (venues.length) { %> or <a href="/stay/venue/<%= venues[0].id %>">book the <%= venues[0].name %></a> on its own<% } %>.</p>
+    </div>
+
+    <% if (occasions.length > 1) { %>
+    <div class="occ-filter" data-occ-filter hidden>
+      <p class="occ-label" id="occLabel">Show packages for</p>
+      <div class="occ-chips" role="group" aria-labelledby="occLabel">
+        <button type="button" class="occ-chip" data-occ="" aria-pressed="true">All occasions <span><%= packages.length %></span></button>
+        <% for (const o of occasions) { %>
+        <button type="button" class="occ-chip" data-occ="<%= o.key %>" aria-pressed="false"><%= o.label %> <span><%= o.list.length %></span></button>
+        <% } %>
+      </div>
+      <p class="br-sr-only" id="occStatus" aria-live="polite"></p>
+    </div>
+    <% } %>
+
+    <%include('partials/package-rows', Object.assign({}, __locals, { pkgRows: { list: packages, dp: dpPercent, h: 'h3' } }))%>
+  </div>
+</section>
+<% } %>
+
+<%# ── Amenities: only what the resort has listed in Settings > Landing Page ── %>
+<% if (hasAmenities) { %>
+<section class="section amenities" id="amenities" aria-labelledby="amenitiesTitle">
+  <div class="wrap amenities-grid">
+    <div>
+      <h2 class="section-title" id="amenitiesTitle">At the resort</h2>
+      <p class="section-sub">What you’ll find here, as listed by the resort.</p>
+    </div>
+    <div class="amenity-groups">
+      <% for (const g of amenityGroups) { if (!g.items.length) continue; %>
+      <div class="amenity-group">
+        <% if (g.title) { %><h3 class="amenity-title"><%= g.title %></h3><% } %>
+        <ul class="amenity-list" role="list">
+          <% for (const a of g.items) { %><li><i class="fas fa-check" aria-hidden="true"></i><span><%= a %></span></li><% } %>
+        </ul>
       </div>
       <% } %>
     </div>
@@ -606,132 +353,103 @@
 </section>
 <% } %>
 
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<%# â”€â”€ CTA + CONTACT SECTION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<%# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• %>
-<section class="cta-section" id="contact">
-  <div class="container-lp" style="position:relative;z-index:2;">
-    <div class="row align-items-center g-5">
-      <div class="col-lg-6 text-center text-lg-start">
-        <div class="section-tag">Get In Touch</div>
-        <h2 class="cta-title">Ready to Create Lasting Memories?</h2>
-        <p class="cta-sub mx-0">Book your stay today or contact us for custom event inquiries. Our team is ready to make your experience exceptional.</p>
-        <div class="d-flex flex-wrap gap-3 justify-content-center justify-content-lg-start">
-          <a href="/portal/book"   class="btn-gold"><i class="fas fa-calendar-plus me-2"></i>Book Now</a>
-          <a href="/portal/inquire" class="btn-outline-white"><i class="fas fa-envelope me-2"></i>Send Inquiry</a>
-        </div>
+<%# ── How booking works: four stages, then proof + staff verification ── %>
+<section class="section how" id="how-to-book" aria-labelledby="howTitle">
+  <div class="wrap">
+    <div class="section-head">
+      <h2 class="section-title" id="howTitle">How booking works</h2>
+      <p class="section-sub">Four short steps online. You pay the downpayment outside the site, and our staff check it by hand — your booking isn’t final until they do.</p>
+    </div>
+    <ol class="steps" role="list">
+      <li class="step">
+        <span class="step-num" aria-hidden="true">1</span>
+        <h3 class="step-title">Choose your place</h3>
+        <p>A room, a cottage, the function hall or an event package — with the live price.</p>
+      </li>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">2</span>
+        <h3 class="step-title">Pick dates and details</h3>
+        <p>Nights for a room, or a date and hours for everything else. Add guests, requests and any add-ons.</p>
+      </li>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">3</span>
+        <h3 class="step-title">Add your contact number</h3>
+        <p>Sign in or create a free account and add a Philippine mobile number so staff can reach you.</p>
+      </li>
+      <li class="step">
+        <span class="step-num" aria-hidden="true">4</span>
+        <h3 class="step-title">Get payment instructions</h3>
+        <p>Choose GCash, Maya or bank transfer. You get a BK- reference and the booking shows as <strong>Awaiting payment</strong>.</p>
+      </li>
+    </ol>
+    <div class="how-after">
+      <div class="how-after-icon" aria-hidden="true"><i class="fas fa-receipt"></i></div>
+      <div>
+        <h3 class="step-title">Then: upload your proof and wait for staff verification</h3>
+        <p>Pay the <%= dpPercent %>% downpayment, upload a screenshot on your booking page, and staff verify it against the resort’s account. You’re notified when it’s checked. The balance is paid at the resort, and you show your booking QR code on arrival.</p>
       </div>
-
-      <div class="col-lg-6">
-        <div class="contact-glass-card">
-          <h5 style="color:#fff;font-weight:700;margin-bottom:1.5rem;"><i class="fas fa-address-card me-2" style="color:var(--gold);"></i>Find & Contact Us</h5>
-          <div class="contact-item">
-            <div class="contact-icon"><i class="fas fa-map-marker-alt"></i></div>
-            <div>
-              <div class="contact-label">Address</div>
-              <div class="contact-value"><%= site.resort_address || 'Miciano Road, Quezon City, Philippines' %></div>
-            </div>
-          </div>
-          <div class="contact-item">
-            <div class="contact-icon"><i class="fas fa-phone-alt"></i></div>
-            <div>
-              <div class="contact-label">Phone</div>
-              <div class="contact-value"><%= site.resort_phone || '(02) 8123-4567' %></div>
-            </div>
-          </div>
-          <div class="contact-item">
-            <div class="contact-icon"><i class="fas fa-envelope"></i></div>
-            <div>
-              <div class="contact-label">Email</div>
-              <div class="contact-value"><%= site.resort_email || 'info@balai-reserve.com' %></div>
-            </div>
-          </div>
-          <div class="contact-item">
-            <div class="contact-icon"><i class="fas fa-clock"></i></div>
-            <div>
-              <div class="contact-label">Check-in / Check-out</div>
-              <div class="contact-value">Check-in: <%= site.check_in_time || '2:00 PM' %> &nbsp;&middot;&nbsp; Check-out: <%= site.check_out_time || '12:00 PM' %></div>
-            </div>
-          </div>
-          <div class="contact-item mb-0">
-            <div class="contact-icon"><i class="fab fa-facebook"></i></div>
-            <div>
-              <div class="contact-label">Facebook Page</div>
-              <div class="contact-value">
-                <a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener noreferrer"
-                  style="color:rgba(255,255,255,.9);text-decoration:underline;">
-                  facebook.com/BalaiMiciano
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
+    </div>
+    <div class="how-foot">
+      <a href="#search" class="btn btn-primary btn-lg" data-open-search>Check availability</a>
+      <% if (site.cancellation_policy) { %>
+      <div class="policy" id="cancellation-policy">
+        <h3 class="policy-title">Cancellation policy</h3>
+        <p><%= site.cancellation_policy %></p>
       </div>
+      <% } %>
     </div>
   </div>
 </section>
 
-<%# â”€â”€ FOOTER â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ %>
-<footer class="landing-footer">
-  <div class="container-lp">
-    <div class="row g-4 mb-4">
-      <div class="col-12 col-md-4">
-        <div class="d-flex align-items-center gap-2 mb-2">
-          <div style="width:34px;height:34px;background:linear-gradient(135deg,#ffd166,#e6a800);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-size:.9rem;box-shadow:0 0 10px rgba(255,209,102,.35);"><i class="fas fa-home"></i></div>
-          <div class="footer-brand-name">Balai-Reserve</div>
-        </div>
-        <div class="footer-brand-sub mb-3">Your Home Away From Home</div>
-        <p style="font-size:.8rem;line-height:1.7;margin-bottom:1rem;">
-          A premier resort and event venue in Brgy. San Antonio, Gloria, Oriental Mindoro — offering rooms, venues, cottages, and full event management services.
-        </p>
-        <div class="footer-social d-flex gap-2">
-          <a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener noreferrer" title="Facebook"><i class="fab fa-facebook-f"></i></a>
-          <a href="mailto:<%= site.resort_email || 'info@balai-reserve.com' %>" title="Email"><i class="fas fa-envelope"></i></a>
-          <a href="tel:<%= site.resort_phone || '' %>" title="Phone"><i class="fas fa-phone-alt"></i></a>
-        </div>
-      </div>
-
-      <div class="col-6 col-md-2">
-        <div style="font-size:.82rem;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:.875rem;text-transform:uppercase;letter-spacing:.07em;">Browse</div>
-        <div class="d-flex flex-column gap-2" style="font-size:.83rem;">
-          <a href="/portal/rooms"    class="footer-link">Rooms</a>
-          <a href="/portal/venues"   class="footer-link">Venues</a>
-          <a href="/portal/cottages" class="footer-link">Cottages</a>
-          <a href="/portal/venues"   class="footer-link">Event Packages</a>
-        </div>
-      </div>
-
-      <div class="col-6 col-md-2">
-        <div style="font-size:.82rem;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:.875rem;text-transform:uppercase;letter-spacing:.07em;">Quick Links</div>
-        <div class="d-flex flex-column gap-2" style="font-size:.83rem;">
-          <a href="/#about"        class="footer-link">About Us</a>
-          <a href="/#amenities"    class="footer-link">Amenities</a>
-          <a href="/#how-to-book"  class="footer-link">How to Book</a>
-          <a href="/portal/inquire" class="footer-link">Contact Us</a>
-          <a href="/auth/login"    class="footer-link">Staff Login</a>
-        </div>
-      </div>
-
-      <div class="col-12 col-md-4">
-        <div style="font-size:.82rem;font-weight:700;color:rgba(255,255,255,.7);margin-bottom:.875rem;text-transform:uppercase;letter-spacing:.07em;">Contact</div>
-        <div style="font-size:.83rem;" class="d-flex flex-column gap-2">
-          <div><i class="fas fa-map-marker-alt me-2 text-gold"></i><%= site.resort_address || 'Brgy. San Antonio, Gloria, Oriental Mindoro' %></div>
-          <div><i class="fas fa-phone-alt me-2 text-gold"></i><%= site.resort_phone || '(02) 8123-4567' %></div>
-          <div><i class="fas fa-envelope me-2 text-gold"></i><%= site.resort_email || 'info@balai-reserve.com' %></div>
-          <div><i class="fas fa-clock me-2 text-gold"></i>Check-in: <%= site.check_in_time || '2:00 PM' %> &middot; Out: <%= site.check_out_time || '12:00 PM' %></div>
-        </div>
-      </div>
-    </div>
-
-    <hr class="footer-divider" />
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size:.78rem;">
-      <div>&copy; <%= new Date().getFullYear() %> Balai-Reserve. All rights reserved.</div>
-      <div class="d-flex gap-3">
-        <a href="/portal/inquire" class="footer-link">Privacy Policy</a>
-        <a href="/portal/inquire" class="footer-link">Terms of Use</a>
-        <a href="https://www.facebook.com/BalaiMiciano" target="_blank" class="footer-link">Facebook</a>
-      </div>
-    </div>
+<%# ── Guest feedback: only real, public reviews rated 4+; omitted when there are none ── %>
+<% if (reviews && reviews.length > 0) { %>
+<section class="section reviews" id="reviews" aria-labelledby="reviewsTitle">
+  <div class="wrap">
+    <h2 class="section-title" id="reviewsTitle">From our guests</h2>
+    <p class="section-sub">Shared by guests after their stay, with their permission.</p>
+    <ul class="review-list" role="list">
+      <% for (const r of reviews) { %>
+      <li>
+        <figure class="review">
+          <p class="review-stars" aria-label="Rated <%= r.rating %> out of 5"><% for (let s = 1; s <= 5; s++) { %><i class="fa<%= s <= r.rating ? 's' : 'r' %> fa-star" aria-hidden="true"></i><% } %></p>
+          <blockquote><p><%= r.comments.length > 220 ? r.comments.slice(0, 217).trim() + '…' : r.comments %></p></blockquote>
+          <figcaption>
+            <span class="review-avatar" aria-hidden="true"><%= String(r.customer_name || '?').trim().charAt(0).toUpperCase() %></span>
+            <span><span class="review-name"><%= r.customer_name %></span>
+            <span class="review-meta"><%= formatDate(r.created_at) %></span></span>
+          </figcaption>
+        </figure>
+      </li>
+      <% } %>
+    </ul>
   </div>
-</footer>
+</section>
+<% } %>
 
+<%# ── Location and contact (Settings > General); empty rows are hidden ── %>
+<section class="section contact" id="contact" aria-labelledby="contactTitle">
+  <div class="wrap contact-grid">
+    <div>
+      <h2 class="section-title" id="contactTitle">Getting here</h2>
+      <address class="contact-address"><%= address %></address>
+      <p><a href="<%= mapsUrl %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener noreferrer"><i class="fas fa-map-location-dot" aria-hidden="true"></i> Directions in Google Maps<span class="br-sr-only"> (opens in a new tab)</span></a></p>
+      <p class="contact-arrival">
+        Check-in from <strong><%= checkIn %></strong>, check-out by <strong><%= checkOut %></strong>.
+        Bring the QR code from your booking page; front desk staff check you in.
+      </p>
+    </div>
+    <dl class="contact-list">
+      <% if (site.resort_phone) { %>
+      <div><dt>Phone</dt><dd><a href="tel:<%= String(site.resort_phone).replace(/[^\d+]/g, '') %>"><%= site.resort_phone %></a></dd></div>
+      <% } %>
+      <% if (site.resort_email) { %>
+      <div><dt>Email</dt><dd><a href="mailto:<%= site.resort_email %>"><%= site.resort_email %></a></dd></div>
+      <% } %>
+      <div><dt>Facebook</dt><dd><a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener noreferrer">facebook.com/BalaiMiciano<span class="br-sr-only"> (opens in a new tab)</span></a></dd></div>
+      <div><dt>Questions</dt><dd><a href="/portal/inquire">Send an inquiry</a> and we’ll reply on the site.</dd></div>
+      <% if (site.cancellation_policy) { %><div><dt>Policies</dt><dd><a href="#cancellation-policy">Cancellation policy</a> · <a href="#how-to-book">How booking works</a></dd></div><% } %>
+    </dl>
+  </div>
+</section>
+
+<%include('portal/_lightbox')%>

@@ -1,45 +1,72 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Customers</h3><p class="text-muted mb-0">Centralized customer relationship management</p></div>
-  <div class="page-header-actions"><a href="/crm/customers/new" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Add Customer</a></div>
-</div>
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/crm" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4"><input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Name, email, phone or code..." /></div>
-      <div class="col-6 col-md-2"><select name="type" class="form-select form-select-sm"><option value="">All Types</option><% for (const t of types) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><select name="status" class="form-select form-select-sm"><option value="">All Statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-      <div class="col-6 col-md-2"><a href="/crm" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-    </form>
+<%
+  const TYPE_LABELS = { regular: 'Regular', vip: 'VIP', corporate: 'Corporate' };
+  const cap = (s) => { const t = String(s || '').replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const filtered = !!(filters.search || filters.type || filters.status);
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Customers</h1>
+<div class="ph-actions">
+    <a href="/crm/customers/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>Add customer</a>
   </div>
-</div>
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>Code</th><th>Name</th><th>Email</th><th>Phone</th><th>Type</th><th>Bookings</th><th>Last Booking</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          <% if (!customers || customers.length === 0) { %>
-          <tr><td colspan="9" class="text-center py-4 text-muted">No customers found.</td></tr>
-          <% } else { %>
-            <% for (const c of customers) { %>
-            <tr>
-              <td><code class="small"><%= c.customer_code %></code></td>
-              <td><a href="/crm/customers/<%= c.id %>" class="fw-medium"><%= c.first_name %> <%= c.last_name %></a></td>
-              <td class="small text-muted"><%= c.email || '—' %></td>
-              <td class="small"><%= c.phone || '—' %></td>
-              <td><span class="badge <%= c.customer_type === 'vip' ? 'bg-warning text-dark' : c.customer_type === 'corporate' ? 'bg-primary' : 'bg-light text-dark' %> small"><%= c.customer_type %></span></td>
-              <td class="text-center"><%= c.total_bookings %></td>
-              <td class="small text-muted"><%= formatDate(c.last_booking) || '—' %></td>
-              <td><%- statusBadge(c.status) %></td>
-              <td><a href="/crm/customers/<%= c.id %>" class="btn btn-xs btn-outline-primary">Profile</a></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
+<!--/page-head-->
+
+<form method="GET" action="/crm" class="ap-toolbar" role="search" aria-label="Find a customer">
+  <div class="ap-field ap-field-search">
+    <label for="crmSearch">Find a customer</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="crmSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Name, email, phone or customer code" autocomplete="off" /></div>
   </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
+  <div class="ap-field">
+    <label for="crmType">Type</label>
+    <select id="crmType" name="type" class="form-select"><option value="">All types</option><% for (const t of types) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= TYPE_LABELS[t] || cap(t) %></option><% } %></select>
+  </div>
+  <div class="ap-field">
+    <label for="crmStatus">Status</label>
+    <select id="crmStatus" name="status" class="form-select"><option value="">All statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= cap(s) %></option><% } %></select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Search</button>
+    <% if (filtered) { %><a href="/crm" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<section class="ap-panel" aria-labelledby="crmListHeading">
+  <div class="ap-panel-head">
+    <h2 id="crmListHeading"><%= filtered ? 'Matching customers' : 'All customers' %> <span class="ap-meta"><%= pagination.total %></span></h2>
+    <span class="ap-meta">A–Z by first name</span>
+  </div>
+  <% if (!customers || customers.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No customers match' : 'No customers yet' %></strong>
+    <%= filtered ? 'Check the spelling, or search by phone number or customer code.' : 'Customers are added automatically when guests register or book at the desk.' %>
+    <div><% if (filtered) { %><a href="/crm" class="btn btn-outline-secondary btn-sm">Clear search</a> <% } %><a href="/crm/customers/new" class="btn btn-primary btn-sm">Add customer</a></div>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr><th scope="col">Customer</th><th scope="col">Email</th><th scope="col">Phone</th><th scope="col">Type</th><th scope="col" class="num">Bookings</th><th scope="col">Last booking</th><th scope="col">Status</th><th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th></tr>
+      </thead>
+      <tbody>
+        <% for (const c of customers) { %>
+        <tr>
+          <td class="ap-cell-title"><a href="/crm/customers/<%= c.id %>" class="ap-name"><%= c.first_name %> <%= c.last_name %></a><span class="ap-line2 ap-code"><%= c.customer_code %></span></td>
+          <td data-label="Email" class="ap-wide crm-email"><%= c.email || '—' %></td>
+          <td data-label="Phone" class="text-nowrap crm-phone"><%= c.phone || '—' %></td>
+          <td data-label="Type"><span class="<%= c.customer_type === 'vip' ? 'crm-type-vip' : '' %>"><%= TYPE_LABELS[c.customer_type] || cap(c.customer_type) %></span></td>
+          <td class="num" data-label="Bookings"><%= c.total_bookings %></td>
+          <td data-label="Last booking" class="text-nowrap"><%= c.last_booking ? formatDate(c.last_booking) : '—' %></td>
+          <td class="ap-cell-status"><%- statusBadge(c.status) %></td>
+          <td class="ap-row-actions"><div class="ap-actions"><a href="/crm/customers/<%= c.id %>" class="ap-act">Profile<span class="br-sr-only"> of <%= c.first_name %> <%= c.last_name %></span></a></div></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+  <% if (pagination && pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+</section>
+
 </div>

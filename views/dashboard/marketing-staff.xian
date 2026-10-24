@@ -137,7 +137,7 @@
   const ct = <%- customerTypeChartJson || '[]' %>;
   const rt = <%- ratingTrendJson       || '[]' %>;
   const ctc = document.getElementById('custTypeChart');
-  if (ctc && ct.length) new Chart(ctc,{type:'doughnut',data:{labels:ct.map(d=>d.customer_type),datasets:[{data:ct.map(d=>d.cnt),backgroundColor:['#4f46e5','#f59e0b','#10b981']}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12}}},cutout:'60%'}});
+  if (ctc && ct.length) new Chart(ctc,{type:'doughnut',data:{labels:ct.map(d=>d.customer_type),datasets:[{data:ct.map(d=>d.cnt),backgroundColor:['#0f5c66','#f59e0b','#10b981']}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12}}},cutout:'60%'}});
   const rtc = document.getElementById('ratingChart');
   if (rtc && rt.length) new Chart(rtc,{type:'line',data:{labels:rt.map(d=>d.month),datasets:[{label:'Avg Rating',data:rt.map(d=>d.avg),borderColor:'#f59e0b',backgroundColor:'rgba(245,158,11,.1)',fill:true,tension:.4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{min:0,max:5,ticks:{stepSize:1}}}}});
 })();

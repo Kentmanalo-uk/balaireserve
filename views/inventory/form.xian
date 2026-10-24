@@ -1,20 +1,92 @@
 <% layout('layouts/main') %>
-<div class="page-header"><div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/inventory">Inventory</a></li><li class="breadcrumb-item active">Add Item</li></ol></nav><h3 class="mb-0">Add Inventory Item</h3></div></div>
-<% if (errors && errors.length > 0) { %><div class="alert alert-danger"><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div><% } %>
-<div class="row"><div class="col-lg-6"><div class="card"><div class="card-body">
-<form action="/inventory" method="POST">
-  <div class="row g-3">
-    <div class="col-md-8"><label class="form-label required">Item Name</label><input type="text" name="name" class="form-control" value="<%= old.name || '' %>" required /></div>
-    <div class="col-md-4"><label class="form-label">Unit</label><input type="text" name="unit" class="form-control" value="<%= old.unit || 'pcs' %>" placeholder="pcs, sets, rolls..." /></div>
-    <div class="col-md-6"><label class="form-label required">Category</label><select name="category_id" class="form-select" required><option value="">Select...</option><% for (const c of categories) { %><option value="<%= c.id %>" <%= String(old.category_id) === String(c.id) ? 'selected' : '' %>><%= c.name %></option><% } %></select></div>
-    <div class="col-md-6"><label class="form-label required">Total Quantity</label><input type="number" name="total_qty" class="form-control" value="<%= old.total_qty || 0 %>" min="0" required /></div>
-    <div class="col-md-6"><label class="form-label">Reorder Level</label><input type="number" name="reorder_level" class="form-control" value="<%= old.reorder_level || 5 %>" min="0" /></div>
-    <div class="col-md-6"><label class="form-label">Location</label><input type="text" name="location" class="form-control" value="<%= old.location || '' %>" placeholder="Storage room..." /></div>
-    <div class="col-12"><label class="form-label">Description</label><textarea name="description" class="form-control" rows="2"><%= old.description || '' %></textarea></div>
+<%
+  const isEdit = !!item;
+  const val = (k, d) => (old[k] !== undefined && old[k] !== null && old[k] !== '') ? old[k] : d;
+  const errList = errors || [];
+  const errFor = (k) => errList.filter(e => (e.path || e.param) === k).map(e => e.msg);
+  const fieldErr = (k) => errFor(k).length ? 'is-invalid' : '';
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/inventory" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Inventory</a>
+<h1 class="ph-title"><%= isEdit ? 'Edit ' + item.name : 'Add inventory item' %></h1>
+<!--/page-head-->
+<div class="page-meta"><%= isEdit ? 'Update the item\'s details. To log units received, used up, damaged or repaired, use Adjust on the inventory list instead.' : 'Track a supply such as chairs, tables or linens. Its stock starts at the total quantity you enter.' %></div>
+
+<% if (errList.length > 0) { %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errList) { %><li><%= e.msg %></li><% } %></ul>
+</div>
+<% } %>
+
+<form data-guard="this item" action="<%= isEdit ? '/inventory/' + item.id + '/edit' : '/inventory' %>" method="POST" class="ap-form">
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Item</h2>
+      <p>What it is and where it is kept.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required" for="invName">Item name</label>
+          <input type="text" id="invName" name="name" class="form-control <%= fieldErr('name') %>" value="<%= val('name', '') %>" required />
+          <% for (const m of errFor('name')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required" for="invCategory">Category</label>
+          <select id="invCategory" name="category_id" class="form-select <%= fieldErr('category_id') %>" required><option value="">Select…</option><% for (const c of categories) { %><option value="<%= c.id %>" <%= String(val('category_id', '')) === String(c.id) ? 'selected' : '' %>><%= c.name %></option><% } %></select>
+          <% for (const m of errFor('category_id')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="invLocation">Storage location</label>
+          <input type="text" id="invLocation" name="location" class="form-control" value="<%= val('location', '') %>" placeholder="e.g. Storage room beside the pavilion" />
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="invDescription">Description</label>
+          <textarea id="invDescription" name="description" class="form-control" rows="2"><%= val('description', '') %></textarea>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="d-flex gap-2 mt-4">
-    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Add Item</button>
-    <a href="/inventory" class="btn btn-outline-secondary">Cancel</a>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Stock</h2>
+      <p>The list flags the item as <strong>Low stock</strong> once available units reach the reorder level.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (isEdit) { %>
+      <p class="inv-adjust-now">Now: <%= item.total_qty %> total · <%= item.available_qty %> available · <%= item.reserved_qty %> reserved · <%= item.damaged_qty %> damaged <span class="ap-code ms-1"><%= item.item_code %></span></p>
+      <% } %>
+      <div class="row g-3">
+        <div class="col-sm-4">
+          <label class="form-label required" for="invTotal">Total quantity</label>
+          <input type="number" id="invTotal" name="total_qty" class="form-control <%= fieldErr('total_qty') || (isEdit && errList.some(e => !(e.path || e.param)) ? 'is-invalid' : '') %>" value="<%= val('total_qty', 0) %>" min="<%= isEdit ? item.reserved_qty + item.damaged_qty : 0 %>" required aria-describedby="invTotalHelp" />
+          <% for (const m of errFor('total_qty')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
+          <div class="form-text" id="invTotalHelp"><%= isEdit ? 'Available changes by the same amount. Can\'t go below ' + (item.reserved_qty + item.damaged_qty) + ' (reserved + damaged).' : 'All units start as available.' %></div>
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="invUnit">Unit</label>
+          <input type="text" id="invUnit" name="unit" class="form-control" value="<%= val('unit', 'pcs') %>" placeholder="pcs, sets, rolls…" />
+        </div>
+        <div class="col-sm-4">
+          <label class="form-label" for="invReorder">Reorder level</label>
+          <input type="number" id="invReorder" name="reorder_level" class="form-control <%= fieldErr('reorder_level') %>" value="<%= val('reorder_level', 5) %>" min="0" aria-describedby="invReorderHelp" />
+          <% for (const m of errFor('reorder_level')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
+          <div class="form-text" id="invReorderHelp">Warn when available is at or below this.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
+    <a href="/inventory<%= isEdit ? '#item-' + item.id : '' %>" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary"><%= isEdit ? 'Save changes' : 'Add item' %></button>
   </div>
 </form>
-</div></div></div></div>
+
+</div>

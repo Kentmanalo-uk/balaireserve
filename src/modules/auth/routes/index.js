@@ -22,6 +22,12 @@ function getGoogleOAuthConfig() {
   return { clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET, redirectUri: GOOGLE_REDIRECT_URI };
 }
 
+// Login and register pages both offer "Continue with Google" once it is configured.
+router.use((req, res, next) => {
+  res.locals.googleLoginEnabled = Boolean(getGoogleOAuthConfig());
+  next();
+});
+
 function buildSessionUser(user) {
   return {
     id: user.id,

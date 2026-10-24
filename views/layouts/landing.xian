@@ -2,19 +2,158 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Balai-Reserve — Your Home Away From Home in Brgy. San Antonio, Gloria, Oriental Mindoro. Book rooms, venues, cottages, and events online." />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content" />
+  <meta name="description" content="<%= typeof metaDescription !== 'undefined' && metaDescription ? metaDescription : 'Balai-Reserve — Your Home Away From Home. A beachfront resort in Brgy. San Antonio, Gloria, Oriental Mindoro. See rooms, cottages, the function hall and event packages with live prices, check availability and book online.' %>" />
+  <meta name="theme-color" content="#fcfbf8" />
   <title><%= title || 'Balai-Reserve — Your Home Away From Home' %></title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/brand/balai-icon-32.png" />
+  <link rel="apple-touch-icon" href="/images/brand/balai-icon-192.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/landing.css" />
+  <link rel="stylesheet" href="/css/listing.css" />
+  <script>document.documentElement.classList.add('js');</script>
 </head>
-<body class="landing-body">
+<body class="landing-body<%= typeof bodyClass !== 'undefined' && bodyClass ? ' ' + bodyClass : '' %>">
+<%
+  // Shared public header, drawer and footer for the landing page and /stay pages.
+  const _site    = (typeof site !== 'undefined' && site) || {};
+  const _onHome  = currentPath === '/';
+  const _h       = _onHome ? '' : '/';           // in-page anchors on the home page, absolute elsewhere
+  let _gallery = [];
+  try { _gallery = JSON.parse(_site.landing_gallery || '[]'); } catch {}
+  const _hasGallery = typeof hasGallery !== 'undefined' ? !!hasGallery
+                    : (Array.isArray(_gallery) && _gallery.some(g => g && typeof g.path === 'string' && g.path.startsWith('/uploads/settings/landing/')));
+  const _hasEvents  = typeof hasEvents !== 'undefined' ? !!hasEvents : true;
+  const _isCustomer = currentUser && currentUser.role === 'customer';
+  const _isStaff    = currentUser && currentUser.role !== 'customer';
+  const _cta        = _onHome ? { href: '#search', label: 'Check availability' }
+                    : (typeof ctaHref !== 'undefined' && ctaHref ? { href: ctaHref, label: 'Check availability' } : { href: '/#search', label: 'Check availability' });
+  const _nav = [['#stay', 'Stay'], ['#cottages', 'Cottages']];
+  if (_hasEvents)  _nav.push(['#events', 'Events']);
+  if (_hasGallery) _nav.push(['#gallery', 'Gallery']);
+  _nav.push(['#contact', 'Contact']);
 
+  const _address = _site.resort_address || 'Brgy. San Antonio, Gloria, Oriental Mindoro, Philippines';
+  const _tagline = _site.resort_tagline || 'Your Home Away From Home';
+  const _maps    = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(_address);
+  const _fmtTime = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return t || ''; const h = +m[1]; return (h % 12 || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const _dpRaw   = Number.parseFloat(_site.downpayment_percent);
+  const _dp      = Number.isFinite(_dpRaw) && _dpRaw > 0 && _dpRaw <= 100 ? _dpRaw : 50;
+%>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site-header<%= _onHome ? ' on-home' : '' %>" id="topNav">
+  <div class="header-inner">
+    <a href="/" class="brand" aria-label="Balai-Reserve home">
+      <img src="/images/brand/balai-icon-96.png" alt="" width="44" height="44" class="brand-logo" />
+      <span class="brand-name">Balai-Reserve</span>
+      <span class="brand-place">Gloria, Oriental Mindoro</span>
+    </a>
+
+    <nav class="header-nav" aria-label="Main">
+      <% for (const [href, label] of _nav) { %><a href="<%= _h + href %>"><%= label %></a><% } %>
+    </nav>
+
+    <div class="header-actions">
+      <% if (_isStaff) { %>
+        <a href="/dashboard" class="header-link">Dashboard</a>
+      <% } else if (_isCustomer) { %>
+        <a href="/portal/my-reservations" class="header-link">My reservations</a>
+      <% } else { %>
+        <a href="/auth/login" class="header-link">Sign in</a>
+      <% } %>
+      <a href="<%= _cta.href %>" class="btn btn-primary header-cta" data-open-search><span class="cta-long"><%= _cta.label %></span><span class="cta-short" aria-hidden="true">Book</span></a>
+      <button type="button" class="nav-toggle" id="navToggle" aria-expanded="false" aria-controls="mobileMenu">
+        <i class="fas fa-bars" aria-hidden="true"></i><span>Menu</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<%# Mobile navigation drawer — landing.js handles open/close, Esc and focus %>
+<div class="mobile-menu" id="mobileMenu" role="dialog" aria-modal="true" aria-label="Menu" hidden>
+  <div class="mobile-menu-head">
+    <span class="menu-brand"><img src="/images/brand/balai-icon-96.png" alt="" width="40" height="40" class="brand-logo" /><span class="brand-name">Balai-Reserve</span></span>
+    <button type="button" class="mobile-close" id="menuClose">
+      <i class="fas fa-times" aria-hidden="true"></i><span>Close</span>
+    </button>
+  </div>
+  <nav aria-label="Main (mobile)">
+    <% for (const [href, label] of _nav) { %><a href="<%= _h + href %>"><%= label %></a><% } %>
+    <a href="/portal/calendar">Availability calendar</a>
+    <a href="<%= _h %>#how-to-book">How booking works</a>
+  </nav>
+  <div class="mobile-menu-actions">
+    <a href="<%= _cta.href %>" class="btn btn-primary btn-lg" data-open-search><%= _cta.label %></a>
+    <% if (_isStaff) { %>
+      <a href="/dashboard" class="btn btn-outline-primary btn-lg">Dashboard</a>
+    <% } else if (_isCustomer) { %>
+      <a href="/portal/my-reservations" class="btn btn-outline-primary btn-lg">My reservations</a>
+      <a href="/portal" class="btn btn-outline-primary btn-lg">Guest portal</a>
+    <% } else { %>
+      <a href="/auth/login" class="btn btn-outline-primary btn-lg">Sign in</a>
+      <a href="/auth/register" class="mobile-menu-sub">New here? Create an account</a>
+    <% } %>
+  </div>
+</div>
+
+<main id="main">
   <%- body %>
+</main>
 
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="/js/landing.js"></script>
+<footer class="site-footer">
+  <svg class="footer-shore" viewBox="0 0 1440 48" preserveAspectRatio="none" aria-hidden="true" focusable="false"><path d="M0 48V22c160-18 340-24 520-10s360 26 560 10 300-22 360-14v40z"/></svg>
+  <div class="wrap footer-grid">
+    <div class="footer-brand">
+      <img src="/images/brand/balai-icon-192.png" alt="" width="72" height="72" class="brand-logo footer-logo" loading="lazy" />
+      <p class="brand-name">Balai-Reserve</p>
+      <p class="footer-tagline"><%= _tagline %></p>
+      <address class="footer-address"><%= _address %></address>
+      <a href="<%= _maps %>" target="_blank" rel="noopener noreferrer">Open in Google Maps<span class="br-sr-only"> (opens in a new tab)</span></a>
+    </div>
+    <nav aria-label="Footer: stay">
+      <h2 class="footer-head">Stay and celebrate</h2>
+      <a href="/portal/rooms">Rooms</a>
+      <a href="/portal/cottages">Cottages</a>
+      <a href="/portal/venues">Function hall &amp; event packages</a>
+      <a href="/portal/calendar">Availability calendar</a>
+    </nav>
+    <div>
+      <h2 class="footer-head">Good to know</h2>
+      <ul class="footer-facts" role="list">
+        <li>Check-in <%= _fmtTime(_site.check_in_time || '14:00') %> · check-out <%= _fmtTime(_site.check_out_time || '12:00') %></li>
+        <li><%= _dp %>% downpayment online by GCash, Maya or bank transfer</li>
+        <li>Balance is settled at the resort</li>
+      </ul>
+      <a href="<%= _h %>#how-to-book">How booking works</a>
+      <% if (_site.cancellation_policy) { %><a href="<%= _h %>#cancellation-policy">Cancellation policy</a><% } %>
+    </div>
+    <div>
+      <h2 class="footer-head">Contact</h2>
+      <% if (_site.resort_phone) { %><a href="tel:<%= String(_site.resort_phone).replace(/[^\d+]/g, '') %>"><%= _site.resort_phone %></a><% } %>
+      <% if (_site.resort_email) { %><a href="mailto:<%= _site.resort_email %>"><%= _site.resort_email %></a><% } %>
+      <a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener noreferrer">Facebook<span class="br-sr-only"> (opens in a new tab)</span></a>
+      <a href="/portal/inquire">Send an inquiry</a>
+    </div>
+  </div>
+  <div class="wrap footer-base">
+    <span>&copy; <%= new Date().getFullYear() %> Balai-Reserve · Brgy. San Antonio, Gloria, Oriental Mindoro</span>
+    <% if (!currentUser) { %>
+    <span class="footer-account"><a href="/auth/login">Sign in</a><a href="/auth/register">Create an account</a></span>
+    <% } else if (_isCustomer) { %>
+    <span class="footer-account"><a href="/portal">Guest portal</a><a href="/portal/my-reservations">My reservations</a></span>
+    <% } %>
+  </div>
+</footer>
+
+<%include('partials/chatbot')%>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="/js/landing.js"></script>
 </body>
 </html>

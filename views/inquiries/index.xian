@@ -1,57 +1,79 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Inquiries</h3><p class="text-muted mb-0">Manage customer inquiries and automated responses</p></div>
-</div>
+<%
+  const cap = (s) => { const t = String(s || '').replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const filtered = !!(filters.search || filters.status || filters.category);
+%>
+<div class="ap-page">
 
-<%# ── Status summary strip — shows count per status so staff understand where the badge number comes from %>
-<div class="row g-2 mb-3">
-  <% const statusColors = { open:'danger', in_progress:'warning', escalated:'primary', resolved:'success', closed:'secondary' }; %>
-  <% for (const [s, label] of [['open','Open'],['in_progress','In Progress'],['escalated','Escalated'],['resolved','Resolved'],['closed','Closed']]) { %>
-  <div class="col">
-    <a href="/inquiries?status=<%= s %>" class="text-decoration-none">
-      <div class="card text-center py-2 px-1 h-100 border-<%= statusColors[s] || 'secondary' %> <%= filters.status === s ? 'bg-' + (statusColors[s]||'secondary') + ' bg-opacity-10' : '' %>">
-        <div class="fw-bold fs-5 text-<%= statusColors[s] || 'secondary' %>"><%= statusCounts[s] || 0 %></div>
-        <div class="small text-muted"><%= label %></div>
-      </div>
-    </a>
+<!--page-head-->
+<h1 class="ph-title">Inquiries</h1>
+<!--/page-head-->
+<p class="page-intro">Questions from guests and the website chat. Open inquiries are listed first; replying resolves the inquiry and notifies the guest.</p>
+
+<%# Status summary — the count per status explains the sidebar badge; each links to that filter %>
+<nav class="ap-kpis inq-status-strip" aria-label="Inquiries by status">
+  <% for (const [s, label] of [['open','Open'],['in_progress','In progress'],['escalated','Escalated'],['resolved','Resolved'],['closed','Closed']]) { const n = statusCounts[s] || 0; %>
+  <a href="/inquiries?status=<%= s %>" class="ap-kpi <%= filters.status === s ? 'is-active' : '' %> <%= s === 'open' && n > 0 ? 'is-warn' : '' %>" <%= filters.status === s ? 'aria-current="page"' : '' %>>
+    <span class="ap-kpi-label"><%= label %></span>
+    <span class="ap-kpi-value"><%= n %></span>
+  </a>
+  <% } %>
+</nav>
+
+<form method="GET" action="/inquiries" class="ap-toolbar" role="search" aria-label="Filter inquiries">
+  <div class="ap-field ap-field-search">
+    <label for="inqSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="inqSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Subject, name or email" /></div>
+  </div>
+  <div class="ap-field">
+    <label for="inqStatus">Status</label>
+    <select id="inqStatus" name="status" class="form-select"><option value="">All statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %></select>
+  </div>
+  <div class="ap-field">
+    <label for="inqCategory">Category</label>
+    <select id="inqCategory" name="category" class="form-select"><option value="">All categories</option><% for (const c of categories) { %><option value="<%= c %>" <%= filters.category === c ? 'selected' : '' %>><%= cap(c) %></option><% } %></select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/inquiries" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<section class="ap-panel" aria-labelledby="inqListHeading">
+  <div class="ap-panel-head">
+    <h2 id="inqListHeading"><%= filters.status ? statusLabel(filters.status) + ' inquiries' : 'All inquiries' %> <span class="ap-meta"><%= pagination.total %></span></h2>
+  </div>
+  <% if (!inquiries || inquiries.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No inquiries match these filters' : 'No inquiries yet' %></strong>
+    <%= filtered ? 'Try another status or clear the filters.' : 'Questions sent from the portal or the website chat will appear here.' %>
+    <% if (filtered) { %><div><a href="/inquiries" class="btn btn-outline-secondary btn-sm">Clear filters</a></div><% } %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr><th scope="col">Inquiry</th><th scope="col">From</th><th scope="col">Handled by</th><th scope="col">Received</th><th scope="col">Status</th><th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th></tr>
+      </thead>
+      <tbody>
+        <% for (const inq of inquiries) { %>
+        <tr class="<%= inq.status === 'open' ? 'inq-row-open' : '' %>">
+          <td class="ap-cell-title">
+            <a href="/inquiries/<%= inq.id %>" class="ap-name"><%= inq.subject %></a>
+            <span class="ap-line2">#<%= inq.id %> · <%= cap(inq.category) %> · via <%= cap(inq.source) %></span>
+          </td>
+          <td data-label="From"><%= inq.name || '—' %><% if (inq.email) { %><span class="ap-line2"><%= inq.email %></span><% } %></td>
+          <td data-label="Handled by"><%= inq.assigned_name || 'Unassigned' %></td>
+          <td data-label="Received" class="text-nowrap"><%= formatDate(inq.created_at) %></td>
+          <td class="ap-cell-status"><%- statusBadge(inq.status) %></td>
+          <td class="ap-row-actions"><div class="ap-actions"><a href="/inquiries/<%= inq.id %>" class="ap-act"><%= (inq.status === 'resolved' || inq.status === 'closed') ? 'View' : 'Reply' %><span class="br-sr-only"> to inquiry #<%= inq.id %></span></a></div></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
   </div>
   <% } %>
-</div>
+  <% if (pagination && pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+</section>
 
-<div class="card mb-3"><div class="card-body py-2">
-  <form method="GET" action="/inquiries" class="row g-2 align-items-end">
-    <div class="col-12 col-md-4"><input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Subject, name, or email..." /></div>
-    <div class="col-6 col-md-2"><select name="status" class="form-select form-select-sm"><option value="">All Statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase()) %></option><% } %></select></div>
-    <div class="col-6 col-md-2"><select name="category" class="form-select form-select-sm"><option value="">All Categories</option><% for (const c of categories) { %><option value="<%= c %>" <%= filters.category === c ? 'selected' : '' %>><%= c %></option><% } %></select></div>
-    <div class="col-3 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-    <div class="col-3 col-md-2"><a href="/inquiries" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-  </form>
-</div></div>
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>#</th><th>From</th><th>Subject</th><th>Category</th><th>Source</th><th>Assigned To</th><th>Status</th><th>Date</th><th></th></tr></thead>
-        <tbody>
-          <% if (!inquiries || inquiries.length === 0) { %><tr><td colspan="9" class="text-center py-4 text-muted">No inquiries found.</td></tr>
-          <% } else { %>
-            <% for (const inq of inquiries) { %>
-            <tr>
-              <td class="text-muted small">#<%= inq.id %></td>
-              <td><div class="fw-medium"><%= inq.name || '—' %></div><div class="text-muted small"><%= inq.email || '' %></div></td>
-              <td><a href="/inquiries/<%= inq.id %>"><%= inq.subject %></a></td>
-              <td><span class="badge bg-light text-dark small"><%= inq.category %></span></td>
-              <td><span class="badge bg-light text-dark small"><%= inq.source %></span></td>
-              <td class="small"><%= inq.assigned_name || '—' %></td>
-              <td><%- statusBadge(inq.status) %></td>
-              <td class="small text-muted"><%= formatDate(inq.created_at) %></td>
-              <td><a href="/inquiries/<%= inq.id %>" class="btn btn-xs btn-outline-primary">View</a></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
-  </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
 </div>

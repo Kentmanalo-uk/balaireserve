@@ -17,7 +17,8 @@ const { generateReservationQR }    = require('../../../utils/qrGenerator');
 const { notifyAllAdmins, notifyUser } = require('../../../utils/notifications');
 const { validateGcashScreenshot }     = require('../../../utils/gcashValidator');
 const { calculateCottageTotal, validateCottageTimeRange } = require('../../../utils/cottagePricing');
-const { uniqueCatalogRows } = require('../../../utils/catalog');
+const { publicSettings } = require('../../../utils/publicSettings');
+const { uniqueCatalogRows, withExistingPhotos, photosFirst } = require('../../../utils/catalog');
 
 const router = express.Router();
 
@@ -68,7 +69,6 @@ function reservationOverlaps(itemType, reservation, requested) {
 
   const reservationDate = itemType === 'venue' ? reservation.event_date : reservation.check_in_date;
   if (!requested.date || reservationDate !== requested.date) return false;
-  if (itemType === 'cottage' && requested.wholeDay) return true;
   if (!requested.startTime || !requested.endTime ||
       !reservation.start_time || !reservation.end_time) return true;
   return reservation.start_time < requested.endTime &&
@@ -110,6 +110,20 @@ function removeUploadedProof(file) {
   }
 }
 
+// Display-only: first existing photo of each booking's main room / cottage / venue (rows need main_item_type + main_item_id).
+async function attachItemPhotos(rows) {
+  const table = { room: 'rooms', cottage: 'cottages', venue: 'venues' };
+  for (const row of rows || []) {
+    row.photo = null;
+    if (!table[row.main_item_type] || !row.main_item_id) continue;
+    const item = await db.prepare(`SELECT id, name, images FROM ${table[row.main_item_type]} WHERE id = ?`).get(row.main_item_id);
+    if (!item) continue;
+    const [withPhotos] = withExistingPhotos([item]);
+    if (withPhotos && withPhotos.imagesList && withPhotos.imagesList.length) row.photo = withPhotos.imagesList[0];
+  }
+  return rows;
+}
+
 function getDownpaymentPercent(value) {
   const percent = Number.parseFloat(value || '50');
   return Number.isFinite(percent) && percent > 0 && percent <= 100 ? percent : 50;
@@ -137,12 +151,14 @@ async function requireCustomer(req, res, next) {
 router.use(async (req, res, next) => {
   res.locals.portalLayout = 'layouts/portal';
   try {
-    const settingKeys = ['gcash_number','gcash_name','maya_number','maya_name','bank_bdo','bank_bpi','bank_name','gcash_qr_path','maya_qr_path'];
+    const settingKeys = ['gcash_number','gcash_name','maya_number','maya_name','bank_bdo','bank_bpi','bank_name','gcash_qr_path','maya_qr_path','downpayment_percent',
+      'resort_phone','resort_email','resort_address','check_in_time','check_out_time'];
     const rows = await db.prepare(
       `SELECT \`key\`, value FROM settings WHERE \`key\` IN (${settingKeys.map(() => '?').join(',')})`
     ).all(...settingKeys);
-    const pm = {};
+    let pm = {};
     for (const r of rows) pm[r.key] = r.value || '';
+    pm = publicSettings(pm);   // seed placeholders / XXXX numbers are not real accounts
     res.locals.paymentInfo = {
       gcash_number: pm.gcash_number  || '—',
       gcash_name:   pm.gcash_name    || 'Balai Miciano Resort',
@@ -153,6 +169,14 @@ router.use(async (req, res, next) => {
       bank_name:    pm.bank_name     || 'Balai Miciano Resort',
       gcash_qr_path: pm.gcash_qr_path || '',
       maya_qr_path: pm.maya_qr_path || '',
+    };
+    // Guest-facing price cards show the downpayment from the current setting.
+    res.locals.downpaymentPercent = getDownpaymentPercent(pm.downpayment_percent);
+    // Display-only: verified contact details (placeholders are blanked by publicSettings) for portal pages.
+    res.locals.resortContact = {
+      phone: pm.resort_phone || '', email: pm.resort_email || '',
+      address: pm.resort_address || 'Brgy. San Antonio, Gloria, Oriental Mindoro, Philippines',
+      checkIn: pm.check_in_time || '14:00', checkOut: pm.check_out_time || '12:00',
     };
   } catch (error) {
     return next(error);
@@ -174,17 +198,16 @@ async function calculateServerTotal(reservation_type, roomId, venueId, pkgId, ci
     const venue = await db.prepare('SELECT price FROM venues WHERE id = ?').get(venueId);
     total = venue ? (venue.price || 0) : 0;
   } else if (reservation_type === 'cottage' && roomId) {
-    const cottage = await db.prepare('SELECT name, price FROM cottages WHERE id = ?').get(roomId);
-    const wholeDayRate = cottage?.name.trim().toLowerCase() === 'umbrella table';
-    total = cottage && (wholeDayRate || validateCottageTimeRange(startTime, endTime))
-      ? calculateCottageTotal(cottage.price, startTime, endTime, wholeDayRate)
+    const cottage = await db.prepare('SELECT price FROM cottages WHERE id = ?').get(roomId);
+    total = cottage && validateCottageTimeRange(startTime, endTime)
+      ? calculateCottageTotal(cottage.price)
       : 0;
   } else if (reservation_type === 'event' && venueId) {
     const venue = await db.prepare('SELECT price FROM venues WHERE id = ?').get(venueId);
     total = venue ? (venue.price || 0) : 0;
   }
   if (pkgId) {
-    const pkg = await db.prepare('SELECT price, inclusions FROM event_packages WHERE id = ?').get(pkgId);
+    const pkg = await db.prepare('SELECT price, inclusions FROM event_packages WHERE id = ? AND is_active = 1').get(pkgId);
     if (pkg) {
       total += pkg.price || 0;
       if (selectedInclusions.length > 0) {
@@ -208,14 +231,57 @@ router.get('/', requireCustomerOrGuest, async (req, res) => {
   const availableRooms  = (await db.prepare("SELECT COUNT(*) AS c FROM rooms  WHERE status='available' AND is_active=1").get()).c;
   const availableVenues = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM venues WHERE status='available' AND is_active=1").get()).c;
   const availableCottages = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM cottages WHERE status='available' AND is_active=1").get()).c;
-  const featuredRooms = await db.prepare("SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.status='available' AND r.is_active=1 ORDER BY r.price LIMIT 3").all();
+  const featuredRooms = photosFirst(withExistingPhotos(await db.prepare("SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.status='available' AND r.is_active=1 ORDER BY r.price").all())).slice(0, 3);
   for (const r of featuredRooms) { try { r.imagesList = JSON.parse(r.images || '[]'); } catch { r.imagesList = []; } }
-  const featuredVenues = uniqueCatalogRows(await db.prepare("SELECT * FROM venues WHERE status='available' AND is_active=1 ORDER BY price").all()).slice(0, 3);
+  const featuredVenues = photosFirst(withExistingPhotos(uniqueCatalogRows(await db.prepare("SELECT * FROM venues WHERE status='available' AND is_active=1 ORDER BY price").all()))).slice(0, 3);
   for (const v of featuredVenues) { try { v.imagesList = JSON.parse(v.images || '[]'); } catch { v.imagesList = []; } }
-  const featuredCottages = uniqueCatalogRows(await db.prepare("SELECT * FROM cottages WHERE status='available' AND is_active=1 ORDER BY price").all()).slice(0, 3);
+  const featuredCottages = photosFirst(withExistingPhotos(uniqueCatalogRows(await db.prepare("SELECT * FROM cottages WHERE status='available' AND is_active=1 ORDER BY price").all()))).slice(0, 3);
   for (const c of featuredCottages) { try { c.imagesList = JSON.parse(c.images || '[]'); } catch { c.imagesList = []; } }
   const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`).slice(0, 4);
-  res.render('portal/home', { title: 'Welcome to Balai-Reserve', layout: 'layouts/portal', availableRooms, availableVenues, availableCottages, featuredRooms, featuredVenues, featuredCottages, packages });
+  // The guest's active bookings, so the home page can lead with their next step (pay, upload proof, upcoming stay).
+  let activeBookings = [];
+  if (req.session?.user) {
+    activeBookings = await db.prepare(`
+      SELECT r.id, r.booking_ref, r.reservation_type, r.status, r.payment_status, r.check_in_date, r.check_out_date,
+             r.event_date, r.start_time, r.end_time, r.total_amount, r.downpayment_req, r.payment_method, r.num_guests,
+             (SELECT GROUP_CONCAT(ri.item_name SEPARATOR ', ') FROM reservation_items ri
+               WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue','event_package')) AS item_names,
+             (SELECT COUNT(*) FROM payments p WHERE p.reservation_id = r.id AND p.submitted_by = 'customer' AND p.status = 'received') AS proofs_pending,
+             (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reservation_id = r.id AND p.status IN ('received','verified')) AS amount_paid,
+             (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reservation_id = r.id AND p.status = 'verified') AS verified_paid,
+             (SELECT p.status = 'refunded' AND p.notes LIKE '%Rejected by staff%' FROM payments p WHERE p.reservation_id = r.id AND p.submitted_by = 'customer' ORDER BY p.id DESC LIMIT 1) AS last_proof_rejected,
+             (SELECT ri.item_type FROM reservation_items ri WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue') ORDER BY ri.id LIMIT 1) AS main_item_type,
+             (SELECT ri.item_id FROM reservation_items ri WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue') ORDER BY ri.id LIMIT 1) AS main_item_id
+      FROM reservations r JOIN customers c ON c.id = r.customer_id
+      WHERE c.user_id = ? AND r.status IN ('pending','pencil','on_hold','awaiting_payment','confirmed','checked_in')
+      ORDER BY COALESCE(r.check_in_date, r.event_date) ASC, r.id ASC LIMIT 6
+    `).all(req.session.user.id);
+    await attachItemPhotos(activeBookings);
+  }
+  // Display-only: the guest's most recent past bookings (completed, cancelled …) for the home page.
+  let pastBookings = [];
+  if (req.session?.user) {
+    pastBookings = await db.prepare(`
+      SELECT r.id, r.booking_ref, r.reservation_type, r.status, r.payment_status, r.check_in_date, r.check_out_date,
+             r.event_date, r.start_time, r.end_time, r.total_amount, r.num_guests,
+             (SELECT GROUP_CONCAT(ri.item_name SEPARATOR ', ') FROM reservation_items ri
+               WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue','event_package')) AS item_names,
+             (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reservation_id = r.id AND p.status IN ('received','verified')) AS amount_paid,
+             (SELECT ri.item_type FROM reservation_items ri WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue') ORDER BY ri.id LIMIT 1) AS main_item_type,
+             (SELECT ri.item_id FROM reservation_items ri WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue') ORDER BY ri.id LIMIT 1) AS main_item_id
+      FROM reservations r JOIN customers c ON c.id = r.customer_id
+      WHERE c.user_id = ? AND r.status NOT IN ('pending','pencil','on_hold','awaiting_payment','confirmed','checked_in')
+      ORDER BY COALESCE(r.check_in_date, r.event_date) DESC, r.id DESC LIMIT 3
+    `).all(req.session.user.id);
+    await attachItemPhotos(pastBookings);
+  }
+  // Display-only: the guest's latest inquiries (with reply state) for the home page's messages block.
+  let recentInquiries = [];
+  if (req.session?.user) {
+    const cust = await db.prepare('SELECT id, email FROM customers WHERE user_id = ?').get(req.session.user.id);
+    if (cust) recentInquiries = await db.prepare(`SELECT id, subject, status, resolution, created_at, resolved_at FROM inquiries WHERE customer_id = ? OR (email != '' AND email = ?) ORDER BY created_at DESC LIMIT 3`).all(cust.id, cust.email || '');
+  }
+  res.render('portal/home', { title: 'Welcome to Balai-Reserve', layout: 'layouts/portal', availableRooms, availableVenues, availableCottages, featuredRooms, featuredVenues, featuredCottages, packages, activeBookings, pastBookings, recentInquiries });
 });
 
 router.get('/rooms', requireCustomerOrGuest, async (req, res) => {
@@ -229,7 +295,7 @@ router.get('/rooms', requireCustomerOrGuest, async (req, res) => {
     bookedIds = await unavailableItemIds('room', { checkIn: checkin, checkOut: checkout });
   }
   const orderBy = sort === 'price_desc' ? 'r.price DESC' : 'r.price ASC';
-  const rooms = await db.prepare(`SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id ${where} ORDER BY ${orderBy}`).all(...params);
+  const rooms = withExistingPhotos(await db.prepare(`SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id ${where} ORDER BY ${orderBy}`).all(...params));
   for (const r of rooms) {
     try { r.imagesList = JSON.parse(r.images || '[]'); } catch { r.imagesList = []; }
     r.isAvailable = BOOKABLE_RESOURCE_STATUSES.has(r.status) &&
@@ -240,14 +306,15 @@ router.get('/rooms', requireCustomerOrGuest, async (req, res) => {
 });
 
 router.get('/venues', requireCustomerOrGuest, async (req, res) => {
-  const { date = '', guests = '', type = '', sort = 'price_asc' } = req.query;
+  const { date = '', guests = '', type = '', sort = 'price_asc', start_time = '', end_time = '' } = req.query;
+  const okTimes = /^\d{2}:\d{2}$/.test(start_time) && /^\d{2}:\d{2}$/.test(end_time) && end_time > start_time;
   let where = 'WHERE is_active=1';
   const params = [];
   if (type)   { where += ' AND venue_type=?'; params.push(type); }
   if (guests) { where += ' AND capacity>=?';  params.push(parseInt(guests)); }
   const orderBy = sort === 'price_desc' ? 'price DESC' : 'price ASC';
-  const venues = uniqueCatalogRows(await db.prepare(`SELECT * FROM venues ${where} ORDER BY ${orderBy}`).all(...params), row => row.name, req.query.item_id);
-  const bookedIds = date ? await unavailableItemIds('venue', { date }) : new Set();
+  const venues = withExistingPhotos(uniqueCatalogRows(await db.prepare(`SELECT * FROM venues ${where} ORDER BY ${orderBy}`).all(...params), row => row.name, req.query.item_id));
+  const bookedIds = date ? await unavailableItemIds('venue', okTimes ? { date, startTime: start_time, endTime: end_time } : { date }) : new Set();
   for (const v of venues) {
     try { v.imagesList = JSON.parse(v.images || '[]'); } catch { v.imagesList = []; }
     try { v.amenitiesList = JSON.parse(v.amenities || '[]'); } catch { v.amenitiesList = []; }
@@ -257,33 +324,34 @@ router.get('/venues', requireCustomerOrGuest, async (req, res) => {
   const venueTypes = (await db.prepare(`SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 ORDER BY venue_type`).all()).map(r => r.venue_type);
   const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`);
   for (const p of packages) { try { p.inclusionsList = JSON.parse(p.inclusions || '[]'); } catch { p.inclusionsList = []; } }
-  res.render('portal/venues', { title: 'Browse Venues – Balai-Reserve', layout: 'layouts/portal', venues, venueTypes, packages, filters: { date, guests, type, sort } });
+  res.render('portal/venues', { title: 'Browse Venues – Balai-Reserve', layout: 'layouts/portal', venues, venueTypes, packages, filters: { date, guests, type, sort, start_time: okTimes ? start_time : '', end_time: okTimes ? end_time : '' } });
 });
 
 router.get('/cottages', requireCustomerOrGuest, async (req, res) => {
-  const { date = '', guests = '', sort = 'price_asc', max_price = '' } = req.query;
+  const { date = '', guests = '', sort = 'price_asc', max_price = '', start_time = '', end_time = '' } = req.query;
+  const okTimes = /^\d{2}:\d{2}$/.test(start_time) && /^\d{2}:\d{2}$/.test(end_time) && end_time > start_time;
   let where = 'WHERE is_active=1';
   const params = [];
   if (guests)    { where += ' AND capacity>=?'; params.push(parseInt(guests)); }
   if (max_price) { where += ' AND price<=?';    params.push(parseFloat(max_price)); }
   const orderBy = sort === 'price_desc' ? 'price DESC' : 'price ASC';
-  const cottages = uniqueCatalogRows(await db.prepare(`SELECT * FROM cottages ${where} ORDER BY ${orderBy}`).all(...params), row => row.name, req.query.item_id);
-  const bookedIds = date ? await unavailableItemIds('cottage', { date }) : new Set();
+  const cottages = withExistingPhotos(uniqueCatalogRows(await db.prepare(`SELECT * FROM cottages ${where} ORDER BY ${orderBy}`).all(...params), row => row.name, req.query.item_id));
+  const bookedIds = date ? await unavailableItemIds('cottage', okTimes ? { date, startTime: start_time, endTime: end_time } : { date }) : new Set();
   for (const c of cottages) {
     try { c.imagesList = JSON.parse(c.images || '[]'); } catch { c.imagesList = []; }
     try { c.amenitiesList = JSON.parse(c.amenities || '[]'); } catch { c.amenitiesList = []; }
     c.isAvailable = BOOKABLE_RESOURCE_STATUSES.has(c.status) &&
       (date ? !bookedIds.has(c.id) : true);
   }
-  res.render('portal/cottages', { title: 'Browse Cottages – Balai-Reserve', layout: 'layouts/portal', cottages, filters: { date, guests, sort, max_price } });
+  res.render('portal/cottages', { title: 'Browse Cottages – Balai-Reserve', layout: 'layouts/portal', cottages, filters: { date, guests, sort, max_price, start_time: okTimes ? start_time : '', end_time: okTimes ? end_time : '' } });
 });
 
 router.get('/book', requireCustomer, async (req, res) => {
-  const { type = '', item_id = '', package_id = '', checkin = '', checkout = '', date = '' } = req.query;
+  const { type = '', item_id = '', package_id = '', checkin = '', checkout = '', date = '', start_time = '', end_time = '', guests = '' } = req.query;
   const rooms = await db.prepare("SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.status IN ('available','reserved','occupied','cleaning') AND r.is_active=1 ORDER BY r.price").all();
   const venues = uniqueCatalogRows(await db.prepare("SELECT * FROM venues WHERE status IN ('available','reserved','occupied','cleaning') AND is_active=1 ORDER BY price").all(), row => row.name, item_id);
   const rawPkgs = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`, package_id);
-  const parseImgs = (row) => { try { row.imagesList = JSON.parse(row.images || '[]'); } catch { row.imagesList = []; } return row; };
+  const parseImgs = (row) => withExistingPhotos([row])[0];
   rooms.forEach(parseImgs);
   venues.forEach(parseImgs);
   const packages = rawPkgs.map(p => {
@@ -293,18 +361,24 @@ router.get('/book', requireCustomer, async (req, res) => {
     return { ...p, inclusionsList: inclusions, defaultInclusions: inclusions.filter(i => i.is_default), addonInclusions: inclusions.filter(i => i.is_optional && i.price > 0) };
   });
   let selectedItem = null;
-  if (item_id && type === 'room')    selectedItem = await db.prepare('SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=?').get(item_id);
-  if (item_id && type === 'venue')   selectedItem = await db.prepare('SELECT * FROM venues WHERE id=?').get(item_id);
-  if (item_id && type === 'cottage') selectedItem = await db.prepare('SELECT * FROM cottages WHERE id=?').get(item_id);
+  if (item_id && type === 'room')    selectedItem = await db.prepare('SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=? AND r.is_active=1').get(item_id);
+  if (item_id && type === 'venue')   selectedItem = await db.prepare('SELECT * FROM venues WHERE id=? AND is_active=1').get(item_id);
+  if (item_id && type === 'cottage') selectedItem = await db.prepare('SELECT * FROM cottages WHERE id=? AND is_active=1').get(item_id);
   const cottages = uniqueCatalogRows(await db.prepare("SELECT * FROM cottages WHERE status IN ('available','reserved','occupied','cleaning') AND is_active=1 ORDER BY price").all(), row => row.name, item_id);
   cottages.forEach(parseImgs);
   if (selectedItem) parseImgs(selectedItem);
+  // Display-only: the dates/times other bookings hold for each item, for the booking form's date picker
+  // (same data as the /stay detail pages; the POST below still checks conflicts itself).
+  const { blockedPeriods } = require('../../stay/routes');
+  for (const r of rooms) r.blocked = await blockedPeriods('room', r.id);
+  for (const c of cottages) c.blocked = await blockedPeriods('cottage', c.id);
+  for (const v of venues) v.blocked = await blockedPeriods('venue', v.id);
   const policyKeys = ['cancellation_policy','downpayment_percent','check_in_time','check_out_time','resort_name'];
   const policyRows = await db.prepare(`SELECT \`key\`, value FROM settings WHERE \`key\` IN (${policyKeys.map(() => '?').join(',')})`).all(...policyKeys);
   const ps = {};
   for (const r of policyRows) ps[r.key] = r.value || '';
   const terms = { resortName: ps.resort_name || 'Balai Miciano Resort', downpaymentPercent: getDownpaymentPercent(ps.downpayment_percent), checkInTime: ps.check_in_time || '14:00', checkOutTime: ps.check_out_time || '12:00', cancellationPolicy: ps.cancellation_policy || 'Cancellations made 7 days before the reservation date are eligible for a 50% refund. No refund for cancellations within 48 hours of the reservation date.' };
-  res.render('portal/book', { title: 'Book Now – Balai-Reserve', layout: 'layouts/portal', rooms, venues, packages, cottages, filters: { type, item_id, package_id, checkin, checkout, date }, selectedItem, lockedSelection: !!(selectedItem && ['room','venue','cottage'].includes(type)), terms, errors: [], old: {} });
+  res.render('portal/book', { title: 'Book Now – Balai-Reserve', layout: 'layouts/portal', rooms, venues, packages, cottages, filters: { type, item_id, package_id, checkin, checkout, date, start_time, end_time, guests }, selectedItem, lockedSelection: !!(selectedItem && ['room','venue','cottage'].includes(type)), terms, errors: [], old: {} });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -325,7 +399,7 @@ router.post('/book',
       return true;
     }),
     body('num_guests').isInt({ min: 1, max: 500 }).withMessage('Number of guests must be between 1 and 500.'),
-    body('payment_method').isIn(['gcash','bank_transfer','maya','cash']).withMessage('Please select a valid payment method.'),
+    body('payment_method').isIn(['gcash','bank_transfer','maya']).withMessage('Please select a valid payment method.'),
     body('contact_phone').trim().notEmpty().withMessage('Please enter your mobile number.').bail().matches(/^(?:\+639|09)\d{9}$/).withMessage('Enter a valid Philippine mobile number.'),
     body('check_in_date').custom((val, { req: r }) => {
       const today = new Date().toISOString().slice(0, 10);
@@ -399,7 +473,9 @@ router.post('/book',
     const contact_phone    = first(req.body.contact_phone).trim();
 
     let selectedInclusions = [];
-    const rawInclusions = Array.isArray(req.body['selected_inclusions[]']) ? req.body['selected_inclusions[]'] : req.body['selected_inclusions[]'] ? [req.body['selected_inclusions[]']] : [];
+    // urlencoded({ extended: true }) parses `selected_inclusions[]` fields into `selected_inclusions`.
+    const inclusionField = req.body.selected_inclusions ?? req.body['selected_inclusions[]'];
+    const rawInclusions = Array.isArray(inclusionField) ? inclusionField : inclusionField ? [inclusionField] : [];
     for (const raw of rawInclusions) {
       try {
         const parsed = JSON.parse(raw);
@@ -417,7 +493,7 @@ router.post('/book',
     const stTime     = (start_time     || '').trim() || null;
     const enTime     = (end_time       || '').trim() || null;
     const notes      = (special_requests || '').trim() || null;
-    const pmMethod   = (payment_method || 'cash').trim();
+    const pmMethod   = (payment_method || 'gcash').trim();
 
     let itemId = null;
     if (['room','cottage'].includes(reservation_type))   itemId = roomId;
@@ -480,7 +556,7 @@ router.post('/book',
       const requested = reservation_type === 'room'
         ? { checkIn: ciDate, checkOut: coDate }
         : reservation_type === 'cottage'
-          ? { date: ciDate, startTime: stTime, endTime: enTime, wholeDay: resource.name.trim().toLowerCase() === 'umbrella table' }
+          ? { date: ciDate, startTime: stTime, endTime: enTime }
           : { date: evDate, startTime: stTime, endTime: enTime };
       const resourceItemType = reservation_type === 'event' ? 'venue' : reservation_type;
       if (requiresResource && (!currentResource || !currentResource.is_active || !BOOKABLE_RESOURCE_STATUSES.has(currentResource.status))) {
@@ -512,6 +588,12 @@ router.post('/book',
         const row = await db.prepare('SELECT name, price FROM venues WHERE id = ?').get(venueId);
         await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'venue', venueId, row?.name||'', 1, row?.price||0, V.totalAmt);
         await db.prepare("UPDATE venues SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')").run(venueId);
+      } else if (reservation_type === 'event' && venueId && currentResource) {
+        // Event in the function hall: record the hall so its date and time stay blocked
+        // for other bookings. The hall line carries its own price; the package line follows.
+        const row = await db.prepare('SELECT name, price FROM venues WHERE id = ?').get(venueId);
+        await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'venue', venueId, row?.name||'', 1, row?.price||0, row?.price||0);
+        await db.prepare("UPDATE venues SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')").run(venueId);
       } else if (reservation_type === 'cottage' && roomId) {
         const row = await db.prepare('SELECT name, price FROM cottages WHERE id = ?').get(roomId);
         await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'cottage', roomId, row?.name||'', 1, row?.price||0, V.totalAmt);
@@ -519,7 +601,7 @@ router.post('/book',
       }
 
       if (pkgId) {
-        const pkg = await db.prepare('SELECT name, price, inclusions FROM event_packages WHERE id = ?').get(pkgId);
+        const pkg = await db.prepare('SELECT name, price, inclusions FROM event_packages WHERE id = ? AND is_active = 1').get(pkgId);
         if (pkg) {
           await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'event_package', pkgId, pkg.name, 1, pkg.price, pkg.price);
           if (selectedInclusions.length > 0) {
@@ -555,9 +637,9 @@ router.post('/book',
     try { await generateReservationQR(resId, bookingRef); } catch (e) { console.error('[Portal] QR generation failed:', e.message); }
 
     await notifyAllAdmins('reservation', 'New Online Booking', bookingRef + ' submitted by ' + (user.firstName || '') + ' ' + (user.lastName || '') + ' via ' + pmLabel, '/reservations/' + resId);
-    await notifyUser(user.id, 'reservation', 'Booking Submitted', 'Your booking ' + bookingRef + ' was received. Pay the downpayment via ' + pmLabel + ' to confirm.', '/portal/my-reservations/' + resId);
+    await notifyUser(user.id, 'reservation', 'Booking Submitted', 'Your booking ' + bookingRef + ' is awaiting payment. Pay the downpayment via ' + pmLabel + ' and upload your proof on the booking page; staff confirm it once verified.', '/portal/my-reservations/' + resId);
 
-    req.session.flash = { success: 'Booking ' + bookingRef + ' submitted! Pay the downpayment via ' + pmLabel + ' to confirm your reservation.' };
+    req.session.flash = { success: 'Booking ' + bookingRef + ' submitted — it is awaiting payment. Pay the downpayment via ' + pmLabel + ', then upload a screenshot below. Your booking is confirmed once staff verify it.' };
     res.redirect('/portal/my-reservations/' + resId);
   }
 );
@@ -612,7 +694,7 @@ router.post('/my-reservations/:id/submit-payment', requireCustomer, proofUpload.
   const payType = amount >= reservation.total_amount ? 'full_payment' : 'downpayment';
   try {
     await db.transaction(async () => {
-      await db.prepare("INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, notes, proof_image, submitted_by) VALUES (?, ?, ?, ?, CURDATE(), ?, 'received', ?, ?, 'customer')").run(reservation.id, refNum, amount, pmMethod, payType, noteText, proofPath);
+      await db.prepare("INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, notes, proof_image, submitted_by) VALUES (?, ?, ?, ?, DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)), ?, 'received', ?, ?, 'customer')").run(reservation.id, refNum, amount, pmMethod, payType, noteText, proofPath);
       const totalPaid = (await db.prepare("SELECT COALESCE(SUM(amount),0) AS t FROM payments WHERE reservation_id = ? AND status = 'received'").get(reservation.id)).t;
       let newPayStatus = 'partially_paid';
       if (totalPaid >= reservation.total_amount && reservation.total_amount > 0) newPayStatus = 'fully_paid';
@@ -625,8 +707,8 @@ router.post('/my-reservations/:id/submit-payment', requireCustomer, proofUpload.
     return res.redirect('/portal/my-reservations/' + req.params.id);
   }
   await notifyAllAdmins('payment', 'Payment Proof Submitted: ' + reservation.booking_ref, (customer.first_name || '') + ' ' + (customer.last_name || '') + ' submitted via ' + pmMethod.replace(/_/g,' ') + (proofPath ? ' (with screenshot)' : ''), '/reservations/' + reservation.id);
-  await notifyUser(user.id, 'payment', 'Payment Proof Received', 'We received your payment for ' + reservation.booking_ref + '. Our team will verify it within 24 hours.', '/portal/my-reservations/' + reservation.id);
-  req.session.flash = { success: 'Payment notification submitted! Our team will verify and confirm your booking within 24 hours.' };
+  await notifyUser(user.id, 'payment', 'Payment Proof Received', 'We received your payment proof for ' + reservation.booking_ref + '. Our team will verify it within 24 hours.', '/portal/my-reservations/' + reservation.id);
+  req.session.flash = { success: 'Payment proof submitted for review. Staff will check it against the resort’s account — your booking is confirmed only after they verify it.' };
   res.redirect('/portal/my-reservations/' + reservation.id);
 });
 
@@ -719,8 +801,17 @@ router.get('/my-reservations', requireCustomer, async (req, res) => {
   const user = req.session.user;
   const customer = await db.prepare('SELECT * FROM customers WHERE user_id = ?').get(user.id);
   let reservations = [];
-  if (customer) reservations = await db.prepare('SELECT r.* FROM reservations r WHERE r.customer_id = ? ORDER BY r.created_at DESC').all(customer.id);
-  res.render('portal/my-reservations', { title: 'My Bookings – Balai-Reserve', layout: 'layouts/portal', reservations, customer });
+  if (customer) reservations = await db.prepare(`SELECT r.*,
+      (SELECT GROUP_CONCAT(ri.item_name SEPARATOR ', ') FROM reservation_items ri WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue','event_package')) AS item_names,
+      (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reservation_id = r.id AND p.status IN ('received','verified')) AS amount_paid,
+      (SELECT COALESCE(SUM(p.amount),0) FROM payments p WHERE p.reservation_id = r.id AND p.status = 'verified') AS verified_paid,
+      (SELECT COUNT(*) FROM payments p WHERE p.reservation_id = r.id AND p.submitted_by = 'customer' AND p.status = 'received') AS proofs_pending,
+      (SELECT p.status = 'refunded' AND p.notes LIKE '%Rejected by staff%' FROM payments p WHERE p.reservation_id = r.id AND p.submitted_by = 'customer' ORDER BY p.id DESC LIMIT 1) AS last_proof_rejected,
+      (SELECT ri.item_type FROM reservation_items ri WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue') ORDER BY ri.id LIMIT 1) AS main_item_type,
+      (SELECT ri.item_id FROM reservation_items ri WHERE ri.reservation_id = r.id AND ri.item_type IN ('room','cottage','venue') ORDER BY ri.id LIMIT 1) AS main_item_id
+    FROM reservations r WHERE r.customer_id = ? ORDER BY r.created_at DESC`).all(customer.id);
+  await attachItemPhotos(reservations);   // display-only thumbnails
+  res.render('portal/my-reservations', { title: 'My Bookings – Balai-Reserve', layout: 'layouts/portal', reservations, customer, tab: typeof req.query.tab === 'string' ? req.query.tab : '' });
 });
 
 router.get('/my-reservations/:id', requireCustomer, async (req, res) => {
@@ -741,7 +832,17 @@ router.get('/my-reservations/:id', requireCustomer, async (req, res) => {
   const feedback = await db.prepare('SELECT * FROM feedback WHERE reservation_id = ? AND customer_id = ?').get(reservation.id, customer.id);
   const refundRequest = await db.prepare('SELECT * FROM refund_requests WHERE reservation_id = ? ORDER BY created_at DESC LIMIT 1').get(reservation.id);
   const canRequestRefund = hasAnyPayment && !['cancelled','rejected'].includes(reservation.status) && (!refundRequest || refundRequest.status === 'rejected');
-  res.render('portal/reservation-detail', { title: 'Booking ' + reservation.booking_ref, layout: 'layouts/portal', reservation, items, payments, qrCode, amountPaid, totalAmount, balance, isFullyPaid, hasAnyPayment, pendingProof, feedback, customer, refundRequest, canRequestRefund });
+  // Display-only: the most recent proof staff did not accept (stored as 'refunded' with a staff note), and the policy text.
+  const rejectedProof = await db.prepare("SELECT id, amount, payment_method, payment_date, created_at FROM payments WHERE reservation_id = ? AND submitted_by = 'customer' AND status = 'refunded' AND notes LIKE '%Rejected by staff%' ORDER BY id DESC LIMIT 1").get(reservation.id);
+  const policyRow = await db.prepare("SELECT value FROM settings WHERE `key` = 'cancellation_policy'").get();
+  const cancellationPolicy = (policyRow && policyRow.value) || '';
+  // Display-only: status timeline, every payment record (incl. rejected proofs and refunds) and the main item's photo.
+  const statusHistory = await db.prepare('SELECT from_status, to_status, notes, created_at FROM reservation_status_history WHERE reservation_id = ? ORDER BY created_at ASC, id ASC').all(reservation.id);
+  const paymentActivity = await db.prepare('SELECT id, amount, payment_method, payment_type, payment_date, status, submitted_by, reference_number, proof_image, notes, verified_at, created_at FROM payments WHERE reservation_id = ? ORDER BY created_at ASC, id ASC').all(reservation.id);
+  const mainItem = items.find(i => ['room', 'cottage', 'venue'].includes(i.item_type));
+  const [photoRow] = await attachItemPhotos([{ main_item_type: mainItem && mainItem.item_type, main_item_id: mainItem && mainItem.item_id }]);
+  const itemPhoto = photoRow.photo;
+  res.render('portal/reservation-detail', { title: 'Booking ' + reservation.booking_ref, layout: 'layouts/portal', reservation, items, payments, qrCode, amountPaid, totalAmount, balance, isFullyPaid, hasAnyPayment, pendingProof, feedback, customer, refundRequest, canRequestRefund, rejectedProof, cancellationPolicy, statusHistory, paymentActivity, itemPhoto });
 });
 
 router.get('/feedback/:reservationId', requireCustomer, async (req, res) => {
@@ -843,7 +944,8 @@ router.post('/inquire', [
   if (!errors.isEmpty()) { return res.render('portal/inquire', { title: 'Contact Us', layout: 'layouts/portal', errors: errors.array(), old: req.body }); }
   const { name, email, phone, subject, message, category } = req.body;
   const customerId = req.session?.user ? ((await db.prepare('SELECT id FROM customers WHERE user_id = ?').get(req.session.user.id))?.id || null) : null;
-  await db.prepare("INSERT INTO inquiries (customer_id, name, email, phone, subject, message, category, source, status) VALUES (?,?,?,?,?,?,?,'website','open')").run(customerId, name, email||'', phone||'', subject, message, category||'general');
+  const inquiry = await db.prepare("INSERT INTO inquiries (customer_id, name, email, phone, subject, message, category, source, status) VALUES (?,?,?,?,?,?,?,'website','open')").run(customerId, name, email||'', phone||'', subject, message, category||'general');
+  await notifyAllAdmins('inquiry', 'New Inquiry', name + ': ' + subject, '/inquiries/' + inquiry.lastInsertRowid);
   req.session.flash = { success: 'Your inquiry has been received.' };
   res.redirect(req.session?.user ? '/portal/my-inquiries' : '/portal/inquire');
 });
@@ -853,13 +955,23 @@ router.get('/calendar', requireCustomerOrGuest, async (req, res) => {
 });
 
 router.get('/calendar/feed', requireCustomerOrGuest, async (req, res) => {
-  const ACTIVE = "status NOT IN ('cancelled','rejected','completed','no_show')";
-  const stays = await db.prepare(`SELECT r.reservation_type, r.check_in_date, r.check_out_date, ri.item_name FROM reservations r LEFT JOIN reservation_items ri ON ri.reservation_id = r.id AND ri.item_type IN ('room','cottage') WHERE r.reservation_type IN ('room','cottage') AND r.check_in_date IS NOT NULL AND ${ACTIVE}`).all();
-  const venueEvents = await db.prepare(`SELECT r.reservation_type, r.event_date, ri.item_name FROM reservations r LEFT JOIN reservation_items ri ON ri.reservation_id = r.id AND ri.item_type = 'venue' WHERE r.reservation_type IN ('venue','event') AND r.event_date IS NOT NULL AND ${ACTIVE}`).all();
+  const ACTIVE = "r.status NOT IN ('cancelled','rejected','completed','no_show')";
+  const stays = await db.prepare(`SELECT r.reservation_type, r.status, r.check_in_date, r.check_out_date, ri.item_name FROM reservations r LEFT JOIN reservation_items ri ON ri.reservation_id = r.id AND ri.item_type IN ('room','cottage') WHERE r.reservation_type IN ('room','cottage') AND r.check_in_date IS NOT NULL AND ${ACTIVE}`).all();
+  // Venue / event bookings span check-in..check-out; older rows only have event_date.
+  const venueEvents = await db.prepare(`SELECT r.reservation_type, r.status, COALESCE(r.check_in_date, r.event_date) AS start_date, COALESCE(r.check_out_date, r.check_in_date, r.event_date) AS end_date, ri.item_name FROM reservations r LEFT JOIN reservation_items ri ON ri.reservation_id = r.id AND ri.item_type = 'venue' WHERE r.reservation_type IN ('venue','event') AND COALESCE(r.check_in_date, r.event_date) IS NOT NULL AND ${ACTIVE}`).all();
   const colorFor = (t) => t === 'room' ? '#6366f1' : t === 'cottage' ? '#f97316' : '#10b981';
+  // Pencil bookings and bookings on hold still block their dates, with their own colour and label.
+  const HELD = { pencil: { label: 'Pencil Booking', color: '#a855f7' }, on_hold: { label: 'On Hold', color: '#475569' } };
+  const nextDay = (d) => { const x = new Date(String(d).slice(0, 10) + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() + 1); return x.toISOString().slice(0, 10); };
   const events = [];
-  for (const s of stays) events.push({ title: (s.item_name ? s.item_name : (s.reservation_type === 'cottage' ? 'Cottage' : 'Room')) + ' — Booked', start: s.check_in_date, end: s.check_out_date || s.check_in_date, allDay: true, color: colorFor(s.reservation_type), display: 'block' });
-  for (const v of venueEvents) events.push({ title: (v.item_name ? v.item_name : (v.reservation_type === 'event' ? 'Event' : 'Venue')) + ' — Booked', start: v.event_date, allDay: true, color: colorFor(v.reservation_type === 'event' ? 'event' : 'venue'), display: 'block' });
+  const push = (name, status, type, start, end) => {
+    const held = HELD[status];
+    events.push({ title: name + ' — ' + (held ? held.label : 'Booked'), start, end, allDay: true, color: held ? held.color : colorFor(type), display: 'block', extendedProps: { status: held ? status : 'booked' } });
+  };
+  // All-day end dates are exclusive: rooms free up on the check-out day, cottages are used through it.
+  for (const s of stays) push(s.item_name ? s.item_name : (s.reservation_type === 'cottage' ? 'Cottage' : 'Room'), s.status, s.reservation_type, s.check_in_date,
+    s.reservation_type === 'cottage' ? nextDay(s.check_out_date || s.check_in_date) : (s.check_out_date || s.check_in_date));
+  for (const v of venueEvents) push(v.item_name ? v.item_name : (v.reservation_type === 'event' ? 'Event' : 'Venue'), v.status, v.reservation_type === 'event' ? 'event' : 'venue', v.start_date, nextDay(v.end_date));
   res.json(events);
 });
 
@@ -867,7 +979,10 @@ router.get('/my-inquiries', requireCustomer, async (req, res) => {
   const customer = await db.prepare('SELECT * FROM customers WHERE user_id = ?').get(req.session.user.id);
   let inquiries = [];
   if (customer) inquiries = await db.prepare(`SELECT * FROM inquiries WHERE customer_id = ? OR (email != '' AND email = ?) ORDER BY created_at DESC`).all(customer.id, customer.email || '');
-  res.render('portal/my-inquiries', { title: 'My Inquiries – Balai-Reserve', layout: 'layouts/portal', inquiries });
+  // Display-only: the guest's own booking references, so an inquiry that mentions one can link to it.
+  const bookingLinks = {};
+  if (customer) for (const r of await db.prepare('SELECT id, booking_ref FROM reservations WHERE customer_id = ?').all(customer.id)) bookingLinks[r.booking_ref] = r.id;
+  res.render('portal/my-inquiries', { title: 'My Inquiries – Balai-Reserve', layout: 'layouts/portal', inquiries, bookingLinks });
 });
 
 module.exports = router;

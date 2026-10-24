@@ -1,77 +1,80 @@
 <% layout('layouts/portal') %>
-
-<div class="container-lg px-4 py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+<%
+  const typeName = { payment: 'Payment', reservation: 'Booking', inquiry: 'Message' };
+  const typeIcon = { payment: 'fa-wallet', reservation: 'fa-calendar-check', inquiry: 'fa-comment-dots' };
+  const list = notifications || [];
+  const unreadCount = list.filter(n => !n.is_read).length;
+  // DB timestamps are UTC ('YYYY-MM-DD HH:MM:SS'); group and label them in Philippine time.
+  const msOf = (s) => { const ms = Date.parse(String(s || '').replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(String(s)) ? '' : 'Z')); return isNaN(ms) ? 0 : ms; };
+  const now = Date.now();
+  const phDay = (ms) => new Date(ms + 8 * 3600e3).toISOString().slice(0, 10);
+  const today = phDay(now), yesterday = phDay(now - 864e5);
+  const ago = (ms) => {
+    const m = Math.round((now - ms) / 60000);
+    if (m < 1) return 'Just now';
+    if (m < 60) return m + ' min ago';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+    const d = Math.round(h / 24);
+    return d < 7 ? d + ' day' + (d === 1 ? '' : 's') + ' ago' : '';
+  };
+  const groupOf = (ms) => { const d = phDay(ms); if (d === today) return 'Today'; if (d === yesterday) return 'Yesterday'; if (now - ms < 7 * 864e5) return 'Earlier this week'; return 'Older'; };
+  const groups = [];
+  for (const n of list) {
+    const ms = msOf(n.created_at), g = groupOf(ms);
+    let grp = groups.find(x => x.title === g);
+    if (!grp) { grp = { title: g, items: [] }; groups.push(grp); }
+    grp.items.push(Object.assign({ ms }, n));
+  }
+  const goLabel = (link) => !link ? '' : /my-reservations\//.test(link) ? 'View booking' : /inquir/.test(link) ? 'Read the reply' : 'Open';
+%>
+<div class="pt-page pt-page--narrow">
+  <div class="pt-page-head">
     <div>
-      <h4 class="fw-bold mb-1"><i class="fas fa-bell me-2 text-primary"></i>Notifications</h4>
-      <p class="text-muted mb-0" style="font-size:.85rem;">Updates on your bookings and payments</p>
+      <h1 class="pt-title">Notifications</h1>
+      <p class="pt-lede"><% if (unreadCount) { %><strong><%= unreadCount %> new</strong> · <% } %>Updates about your bookings, payments and messages. Opening this page marks them as read.</p>
     </div>
-    <% if (notifications && notifications.length > 0) { %>
+    <% if (list.length > 0) { %>
     <form action="/portal/notifications/clear" method="POST">
-      <button type="submit" class="btn btn-sm btn-outline-secondary"
-        data-confirm="Clear all read notifications? This cannot be undone."
-        data-confirm-title="Clear Notifications"
+      <button type="submit" class="btn btn-secondary-quiet"
+        data-confirm="Clear all read notifications? This removes them from this list and cannot be undone. Your bookings and messages are not affected."
+        data-confirm-title="Clear read notifications"
         data-confirm-ok="Clear">
-        <i class="fas fa-trash me-1"></i>Clear read
+        <i class="far fa-trash-can" aria-hidden="true"></i>Clear read
       </button>
     </form>
     <% } %>
   </div>
 
-  <% if (!notifications || notifications.length === 0) { %>
-    <div class="text-center py-5 bg-white rounded-3 border">
-      <i class="fas fa-bell-slash fa-3x text-muted mb-3 d-block" style="opacity:.3;"></i>
-      <h5 class="text-muted">No notifications yet</h5>
-      <p class="text-muted small mb-3">You'll see booking and payment updates here.</p>
-      <a href="/portal/book" class="btn btn-primary btn-sm"><i class="fas fa-calendar-plus me-1"></i>Book Now</a>
+  <% if (list.length === 0) { %>
+  <div class="hm-empty">
+    <div class="hm-empty-text">
+      <h2 class="hm-empty-title">You’re all caught up</h2>
+      <p>Booking, payment and message updates appear here — for example when staff verify your payment or reply to a question.</p>
+      <a href="/portal/my-reservations" class="btn btn-secondary-quiet">Go to my reservations</a>
     </div>
-  <% } else { %>
-    <div class="bg-white rounded-3 border overflow-hidden">
-      <% for (const n of notifications) { %>
-      <a href="<%= n.link || '#' %>"
-        class="d-flex gap-3 p-3 border-bottom text-decoration-none notif-row <%= n.is_read ? '' : 'notif-row-unread' %>">
-        <div class="notif-row-icon
-          <%= n.type === 'payment' ? 'ic-payment' : n.type === 'reservation' ? 'ic-reservation' : n.type === 'inquiry' ? 'ic-inquiry' : 'ic-system' %>">
-          <% if (n.type === 'payment') { %><i class="fas fa-money-bill-wave"></i>
-          <% } else if (n.type === 'reservation') { %><i class="fas fa-calendar-check"></i>
-          <% } else if (n.type === 'inquiry') { %><i class="fas fa-question-circle"></i>
-          <% } else { %><i class="fas fa-bell"></i><% } %>
-        </div>
-        <div class="flex-grow-1 min-w-0">
-          <div class="d-flex align-items-center gap-2">
-            <span class="fw-bold" style="color:#0f172a;font-size:.9rem;"><%= n.title %></span>
-            <% if (!n.is_read) { %><span class="badge bg-primary" style="font-size:.6rem;">New</span><% } %>
-          </div>
-          <div class="text-muted" style="font-size:.82rem;line-height:1.5;"><%= n.message %></div>
-          <div class="text-muted" style="font-size:.72rem;margin-top:2px;"><%= formatDateTime(n.created_at) %></div>
-        </div>
-        <% if (n.link) { %><i class="fas fa-chevron-right text-muted align-self-center small"></i><% } %>
-      </a>
-      <% } %>
-    </div>
-  <% } %>
-
-  <div class="text-center mt-3">
-    <a href="/portal/my-reservations" class="portal-back-btn">
-      <i class="fas fa-arrow-left"></i>Back to My Bookings
-    </a>
   </div>
+  <% } else { %>
+    <% for (const g of groups) { const gid = g.title.toLowerCase().replace(/\W+/g, '-'); %>
+    <section class="pn-group" aria-labelledby="pn-<%= gid %>">
+      <h2 class="pn-group-title" id="pn-<%= gid %>"><%= g.title %></h2>
+      <ul class="pn-list">
+        <% for (const n of g.items) { const a = ago(n.ms); %>
+        <li>
+          <<%= n.link ? 'a' : 'div' %> <% if (n.link) { %>href="<%= n.link %>"<% } %> class="pn-row <%= n.is_read ? '' : 'is-unread' %>">
+            <span class="pn-icon pn-icon--<%= n.type %>" aria-hidden="true"><i class="fas <%= typeIcon[n.type] || 'fa-bell' %>"></i></span>
+            <div class="pn-body">
+              <div class="pn-title"><% if (!n.is_read) { %><span class="pn-new">New</span><% } %><span><%= n.title %></span></div>
+              <div class="pn-msg"><%= n.message %></div>
+              <div class="pn-time"><%= typeName[n.type] || 'Update' %> · <time datetime="<%= n.created_at %>" title="<%= formatDateTime(n.created_at) %>"><%= a ? a + ' · ' : '' %><%= formatDateTime(n.created_at, a ? 'h:mm A' : 'MMM D, YYYY · h:mm A') %></time></div>
+            </div>
+            <% if (n.link) { %><span class="pn-go"><span class="pn-go-label"><%= goLabel(n.link) %></span><i class="fas fa-chevron-right" aria-hidden="true"></i></span><% } %>
+          </<%= n.link ? 'a' : 'div' %>>
+        </li>
+        <% } %>
+      </ul>
+    </section>
+    <% } %>
+    <p class="pt-meta mt-3 mb-0">Times are Philippine time. The latest 100 notifications are shown.</p>
+  <% } %>
 </div>
-
-<style>
-.notif-row { transition: background .15s; color: inherit; }
-.notif-row:hover { background: #f8fafc; color: inherit; }
-.notif-row:last-child { border-bottom: 0 !important; }
-.notif-row-unread { background: #eff6ff; }
-.notif-row-unread:hover { background: #dbeafe; }
-.notif-row-icon {
-  width: 42px; height: 42px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .95rem; flex-shrink: 0;
-}
-.notif-row-icon.ic-payment     { background: #dcfce7; color: #16a34a; }
-.notif-row-icon.ic-reservation { background: #eef2ff; color: #4f46e5; }
-.notif-row-icon.ic-inquiry     { background: #dbeafe; color: #2563eb; }
-.notif-row-icon.ic-system      { background: #f1f5f9; color: #64748b; }
-.min-w-0 { min-width: 0; }
-</style>

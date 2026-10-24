@@ -1,59 +1,95 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/venues">Venues</a></li><li class="breadcrumb-item active"><%= venue.name %></li></ol></nav><h3 class="mb-0"><%= venue.name %></h3></div>
-  <div class="page-header-actions">
-    <%- statusBadge(venue.status) %>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/venues/<%= venue.id %>/edit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit me-1"></i>Edit</a>
-    <% } %>
+<% const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff'); %>
+<div class="ap-page cat-show">
+
+<!--page-head-->
+<a href="/venues" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Venues</a>
+<h1 class="ph-title"><%= venue.name %></h1>
+<% if (canManage) { %>
+  <div class="ph-actions">
+    <a href="/stay/venue/<%= venue.id %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Guest view<span class="visually-hidden"> — opens the public venue page in a new tab</span></a>
+    <a href="/venues/<%= venue.id %>/edit" class="btn btn-secondary-quiet"><i class="fas fa-pen" aria-hidden="true"></i>Edit venue</a>
   </div>
-</div>
-<div class="row g-3">
-  <div class="col-lg-4">
-    <div class="card">
+  <% } %>
+<!--/page-head-->
+<div class="page-meta"><%= statusLabel(venue.venue_type) %> · up to <%= venue.capacity %> guests · <%- statusBadge(venue.status) %></div>
+
+<div class="ap-split">
+  <div class="cat-main">
+    <%# Photos: one large image, the rest as smaller tiles; click to view uncropped %>
+    <div class="cat-gallery<%= venue.imagesList && venue.imagesList.length === 1 ? ' is-single' : '' %>">
       <% if (venue.imagesList && venue.imagesList.length > 0) { %>
-      <div class="row g-1 p-2">
-        <% for (const image of venue.imagesList) { %>
-        <div class="<%= venue.imagesList.length === 1 ? 'col-12' : 'col-6' %>">
-          <img src="<%= image %>" alt="<%= venue.name %> photo" class="img-fluid rounded js-zoom"
-            style="height:140px;width:100%;object-fit:cover;cursor:zoom-in;"
-            onclick="openImgLightbox('<%= image %>')" />
-        </div>
+        <% for (let i = 0; i < venue.imagesList.length; i++) { %>
+        <button type="button" class="cat-photo" data-lightbox="<%= venue.imagesList[i] %>" data-lightbox-title="<%= venue.name %> — photo <%= i + 1 %>" aria-label="View photo <%= i + 1 %> of <%= venue.imagesList.length %> full size">
+          <img src="<%= venue.imagesList[i] %>" alt="<%= venue.name %> photo <%= i + 1 %>" <%- i > 0 ? 'loading="lazy"' : '' %> />
+        </button>
         <% } %>
-      </div>
+      <% } else { %>
+        <div class="photo-pending"><i class="fas fa-image" aria-hidden="true"></i><span>Photos coming soon</span></div>
       <% } %>
-      <div class="card-body">
-        <table class="table table-sm table-borderless mb-0">
-          <tr><th>Type</th><td><%= venue.venue_type.replace(/_/g,' ') %></td></tr>
-          <tr><th>Capacity</th><td><%= venue.capacity %> guests</td></tr>
-          <tr><th>Location</th><td><%= venue.location || '—' %></td></tr>
-          <tr><th>Price</th><td class="fw-bold text-primary"><%= formatPeso(venue.price) %></td></tr>
-          <% if (venue.price_note) { %><tr><th>Note</th><td class="small text-muted"><%= venue.price_note %></td></tr><% } %>
-        </table>
-        <% if (venue.description) { %><p class="text-muted small mt-3"><%= venue.description %></p><% } %>
-        <% if (venue.amenitiesList && venue.amenitiesList.length > 0) { %>
-        <div class="mt-2"><strong class="small">Amenities:</strong><div class="mt-1"><% for (const a of venue.amenitiesList) { %><span class="badge bg-light text-dark me-1 mb-1"><i class="fas fa-check text-success me-1"></i><%= a %></span><% } %></div></div>
-        <% } %>
-      </div>
     </div>
-  </div>
-  <div class="col-lg-8">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-history me-2"></i>Booking History</h6></div>
-      <div class="card-body p-0">
-        <table class="table table-hover mb-0">
-          <thead><tr><th>Booking Ref</th><th>Customer</th><th>Date</th><th>Status</th></tr></thead>
+
+    <section class="ap-panel" aria-labelledby="venueHistoryHeading">
+      <div class="ap-panel-head"><h2 id="venueHistoryHeading">Booking history <span class="ap-meta">latest 10</span></h2></div>
+      <% if (!reservations || reservations.length === 0) { %>
+      <div class="ap-empty"><strong>No bookings yet</strong>Bookings that include this venue will appear here.</div>
+      <% } else { %>
+      <div class="ap-table-wrap">
+        <table class="table-br ap-table ap-stack">
+          <thead><tr><th scope="col">Booking</th><th scope="col">Date</th><th scope="col" class="num">Amount</th><th scope="col">Status</th></tr></thead>
           <tbody>
-            <% if (!reservations || reservations.length === 0) { %>
-            <tr><td colspan="4" class="text-center py-4 text-muted">No bookings for this venue.</td></tr>
-            <% } else { %>
-              <% for (const r of reservations) { %>
-              <tr><td><a href="/reservations/<%= r.id %>"><code class="small"><%= r.booking_ref %></code></a></td><td><%= r.customer_name %></td><td class="small"><%= formatDate(r.event_date || r.check_in_date) %></td><td><%- statusBadge(r.status) %></td></tr>
-              <% } %>
+            <% for (const r of reservations) { %>
+            <tr>
+              <td class="ap-cell-title"><a href="/reservations/<%= r.id %>" class="ap-name"><%= r.customer_name %></a><span class="ap-line2 ap-code"><%= r.booking_ref %></span></td>
+              <td data-label="Date" class="text-nowrap"><%= formatDate(r.event_date || r.check_in_date) %></td>
+              <td class="num" data-label="Amount"><%= formatPeso(r.total_amount) %></td>
+              <td class="ap-cell-status"><%- statusBadge(r.status) %></td>
+            </tr>
             <% } %>
           </tbody>
         </table>
       </div>
-    </div>
+      <% } %>
+    </section>
   </div>
+
+  <aside class="cat-aside">
+    <section class="ap-panel" aria-labelledby="venueDetailsHeading">
+      <div class="ap-panel-head"><h2 id="venueDetailsHeading">Venue details</h2></div>
+      <div class="ap-panel-body">
+        <p class="cat-price mb-1"><%= formatPeso(venue.price) %> <small>/ event</small></p>
+        <% if (venue.price_note) { %><p class="ap-meta mb-3"><%= venue.price_note %></p><% } else { %><div class="mb-3"></div><% } %>
+        <dl class="ap-dl">
+          <dt>Type</dt><dd><%= statusLabel(venue.venue_type) %></dd>
+          <dt>Capacity</dt><dd><%= venue.capacity %> guests</dd>
+          <dt>Location</dt><dd><%= venue.location || '—' %></dd>
+          <dt>Status</dt><dd><%- statusBadge(venue.status) %></dd>
+        </dl>
+        <% if (venue.description) { %>
+        <h3 class="cat-subhead">Description</h3>
+        <p class="cat-desc-text"><%= venue.description %></p>
+        <% } %>
+        <% if (venue.amenitiesList && venue.amenitiesList.length > 0) { %>
+        <h3 class="cat-subhead">Amenities</h3>
+        <ul class="cat-amenities">
+          <% for (const a of venue.amenitiesList) { %><li><%= a %></li><% } %>
+        </ul>
+        <% } %>
+      </div>
+    </section>
+  </aside>
 </div>
+
+</div>
+<script>
+// A photo whose file is missing shows the honest empty state instead of a broken image.
+document.querySelectorAll('.cat-photo > img').forEach(function (img) {
+  function swap() {
+    var box = document.createElement('div');
+    box.className = 'cat-photo photo-pending';
+    box.textContent = 'Photo unavailable';
+    img.closest('.cat-photo').replaceWith(box);
+  }
+  if (img.complete && img.naturalWidth === 0) swap(); else img.addEventListener('error', swap);
+});
+</script>

@@ -1,0 +1,35 @@
+<%#
+  Detail-page photo gallery: one large photo + up to four supporting photos on wider screens,
+  a swipeable full-width strip on phones. Every photo opens the shared lightbox (partials/_lightbox
+  via portal/_lightbox). Include with Object.assign({}, __locals, { gallery: { photos, name } }).
+%>
+<%
+  const _g = gallery || {};
+  const _ph = Array.isArray(_g.photos) ? _g.photos : [];
+  const _nm = _g.name || 'Balai-Reserve';
+  const _json = JSON.stringify(_ph.map((src, i) => ({ src, alt: _nm + ' — photo ' + (i + 1) + ' of ' + _ph.length })));
+%>
+<% if (_ph.length) { %>
+<section class="dg dg--n<%= Math.min(_ph.length, 5) %>" aria-label="Photos of <%= _nm %>" data-photos="<%= _json %>" data-photos-name="<%= _nm %>" <%- _ph.length > 1 ? 'data-carousel' : '' %>>
+  <div class="dg-track lst-track">
+    <% _ph.forEach(function (src, i) { %>
+    <button type="button" class="dg-item<%= i === 0 ? ' dg-main' : '' %><%= i > 4 ? ' dg-extra' : '' %>" data-photo-index="<%= i %>"
+      aria-label="Open photo <%= i + 1 %> of <%= _ph.length %> full size">
+      <img src="<%= src %>" alt="<%= _nm %> — photo <%= i + 1 %> of <%= _ph.length %>" <%- i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' %> decoding="async" width="1200" height="900" />
+    </button>
+    <% }) %>
+  </div>
+  <% if (_ph.length > 1) { %>
+  <span class="lst-count dg-count" aria-hidden="true"><span data-carousel-index>1</span> / <%= _ph.length %></span>
+  <button type="button" class="btn dg-all" data-photo-index="0"><i class="fas fa-images" aria-hidden="true"></i> Show all <%= _ph.length %> photos</button>
+  <% } %>
+</section>
+<% } else { %>
+<section class="dg dg--empty" aria-label="Photos of <%= _nm %>">
+  <div class="photo-pending">
+    <i class="fas fa-camera" aria-hidden="true"></i>
+    <strong>Photos coming soon</strong>
+    <span>We haven't published photos of the <%= _nm %> yet. Ask us for current pictures through an <a href="/portal/inquire">inquiry</a>.</span>
+  </div>
+</section>
+<% } %>

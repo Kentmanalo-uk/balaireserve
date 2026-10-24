@@ -1,97 +1,98 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Analytics & AI Insights</h3><p class="text-muted mb-0">Business intelligence and AI-assisted decision support</p></div>
-</div>
+<div class="ap-page an-page">
 
-<!-- KPI Row -->
-<div class="row g-3 mb-4">
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-primary"><div class="stat-icon"><i class="fas fa-percent"></i></div><div class="stat-body">
-      <div class="stat-value"><%= occupancyRate %>%</div><div class="stat-label">Room Occupancy Rate</div>
-      <div class="stat-sub">Current occupancy</div>
-    </div></div>
+<!--page-head-->
+<h1 class="ph-title">Analytics</h1>
+<div class="ph-actions">
+    <a href="/reports" class="btn btn-outline-secondary">Open reports</a>
   </div>
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-<%= cancellationRate > 20 ? 'danger' : 'success' %>"><div class="stat-icon"><i class="fas fa-times-circle"></i></div><div class="stat-body">
-      <div class="stat-value"><%= cancellationRate %>%</div><div class="stat-label">Cancellation Rate</div>
-      <div class="stat-sub">Last 3 months</div>
-    </div></div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-<%= revChange === null ? 'secondary' : revChange >= 0 ? 'success' : 'danger' %>"><div class="stat-icon"><i class="fas fa-chart-line"></i></div><div class="stat-body">
-      <div class="stat-value"><%= revChange === null ? '—' : (revChange >= 0 ? '+' : '') + revChange + '%' %></div><div class="stat-label">Revenue Change</div>
-      <div class="stat-sub">vs. last month</div>
-    </div></div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-info"><div class="stat-icon"><i class="fas fa-eye"></i></div><div class="stat-body">
-      <div class="stat-value">~<%= projectedRes %></div><div class="stat-label">Projected Reservations</div>
-      <div class="stat-sub">Next month forecast</div>
-    </div></div>
-  </div>
-</div>
+<!--/page-head-->
+<p class="page-intro">Trends calculated from recorded payments, bookings and guest feedback. Figures are simple counts and averages — use them alongside the Reports for decisions.</p>
 
-<!-- Charts Row 1 -->
-<div class="row g-3 mb-4">
-  <div class="col-lg-8">
-    <div class="card"><div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Revenue Trend (12 Months)</h6></div>
-    <div class="card-body"><canvas id="revTrend" height="100"></canvas></div></div>
+<div class="ap-kpis" role="group" aria-label="Key figures">
+  <div class="ap-kpi">
+    <span class="ap-kpi-label">Rooms occupied now</span>
+    <span class="ap-kpi-value"><%= occupancyRate %>%</span>
+    <span class="ap-kpi-note">of active rooms marked Occupied</span>
   </div>
-  <div class="col-lg-4">
-    <div class="card"><div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-chart-bar me-2 text-success"></i>Event Type Demand</h6></div>
-    <div class="card-body"><canvas id="eventDemandChart" height="180"></canvas></div></div>
+  <div class="ap-kpi <%= cancellationRate > 20 ? 'is-bad' : '' %>">
+    <span class="ap-kpi-label">Cancellation rate</span>
+    <span class="ap-kpi-value"><%= cancellationRate %>%</span>
+    <span class="ap-kpi-note">bookings made in the last 3 months</span>
+  </div>
+  <div class="ap-kpi <%= revChange === null ? '' : (revChange >= 0 ? 'is-good' : 'is-bad') %>">
+    <span class="ap-kpi-label">Received this month</span>
+    <span class="ap-kpi-value"><%= formatPeso(thisMonthRev) %></span>
+    <span class="ap-kpi-note"><%= revChange === null ? 'No payments last month to compare' : (revChange >= 0 ? '+' : '') + revChange + '% vs all of last month (' + formatPeso(lastMonthRev) + ')' %></span>
+  </div>
+  <div class="ap-kpi">
+    <span class="ap-kpi-label">Bookings per month</span>
+    <span class="ap-kpi-value"><%= projectedRes %></span>
+    <span class="ap-kpi-note">average of the last 3 months</span>
   </div>
 </div>
 
-<!-- Charts Row 2 -->
-<div class="row g-3 mb-4">
-  <div class="col-lg-6">
-    <div class="card"><div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-building me-2 text-warning"></i>Venue Utilization</h6></div>
-    <div class="card-body"><canvas id="venueChart" height="180"></canvas></div></div>
-  </div>
-  <div class="col-lg-6">
-    <div class="card"><div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-star me-2 text-warning"></i>Customer Satisfaction Trend</h6></div>
-    <div class="card-body"><canvas id="satChart" height="180"></canvas></div></div>
-  </div>
-</div>
+<div class="an-grid">
+  <section class="ap-panel is-wide" aria-labelledby="anRevHeading">
+    <div class="ap-panel-head"><h2 id="anRevHeading">Payments received, last 12 months</h2><span class="ap-meta">Recorded and verified payments, by month</span></div>
+    <div class="ap-panel-body">
+      <div class="rpt-chart-box"><canvas id="revTrend" role="img" aria-label="Line chart of payments received per month over the last 12 months"></canvas></div>
+      <p class="ap-empty d-none" data-empty-for="revTrend"><strong>No payments in the last 12 months</strong></p>
+    </div>
+  </section>
 
-<!-- Peak Booking Days + AI Insights -->
-<div class="row g-3">
-  <div class="col-lg-4">
-    <div class="card"><div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-calendar-week me-2"></i>Peak Booking Days</h6></div>
-    <div class="card-body"><canvas id="peakChart" height="180"></canvas></div></div>
-  </div>
-  <div class="col-lg-8">
-    <div class="card"><div class="card-header d-flex justify-content-between align-items-center"><h6 class="card-title mb-0"><i class="fas fa-robot me-2 text-primary"></i>AI Recommendations</h6></div>
-    <div class="card-body">
-      <div class="alert alert-info py-2 small mb-3"><i class="fas fa-info-circle me-1"></i>AI recommendations are based on historical data and patterns. They are suggestions to support — not replace — management decisions.</div>
-      <% if (!insights || insights.length === 0) { %>
-      <div class="empty-state"><i class="fas fa-robot"></i><p>No insights available yet. Insights are generated as more data is collected.</p></div>
-      <% } else { %>
-        <% for (const ins of insights) { %>
-        <div class="insight-card insight-<%= ins.insight_type %> mb-3">
-          <div class="d-flex justify-content-between align-items-start">
-            <div class="insight-icon">
-              <% if (ins.insight_type === 'trend') { %><i class="fas fa-chart-line"></i>
-              <% } else if (ins.insight_type === 'recommendation') { %><i class="fas fa-lightbulb"></i>
-              <% } else if (ins.insight_type === 'forecast') { %><i class="fas fa-eye"></i>
-              <% } else { %><i class="fas fa-bell"></i><% } %>
-            </div>
-            <form action="/analytics/dismiss/<%= ins.id %>" method="POST" class="ms-auto"><button type="submit" class="btn btn-xs btn-outline-secondary" title="Dismiss">×</button></form>
-          </div>
-          <div class="insight-title mt-1"><%= ins.title %></div>
-          <div class="insight-msg"><%= ins.message %></div>
-          <div class="mt-2">
-            <span class="badge bg-light text-dark small"><%= ins.insight_type %></span>
-            <span class="badge <%= ins.confidence === 'high' ? 'bg-success' : ins.confidence === 'medium' ? 'bg-warning text-dark' : 'bg-secondary' %> small ms-1"><%= ins.confidence %> confidence</span>
-          </div>
+  <section class="ap-panel" aria-labelledby="anEventHeading">
+    <div class="ap-panel-head"><h2 id="anEventHeading">Event types, last 6 months</h2></div>
+    <div class="ap-panel-body">
+      <div class="rpt-chart-box"><canvas id="eventDemandChart" role="img" aria-label="Bar chart of events by type over the last 6 months"></canvas></div>
+      <p class="ap-empty d-none" data-empty-for="eventDemandChart"><strong>No events in the last 6 months</strong></p>
+    </div>
+  </section>
+
+  <section class="ap-panel" aria-labelledby="anVenueHeading">
+    <div class="ap-panel-head"><h2 id="anVenueHeading">Venue bookings</h2><span class="ap-meta">All time</span></div>
+    <div class="ap-panel-body">
+      <div class="rpt-chart-box"><canvas id="venueChart" role="img" aria-label="Bar chart of bookings per venue"></canvas></div>
+      <p class="ap-empty d-none" data-empty-for="venueChart"><strong>No venue bookings yet</strong></p>
+    </div>
+  </section>
+
+  <section class="ap-panel" aria-labelledby="anSatHeading">
+    <div class="ap-panel-head"><h2 id="anSatHeading">Average guest rating, last 6 months</h2><span class="ap-meta">Out of 5</span></div>
+    <div class="ap-panel-body">
+      <div class="rpt-chart-box"><canvas id="satChart" role="img" aria-label="Line chart of average guest feedback rating per month"></canvas></div>
+      <p class="ap-empty d-none" data-empty-for="satChart"><strong>No feedback in the last 6 months</strong></p>
+    </div>
+  </section>
+
+  <section class="ap-panel" aria-labelledby="anPeakHeading">
+    <div class="ap-panel-head"><h2 id="anPeakHeading">Bookings by weekday made</h2><span class="ap-meta">All time</span></div>
+    <div class="ap-panel-body">
+      <div class="rpt-chart-box"><canvas id="peakChart" role="img" aria-label="Bar chart of how many bookings were made on each day of the week"></canvas></div>
+      <p class="ap-empty d-none" data-empty-for="peakChart"><strong>No bookings yet</strong></p>
+    </div>
+  </section>
+
+  <% if (insights && insights.length) { %>
+  <section class="ap-panel is-wide" aria-labelledby="anNotesHeading">
+    <div class="ap-panel-head"><h2 id="anNotesHeading">Saved notes <span class="ap-meta"><%= insights.length %></span></h2><span class="ap-meta">Suggestions only — check them against the figures before acting</span></div>
+    <ul class="an-notes">
+      <% for (const ins of insights) { %>
+      <li>
+        <div>
+          <span class="an-note-kind text-capitalize"><%= ins.insight_type %><%= ins.confidence ? ' · ' + ins.confidence + ' confidence' : '' %></span>
+          <p class="an-note-title"><%= ins.title %></p>
+          <p class="an-note-msg"><%= ins.message %></p>
         </div>
-        <% } %>
+        <form action="/analytics/dismiss/<%= ins.id %>" method="POST"><button type="submit" class="ap-act" aria-label="Dismiss note: <%= ins.title %>">Dismiss</button></form>
+      </li>
       <% } %>
-    </div></div>
-  </div>
+    </ul>
+  </section>
+  <% } %>
 </div>
 
+</div>
 <script>
 (function(){
   const revTrend    = <%- revenueTrend || '[]' %>;
@@ -100,25 +101,47 @@
   const eventDemand = <%- eventDemand || '[]' %>;
   const satData     = <%- satisfactionJson || '[]' %>;
   const peakDays    = <%- peakDaysJson || '[]' %>;
+  if (typeof Chart === 'undefined') return;
+
+  // Brand tokens (tokens.css): deep sea for data, hairline grid, Inter labels, sand used once for ratings
+  const SEA = '#0f5c66', SEA_TINT = 'rgba(15,92,102,0.10)', SAND = '#e8b96a', SAND_INK = '#8a5a12', GRID = '#e5e9e7';
+  Chart.defaults.font.family = "Inter, 'Segoe UI', system-ui, sans-serif";
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = '#627174';
+  Chart.defaults.maintainAspectRatio = false;
+  Chart.defaults.plugins.legend.display = false;
+  Chart.defaults.plugins.tooltip.backgroundColor = '#0f2a30';
+  Chart.defaults.plugins.tooltip.padding = 10;
+  const peso = v => '₱' + Number(v).toLocaleString('en-PH');
+  // Single-series charts: the panel heading names the series; axes carry titles.
+  const ttl = (text) => ({ display: true, text: text, color: '#627174', font: { weight: '600' } });
+  const axes = (y, xTitle, yTitle) => ({ x: { grid: { display: false }, title: ttl(xTitle || '') }, y: Object.assign({ beginAtZero: true, grid: { color: GRID }, border: { display: false }, title: ttl(yTitle || '') }, y || {}) });
+  const bar = { backgroundColor: SEA, borderRadius: 4, maxBarThickness: 40 };
+  function draw(id, rows, config) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!rows.length) { el.parentElement.hidden = true; const e = document.querySelector('[data-empty-for="' + id + '"]'); if (e) e.classList.remove('d-none'); return; }
+    new Chart(el, config);
+  }
 
   // Revenue Trend
-  const rc = document.getElementById('revTrend');
-  if (rc && revTrend.length) new Chart(rc, { type:'line', data:{ labels: revTrend.map(d=>d.month), datasets:[{ label:'Revenue (₱)', data: revTrend.map(d=>d.revenue), borderColor:'#4f46e5', backgroundColor:'rgba(79,70,229,0.08)', fill:true, tension:0.4 }]}, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{ beginAtZero:true, ticks:{callback:v=>'₱'+v.toLocaleString()} }}}});
+  draw('revTrend', revTrend, { type: 'line', data: { labels: revTrend.map(d => d.month), datasets: [{ label: 'Received', data: revTrend.map(d => d.revenue), borderColor: SEA, backgroundColor: SEA_TINT, fill: true, tension: 0.3, pointRadius: 3, pointBackgroundColor: SEA }] },
+    options: { plugins: { tooltip: { callbacks: { label: c => peso(c.parsed.y) } } }, scales: axes({ ticks: { callback: peso } }, 'Month', 'Payments received (₱)') } });
 
   // Event Demand
-  const ec = document.getElementById('eventDemandChart');
-  if (ec && eventDemand.length) new Chart(ec, { type:'bar', data:{ labels: eventDemand.map(d=>d.event_type), datasets:[{ label:'Events', data: eventDemand.map(d=>d.cnt), backgroundColor:'rgba(16,185,129,0.7)' }]}, options:{ responsive:true, indexAxis:'y', plugins:{legend:{display:false}}}});
+  draw('eventDemandChart', eventDemand, { type: 'bar', data: { labels: eventDemand.map(d => d.event_type), datasets: [Object.assign({ label: 'Events', data: eventDemand.map(d => d.cnt) }, bar)] },
+    options: { indexAxis: 'y', scales: { x: { beginAtZero: true, grid: { color: GRID }, border: { display: false }, ticks: { stepSize: 1 }, title: ttl('Events') }, y: { grid: { display: false }, title: ttl('Event type') } } } });
 
   // Venue Utilization
-  const vc = document.getElementById('venueChart');
-  if (vc && venueUtil.length) new Chart(vc, { type:'bar', data:{ labels: venueUtil.map(d=>d.name), datasets:[{ label:'Bookings', data: venueUtil.map(d=>d.bookings), backgroundColor:'rgba(245,158,11,0.7)' }]}, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{stepSize:1}} }}});
+  draw('venueChart', venueUtil, { type: 'bar', data: { labels: venueUtil.map(d => d.name), datasets: [Object.assign({ label: 'Bookings', data: venueUtil.map(d => d.bookings) }, bar)] },
+    options: { scales: axes({ ticks: { stepSize: 1 } }, 'Venue', 'Bookings') } });
 
   // Satisfaction
-  const sc = document.getElementById('satChart');
-  if (sc && satData.length) new Chart(sc, { type:'line', data:{ labels: satData.map(d=>d.month), datasets:[{ label:'Avg Rating', data: satData.map(d=>d.avg_rating), borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,0.1)', fill:true, tension:0.4 }]}, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{min:0, max:5}}}});
+  draw('satChart', satData, { type: 'line', data: { labels: satData.map(d => d.month), datasets: [{ label: 'Average rating', data: satData.map(d => d.avg_rating), borderColor: SAND_INK, backgroundColor: SAND, pointBackgroundColor: SAND, pointBorderColor: SAND_INK, pointRadius: 4, tension: 0.3 }] },
+    options: { plugins: { tooltip: { callbacks: { label: c => c.parsed.y + ' / 5' } } }, scales: axes({ min: 0, max: 5, beginAtZero: true, ticks: { stepSize: 1 } }, 'Month', 'Average rating (1–5)') } });
 
   // Peak Days
-  const pc = document.getElementById('peakChart');
-  if (pc && peakDays.length) new Chart(pc, { type:'bar', data:{ labels: peakDays.map(d=>d.day), datasets:[{ label:'Reservations', data: peakDays.map(d=>d.cnt), backgroundColor:'rgba(99,102,241,0.7)' }]}, options:{ responsive:true, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:true, ticks:{stepSize:1}} }}});
+  draw('peakChart', peakDays, { type: 'bar', data: { labels: peakDays.map(d => d.day), datasets: [Object.assign({ label: 'Bookings', data: peakDays.map(d => d.cnt) }, bar)] },
+    options: { scales: axes({ ticks: { stepSize: 1 } }, 'Day of the week the booking was made', 'Bookings') } });
 })();
 </script>

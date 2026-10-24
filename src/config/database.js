@@ -65,8 +65,12 @@ function normalizeParam(value) {
   return value;
 }
 
+// Accept .all(a, b) or .all([a, b]) like better-sqlite3. Arrays are NOT flattened
+// when mixed with other params, so a stray array (e.g. a duplicated form field)
+// can't silently shift every later placeholder.
 function normalizeParams(params) {
-  return params.flat().map(normalizeParam);
+  const list = params.length === 1 && Array.isArray(params[0]) ? params[0] : params;
+  return list.map(normalizeParam);
 }
 
 function executor() {

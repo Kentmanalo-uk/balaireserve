@@ -8,12 +8,20 @@ const {
   validateCottageTimeRange,
 } = require('../src/utils/cottagePricing');
 
-test('calculates an hourly cottage total from duration', () => {
-  assert.equal(calculateCottageTotal(500, '14:00', '16:00'), 1000);
+test('uses the cottage rate as the booking total', () => {
+  assert.equal(calculateCottageTotal(300), 300);
+  assert.equal(calculateCottageTotal('1250.50'), 1250.5);
 });
 
-test('charges a whole-day cottage rate once regardless of selected hours', () => {
-  assert.equal(calculateCottageTotal(300, '09:00', '17:00', true), 300);
+test('does not multiply the cottage rate by the selected hours', () => {
+  assert.equal(calculateCottageTotal(500, '14:00', '22:00'), 500);
+  assert.equal(calculateCottageTotal(300, '09:00', '17:00'), 300);
+});
+
+test('returns zero for an invalid cottage rate', () => {
+  assert.equal(calculateCottageTotal(-1), 0);
+  assert.equal(calculateCottageTotal('abc'), 0);
+  assert.equal(calculateCottageTotal(undefined), 0);
 });
 
 test('rejects a cottage end time that is not after its start time', () => {

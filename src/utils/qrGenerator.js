@@ -1,53 +1,83 @@
 /**
  * QR Code Generator Utility
- * Generates a QR image file and records it in the qr_codes table.
+ * Records check-in QR tokens in the qr_codes table and renders the QR image
+ * on demand, so the encoded check-in URL always uses the current public address.
  */
 'use strict';
 
 require('dotenv').config();
+const os     = require('os');
 const QRCode = require('qrcode');
-const path   = require('path');
-const fs     = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const db     = require('../config/database');
 
-const QR_DIR = process.env.QR_PATH || './public/qrcodes';
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+// Prefer the usual home/office Wi-Fi ranges; skip link-local 169.254.x.x (unreachable).
+const PRIVATE_RANGES = [/^192\.168\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./];
+
+function lanAddress() {
+  const candidates = Object.values(os.networkInterfaces()).flat()
+    .filter(addr => addr && addr.family === 'IPv4' && !addr.internal && !addr.address.startsWith('169.254.'))
+    .map(addr => addr.address);
+  return candidates.find(ip => PRIVATE_RANGES.some(re => re.test(ip))) || candidates[0] || null;
+}
+
+/**
+ * Base URL that a phone scanning the QR can reach.
+ * APP_URL wins unless it points at localhost (which a phone resolves to itself);
+ * then the machine's LAN address is used so phones on the same Wi-Fi can connect.
+ */
+function publicBaseUrl() {
+  const configured = (process.env.APP_URL || '').replace(/\/+$/, '');
+  try {
+    const url = new URL(configured || `http://localhost:${process.env.PORT || 3000}`);
+    if (!LOCAL_HOSTS.has(url.hostname)) return url.origin;
+    const lan = lanAddress();
+    if (lan) {
+      url.hostname = lan;
+      return url.origin;
+    }
+    return url.origin;
+  } catch {
+    return configured || `http://localhost:${process.env.PORT || 3000}`;
+  }
+}
+
+function checkInUrl(token) {
+  return `${publicBaseUrl()}/checkin/${token}`;
+}
 
 /**
  * Generate and store a QR code for a reservation.
+ * The token stays valid until the day after the stay/event ends.
  * @param {number} reservationId
- * @param {string} bookingRef
  * @returns {object} { token, qrPath }
  */
-async function generateReservationQR(reservationId, bookingRef) {
-  if (!fs.existsSync(QR_DIR)) {
-    fs.mkdirSync(QR_DIR, { recursive: true });
-  }
-
+async function generateReservationQR(reservationId) {
   const token    = uuidv4();
-  const filename = `qr-${bookingRef}-${token.slice(0, 8)}.png`;
-  const filePath = path.join(QR_DIR, filename);
-  const publicPath = `/qrcodes/${filename}`;
+  const qrPath   = `/checkin/${token}/qr.png`;
 
-  // The QR encodes the check-in URL with the secure token
-  const checkInUrl = `${process.env.APP_URL || 'http://localhost:3000'}/checkin/${token}`;
+  await db.prepare(`
+    INSERT INTO qr_codes (reservation_id, token, qr_path, used, expires_at)
+    SELECT r.id, ?, ?, 0,
+           DATE_ADD(COALESCE(r.check_out_date, r.event_date, r.check_in_date, CURDATE()), INTERVAL 2 DAY)
+    FROM reservations r WHERE r.id = ?
+  `).run(token, qrPath, reservationId);
 
-  await QRCode.toFile(filePath, checkInUrl, {
+  return { token, qrPath };
+}
+
+/**
+ * Render the QR image (PNG buffer) for a token.
+ */
+function renderQRPng(token) {
+  return QRCode.toBuffer(checkInUrl(token), {
     errorCorrectionLevel: 'H',
     width: 300,
     margin: 2,
     color: { dark: '#1a1a2e', light: '#ffffff' },
   });
-
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 30); // valid for 30 days
-
-  await db.prepare(`
-    INSERT INTO qr_codes (reservation_id, token, qr_path, used, expires_at)
-    VALUES (?, ?, ?, 0, ?)
-  `).run(reservationId, token, publicPath, expiresAt.toISOString());
-
-  return { token, qrPath: publicPath };
 }
 
 /**
@@ -63,7 +93,8 @@ async function validateQRToken(token) {
 
   if (!qr)              return { valid: false, reason: 'QR code not found.' };
   if (qr.used)          return { valid: false, reason: 'This QR code has already been used or is no longer valid.' };
-  if (qr.expires_at && new Date(qr.expires_at) < new Date()) {
+  // expires_at is stored in UTC ('YYYY-MM-DD HH:MM:SS').
+  if (qr.expires_at && new Date(qr.expires_at.replace(' ', 'T') + 'Z') < new Date()) {
     return { valid: false, reason: 'This QR code has expired.' };
   }
   // A refunded or cancelled/rejected booking can never be checked in.
@@ -77,12 +108,15 @@ async function validateQRToken(token) {
 }
 
 /**
- * Mark a QR code as used.
+ * Mark a QR code as used. Returns false if it was already used.
  */
 async function consumeQRToken(token) {
-  await db.prepare(`
-    UPDATE qr_codes SET used = 1, used_at = NOW() WHERE token = ?
+  const result = await db.prepare(`
+    UPDATE qr_codes SET used = 1, used_at = NOW() WHERE token = ? AND used = 0
   `).run(token);
+  return result.changes > 0;
 }
 
-module.exports = { generateReservationQR, validateQRToken, consumeQRToken };
+module.exports = {
+  generateReservationQR, renderQRPng, validateQRToken, consumeQRToken, publicBaseUrl, checkInUrl,
+};

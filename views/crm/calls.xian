@@ -1,30 +1,47 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Sales Calls</h3><p class="text-muted mb-0">Log and track all customer sales calls</p></div>
-</div>
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>Customer</th><th>Date</th><th>Purpose</th><th>Result</th><th>Staff</th><th>Follow-up</th><th>Status</th></tr></thead>
-        <tbody>
-          <% if (!calls || calls.length === 0) { %><tr><td colspan="7" class="text-center py-4 text-muted">No calls recorded.</td></tr>
-          <% } else { %>
-            <% for (const c of calls) { %>
-            <tr>
-              <td><a href="/crm/customers/<%= c.customer_id %>" class="fw-medium"><%= c.customer_name %></a></td>
-              <td class="small"><%= formatDate(c.call_date) %><% if (c.call_time) { %> <span class="text-muted"><%= c.call_time %></span><% } %></td>
-              <td><%= c.purpose %></td>
-              <td class="small text-muted"><%= c.result || '—' %></td>
-              <td class="small"><%= c.staff_name %></td>
-              <td class="small"><%= formatDate(c.follow_up_at) || '—' %></td>
-              <td><%- statusBadge(c.status) %></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Sales calls</h1>
+<!--/page-head-->
+
+<form method="GET" action="/crm/calls" class="ap-toolbar" role="search" aria-label="Search sales calls">
+  <div class="ap-field ap-field-search">
+    <label for="callSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="callSearch" name="search" value="<%= filters.search || '' %>" class="form-control" placeholder="Customer name or purpose" /></div>
   </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
+  <% if (filters.status) { %><input type="hidden" name="status" value="<%= filters.status %>" /><% } %>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Search</button>
+    <% if (filters.search || filters.status) { %><a href="/crm/calls" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<section class="ap-panel" aria-labelledby="callsHeading">
+  <div class="ap-panel-head"><h2 id="callsHeading">Call log <span class="ap-meta"><%= pagination.total %></span></h2></div>
+  <% if (!calls || calls.length === 0) { %>
+  <div class="ap-empty"><strong>No calls recorded</strong>Open a customer’s profile to log a call or other activity.</div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead><tr><th scope="col">Customer</th><th scope="col">Date</th><th scope="col">Purpose</th><th scope="col">Result</th><th scope="col">Staff</th><th scope="col">Follow-up</th><th scope="col">Status</th></tr></thead>
+      <tbody>
+        <% for (const c of calls) { %>
+        <tr>
+          <td class="ap-cell-title"><a href="/crm/customers/<%= c.customer_id %>" class="ap-name"><%= c.customer_name %></a></td>
+          <td data-label="Date" class="text-nowrap"><%= formatDate(c.call_date) %><% if (c.call_time) { %> <span class="ap-muted"><%= c.call_time %></span><% } %></td>
+          <td data-label="Purpose" class="ap-wide"><%= c.purpose %></td>
+          <td data-label="Result" class="ap-wide ap-muted"><%= c.result || '—' %></td>
+          <td data-label="Staff"><%= c.staff_name || '—' %></td>
+          <td data-label="Follow-up" class="text-nowrap"><%= c.follow_up_at ? formatDate(c.follow_up_at) : '—' %></td>
+          <td class="ap-cell-status"><%- statusBadge(c.status) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+  <% if (pagination && pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+</section>
+
 </div>

@@ -8,25 +8,46 @@
 'use strict';
 
 const dayjs = require('dayjs');
+dayjs.extend(require('dayjs/plugin/utc'));
 
 // ─── Date / Time ─────────────────────────────────────────────────────────────
 
+// The database stores timestamps in UTC as 'YYYY-MM-DD HH:MM:SS' (space, no zone).
+// The resort runs on Philippine time (UTC+8, no DST), whatever the server's zone.
+const DB_UTC_DATETIME = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/;
+const PH_OFFSET_HOURS = 8;
+
 /**
- * Format a date value using dayjs.
+ * Parse a value for display in Philippine time.
+ *  - DB timestamps ('YYYY-MM-DD HH:MM:SS') and Date objects are UTC → shifted to PH time.
+ *  - Date-only values ('YYYY-MM-DD') and already-local 'YYYY-MM-DDTHH:MM:SS'
+ *    strings are shown as written.
+ */
+function toPhilippineTime(value) {
+  if (value instanceof Date) return dayjs.utc(value).add(PH_OFFSET_HOURS, 'hour');
+  const s = String(value);
+  if (DB_UTC_DATETIME.test(s)) return dayjs.utc(s.replace(' ', 'T') + 'Z').add(PH_OFFSET_HOURS, 'hour');
+  return dayjs.utc(s.length === 10 ? s + 'T00:00:00Z' : s.replace(/([^Z])$/, '$1Z'));
+}
+
+/**
+ * Format a date value using dayjs (Philippine time).
  * @param {string|Date} date
  * @param {string} fmt  — dayjs format string, default 'MMM D, YYYY'
  */
 function formatDate(date, fmt = 'MMM D, YYYY') {
   if (!date) return '—';
-  return dayjs(date).format(fmt);
+  const d = toPhilippineTime(date);
+  return d.isValid() ? d.format(fmt) : dayjs(date).format(fmt);
 }
 
 /**
- * Format a datetime value.
+ * Format a datetime value (Philippine time).
  */
 function formatDateTime(date, fmt = 'MMM D, YYYY h:mm A') {
   if (!date) return '—';
-  return dayjs(date).format(fmt);
+  const d = toPhilippineTime(date);
+  return d.isValid() ? d.format(fmt) : dayjs(date).format(fmt);
 }
 
 /**
@@ -50,52 +71,106 @@ function formatPeso(amount) {
   });
 }
 
+/**
+ * Guest-facing price: '₱3,500' for whole pesos, '₱3,500.50' otherwise.
+ * Use formatPeso for amounts due, payments and back-office figures.
+ */
+function formatPrice(amount) {
+  if (amount == null || amount === '') return '—';
+  const n = Number(amount);
+  const whole = Number.isInteger(Math.round(n * 100) / 100);
+  return '₱' + n.toLocaleString('en-PH', {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
+// Colour families follow the shared status system (public/css/tokens.css):
+// the same status looks the same on lists, detail pages, calendar and portal.
 const STATUS_COLORS = {
   // Reservation
-  pending:           'badge-warning',
-  awaiting_payment:  'badge-info',
-  confirmed:         'badge-success',
-  checked_in:        'badge-primary',
-  completed:         'badge-secondary',
-  cancelled:         'badge-danger',
-  rejected:          'badge-danger',
-  no_show:           'badge-dark',
-  // Room
-  available:         'badge-success',
-  reserved:          'badge-warning',
-  occupied:          'badge-primary',
-  cleaning:          'badge-info',
-  maintenance:       'badge-secondary',
-  unavailable:       'badge-danger',
-  // Payment
-  unpaid:            'badge-danger',
-  partially_paid:    'badge-warning',
-  fully_paid:        'badge-success',
-  refunded:          'badge-info',
+  pending:           'st-amber',
+  pencil:            'st-purple',
+  on_hold:           'st-slate',
+  awaiting_payment:  'st-orange',
+  confirmed:         'st-teal',
+  checked_in:        'st-blue',
+  completed:         'st-gray',
+  checked_out:       'st-gray',
+  cancelled:         'st-red',
+  rejected:          'st-red',
+  no_show:           'st-red',
+  // Room / cottage / venue
+  available:         'st-teal',
+  reserved:          'st-amber',
+  occupied:          'st-blue',
+  cleaning:          'st-slate',
+  maintenance:       'st-gray',
+  unavailable:       'st-red',
+  // Payment records
+  received:          'st-amber',
+  verified:          'st-teal',
+  // Refund requests
+  approved:          'st-teal',
+  declined:          'st-red',
   // Equipment condition
-  excellent:         'badge-success',
-  good:              'badge-primary',
-  needs_maintenance: 'badge-warning',
-  damaged:           'badge-danger',
-  lost:              'badge-dark',
-  // Tickets
-  open:              'badge-warning',
-  in_progress:       'badge-info',
-  resolved:          'badge-success',
-  closed:            'badge-secondary',
+  excellent:         'st-teal',
+  good:              'st-teal',
+  needs_maintenance: 'st-amber',
+  damaged:           'st-red',
+  lost:              'st-red',
+  // Inquiries / tickets / events
+  open:              'st-amber',
+  in_progress:       'st-blue',
+  escalated:         'st-orange',
+  resolved:          'st-teal',
+  closed:            'st-gray',
+  // Customers
+  active:            'st-teal',
+  inactive:          'st-gray',
+  blacklisted:       'st-red',
+  // Inventory stock levels
+  in_stock:          'st-teal',
+  low_stock:         'st-amber',
+  out_of_stock:      'st-red',
+};
+
+// Payment status of a reservation is a separate system, shown as dot + text.
+const PAYMENT_STATUSES = new Set(['unpaid', 'partially_paid', 'fully_paid', 'refunded']);
+
+// Statuses whose label isn't just the key title-cased.
+const STATUS_LABELS = {
+  pencil:           'Pencil Booking',
+  on_hold:          'On Hold',
+  awaiting_payment: 'Awaiting Payment',
+  partially_paid:   'Partially Paid',
+  fully_paid:       'Fully Paid',
+  no_show:          'No Show',
 };
 
 /**
- * Returns an HTML badge span for a given status string.
+ * Human-readable label for a status key, e.g. 'on_hold' -> 'On Hold'.
+ */
+function statusLabel(status) {
+  if (!status) return '';
+  const key = status.toLowerCase().replace(/\s+/g, '_');
+  return STATUS_LABELS[key] || status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+/**
+ * Returns an HTML status indicator for a given status string.
+ * Reservation/resource statuses render as a chip; payment statuses as dot + text.
  */
 function statusBadge(status) {
   if (!status) return '';
-  const key   = status.toLowerCase().replace(/\s+/g, '_');
-  const cls   = STATUS_COLORS[key] || 'badge-secondary';
-  const label = status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  return `<span class="badge ${cls}">${label}</span>`;
+  const key = status.toLowerCase().replace(/\s+/g, '_');
+  if (PAYMENT_STATUSES.has(key)) {
+    return `<span class="pay-status pay-${key}">${statusLabel(status)}</span>`;
+  }
+  const cls = STATUS_COLORS[key] || 'st-gray';
+  return `<span class="status-chip ${cls}">${statusLabel(status)}</span>`;
 }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────
@@ -128,7 +203,9 @@ function xianHelpersMiddleware(req, res, next) {
   res.locals.formatDate     = formatDate;
   res.locals.formatDateTime = formatDateTime;
   res.locals.formatPeso     = formatPeso;
+  res.locals.formatPrice    = formatPrice;
   res.locals.statusBadge    = statusBadge;
+  res.locals.statusLabel    = statusLabel;
   res.locals.activeNav      = activeNav;
   res.locals.paginate       = paginate;
   // NOTE: currentUser, currentPath, and flash are set in the
@@ -141,7 +218,9 @@ module.exports = {
   formatDate,
   formatDateTime,
   formatPeso,
+  formatPrice,
   statusBadge,
+  statusLabel,
   activeNav,
   paginate,
   xianHelpersMiddleware,

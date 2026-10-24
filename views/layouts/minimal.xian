@@ -4,14 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= title || 'Balai-Reserve' %></title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/brand/balai-icon-32.png" />
+  <link rel="apple-touch-icon" href="/images/brand/balai-icon-192.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/main.css" />
 </head>
-<body class="minimal-body bg-light">
-  <div class="container py-5">
+<body class="minimal-body">
+  <header class="minimal-header">
+    <a href="/" class="minimal-top" aria-label="Balai-Reserve home">
+      <img src="/images/brand/balai-icon-96.png" alt="" width="40" height="40" class="brand-logo" />
+      <span class="pb-name">Balai-Reserve</span>
+      <span class="pb-sub">Gloria, Oriental Mindoro</span>
+    </a>
+  </header>
+  <main class="minimal-main">
     <%- body %>
-  </div>
+  </main>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

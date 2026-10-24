@@ -1,205 +1,115 @@
 <% layout('layouts/main') %>
+<% const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff'); %>
+<div class="ap-page cat-show">
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
-      <li class="breadcrumb-item"><a href="/rooms">Rooms</a></li>
-      <li class="breadcrumb-item active">Room <%= room.room_number %></li>
-    </ol></nav>
-    <h3 class="mb-0"><%= room.name %></h3>
-  </div>
-  <div class="page-header-actions">
-    <%- statusBadge(room.status) %>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/rooms/<%= room.id %>/edit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit me-1"></i>Edit</a>
+<!--page-head-->
+<a href="/rooms" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Rooms</a>
+<h1 class="ph-title"><%= room.name %></h1>
+<div class="ph-actions">
+    <a href="/stay/room/<%= room.id %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Guest view<span class="visually-hidden"> — opens the public room page in a new tab</span></a>
+    <% if (canManage) { %>
+    <a href="/rooms/<%= room.id %>/edit" class="btn btn-secondary-quiet"><i class="fas fa-pen" aria-hidden="true"></i>Edit room</a>
     <% } %>
-    <a href="/reservations/new" class="btn btn-sm btn-primary"><i class="fas fa-calendar-plus me-1"></i>New Reservation</a>
+    <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-calendar-plus" aria-hidden="true"></i>New reservation</a>
   </div>
-</div>
+<!--/page-head-->
+<div class="page-meta"><span class="ap-code"><%= room.room_number %></span> · <%= room.type_name %> · <%- statusBadge(room.status) %></div>
 
-<div class="row g-3">
-
-  <%# Left: details + image gallery %>
-  <div class="col-lg-4">
-
-    <%# Image carousel or placeholder %>
-    <div class="card mb-3">
+<div class="ap-split">
+  <div class="cat-main">
+    <%# Photos: one large image, the rest as smaller tiles; click to view uncropped %>
+    <div class="cat-gallery<%= room.imagesList && room.imagesList.length === 1 ? ' is-single' : '' %>">
       <% if (room.imagesList && room.imagesList.length > 0) { %>
-        <% if (room.imagesList.length === 1) { %>
-          <img src="<%= room.imagesList[0] %>" alt="<%= room.name %>"
-            class="card-img-top rounded-top js-zoom"
-            style="height:220px;object-fit:cover;cursor:zoom-in;"
-            onclick="openImgLightbox('<%= room.imagesList[0] %>')" />
-        <% } else { %>
-          <div id="roomCarousel" class="carousel slide rounded-top overflow-hidden" data-bs-ride="carousel">
-            <div class="carousel-inner">
-              <% for (let i = 0; i < room.imagesList.length; i++) { %>
-              <div class="carousel-item <%= i === 0 ? 'active' : '' %>">
-                <img src="<%= room.imagesList[i] %>" class="d-block w-100 js-zoom"
-                  alt="Room photo <%= i+1 %>"
-                  style="height:220px;object-fit:cover;cursor:zoom-in;"
-                  onclick="openImgLightbox('<%= room.imagesList[i] %>')" />
-              </div>
-              <% } %>
-            </div>
-            <button class="carousel-control-prev" type="button" data-bs-target="#roomCarousel" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon"></span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#roomCarousel" data-bs-slide="next">
-              <span class="carousel-control-next-icon"></span>
-            </button>
-          </div>
-          <%# Thumbnail strip %>
-          <div class="d-flex gap-1 p-2 overflow-x-auto bg-light" style="max-height:70px;">
-            <% for (let i = 0; i < room.imagesList.length; i++) { %>
-            <img src="<%= room.imagesList[i] %>" alt="thumb <%= i+1 %>"
-              class="rounded flex-shrink-0 thumb-nav"
-              data-bs-target="#roomCarousel" data-bs-slide-to="<%= i %>"
-              style="height:52px;width:70px;object-fit:cover;cursor:pointer;opacity:<%= i===0?'1':'.55' %>;transition:opacity .15s;border:2px solid <%= i===0?'#4f46e5':'transparent' %>;" />
-            <% } %>
-          </div>
+        <% for (let i = 0; i < room.imagesList.length; i++) { %>
+        <button type="button" class="cat-photo" data-lightbox="<%= room.imagesList[i] %>" data-lightbox-title="<%= room.name %> — photo <%= i + 1 %>" aria-label="View photo <%= i + 1 %> of <%= room.imagesList.length %> full size">
+          <img src="<%= room.imagesList[i] %>" alt="<%= room.name %> photo <%= i + 1 %>" <%- i > 0 ? 'loading="lazy"' : '' %> />
+        </button>
         <% } %>
       <% } else { %>
-        <div class="card-img-top rounded-top d-flex align-items-center justify-content-center"
-          style="height:180px;background:linear-gradient(135deg,#1e1b4b,#4f46e5);color:rgba(255,255,255,.3);font-size:4rem;">
-          <i class="fas fa-door-open"></i>
-        </div>
+        <div class="photo-pending"><i class="fas fa-image" aria-hidden="true"></i><span>Photos coming soon</span></div>
       <% } %>
+    </div>
 
-      <div class="card-body">
-        <div class="d-flex justify-content-between mb-3">
-          <h5 class="mb-0">Room Details</h5>
-          <%- statusBadge(room.status) %>
-        </div>
-        <table class="table table-sm table-borderless mb-0">
-          <tr><th>Room Number</th><td><strong><%= room.room_number %></strong></td></tr>
-          <tr><th>Type</th><td><%= room.type_name %></td></tr>
-          <tr><th>Capacity</th><td><i class="fas fa-users text-muted me-1"></i><%= room.capacity %> guests</td></tr>
-          <tr><th>Price</th><td class="fw-bold text-primary"><%= formatPeso(room.price) %>/night</td></tr>
-          <tr><th>Floor</th><td><%= room.floor || '—' %></td></tr>
-        </table>
-
-        <% if (room.description) { %>
-        <p class="text-muted small mt-3 mb-0"><%= room.description %></p>
-        <% } %>
-
-        <% if (room.amenitiesList && room.amenitiesList.length > 0) { %>
-        <div class="mt-3">
-          <strong class="small">Amenities:</strong>
-          <div class="mt-1 d-flex flex-wrap gap-1">
-            <% for (const a of room.amenitiesList) { %>
-            <span class="badge bg-light text-dark">
-              <i class="fas fa-check text-success me-1" style="font-size:.65rem;"></i><%= a %>
-            </span>
+    <section class="ap-panel" aria-labelledby="roomHistoryHeading">
+      <div class="ap-panel-head">
+        <h2 id="roomHistoryHeading">Reservation history <span class="ap-meta">latest 10</span></h2>
+        <a href="/reservations/new" class="ap-act">Book this room</a>
+      </div>
+      <% if (!reservations || reservations.length === 0) { %>
+      <div class="ap-empty"><strong>No reservations yet</strong>Bookings that include this room will appear here.</div>
+      <% } else { %>
+      <div class="ap-table-wrap">
+        <table class="table-br ap-table ap-stack">
+          <thead><tr><th scope="col">Booking</th><th scope="col">Check-in</th><th scope="col">Check-out</th><th scope="col" class="num">Amount</th><th scope="col">Status</th></tr></thead>
+          <tbody>
+            <% for (const r of reservations) { %>
+            <tr>
+              <td class="ap-cell-title"><a href="/reservations/<%= r.id %>" class="ap-name"><%= r.customer_name %></a><span class="ap-line2 ap-code"><%= r.booking_ref %></span></td>
+              <td data-label="Check-in" class="text-nowrap"><%= formatDate(r.check_in_date) %></td>
+              <td data-label="Check-out" class="text-nowrap"><%= formatDate(r.check_out_date) %></td>
+              <td class="num" data-label="Amount"><%= formatPeso(r.total_amount) %></td>
+              <td class="ap-cell-status"><%- statusBadge(r.status) %></td>
+            </tr>
             <% } %>
-          </div>
-        </div>
+          </tbody>
+        </table>
+      </div>
+      <% } %>
+    </section>
+  </div>
+
+  <aside class="cat-aside">
+    <section class="ap-panel" aria-labelledby="roomDetailsHeading">
+      <div class="ap-panel-head"><h2 id="roomDetailsHeading">Room details</h2></div>
+      <div class="ap-panel-body">
+        <p class="cat-price mb-3"><%= formatPeso(room.price) %> <small>/ night</small></p>
+        <dl class="ap-dl">
+          <dt>Room number</dt><dd><%= room.room_number %></dd>
+          <dt>Type</dt><dd><%= room.type_name %></dd>
+          <dt>Sleeps</dt><dd><%= room.capacity %> guests</dd>
+          <dt>Floor</dt><dd><%= room.floor || '—' %></dd>
+          <dt>Status</dt><dd><%- statusBadge(room.status) %></dd>
+        </dl>
+        <% if (room.description) { %>
+        <h3 class="cat-subhead">Description</h3>
+        <p class="cat-desc-text"><%= room.description %></p>
+        <% } %>
+        <% if (room.amenitiesList && room.amenitiesList.length > 0) { %>
+        <h3 class="cat-subhead">Amenities</h3>
+        <ul class="cat-amenities">
+          <% for (const a of room.amenitiesList) { %><li><%= a %></li><% } %>
+        </ul>
         <% } %>
       </div>
-
-      <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-      <div class="card-footer">
-        <form action="/rooms/<%= room.id %>/status" method="POST" class="d-flex gap-2">
-          <select name="status" class="form-select form-select-sm">
-            <% for (const s of ['available','cleaning','maintenance','unavailable']) { %>
-            <option value="<%= s %>" <%= room.status === s ? 'selected' : '' %>><%= s.replace(/_/g,' ') %></option>
-            <% } %>
-          </select>
-          <button type="submit" class="btn btn-sm btn-primary">Update</button>
+      <% if (canManage) { %>
+      <div class="ap-panel-foot">
+        <form action="/rooms/<%= room.id %>/status" method="POST" class="cat-status-form">
+          <div class="ap-field">
+            <label for="roomStatusSelect">Change status</label>
+            <select name="status" id="roomStatusSelect" class="form-select">
+              <% for (const s of ['available','cleaning','maintenance','unavailable']) { %>
+              <option value="<%= s %>" <%= room.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option>
+              <% } %>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Update</button>
         </form>
       </div>
       <% } %>
-    </div>
-
-  </div>
-
-  <%# Right: reservation history %>
-  <div class="col-lg-8">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-history me-2"></i>Reservation History</h6>
-        <a href="/reservations/new" class="btn btn-xs btn-primary">+ Book This Room</a>
-      </div>
-      <div class="card-body p-0">
-        <% if (!reservations || reservations.length === 0) { %>
-          <div class="empty-state py-4">
-            <i class="fas fa-calendar-times"></i>
-            <p>No reservation history for this room.</p>
-          </div>
-        <% } else { %>
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead>
-                <tr><th>Booking Ref</th><th>Guest</th><th>Check-in</th><th>Check-out</th><th>Amount</th><th>Status</th></tr>
-              </thead>
-              <tbody>
-                <% for (const r of reservations) { %>
-                <tr>
-                  <td><a href="/reservations/<%= r.id %>"><code class="small"><%= r.booking_ref %></code></a></td>
-                  <td class="fw-medium"><%= r.customer_name %></td>
-                  <td class="small text-nowrap"><%= formatDate(r.check_in_date) %></td>
-                  <td class="small text-nowrap"><%= formatDate(r.check_out_date) %></td>
-                  <td class="small"><%= formatPeso(r.total_amount) %></td>
-                  <td><%- statusBadge(r.status) %></td>
-                </tr>
-                <% } %>
-              </tbody>
-            </table>
-          </div>
-        <% } %>
-      </div>
-    </div>
-  </div>
-
+    </section>
+  </aside>
 </div>
 
+</div>
 <script>
-<%# Thumbnail click syncs the carousel %>
-document.querySelectorAll('.thumb-nav').forEach(function(thumb, idx) {
-  thumb.addEventListener('click', function() {
-    document.querySelectorAll('.thumb-nav').forEach(function(t) {
-      t.style.opacity = '.55';
-      t.style.borderColor = 'transparent';
-    });
-    this.style.opacity = '1';
-    this.style.borderColor = '#4f46e5';
-  });
+// A photo whose file is missing shows the honest empty state instead of a broken image.
+document.querySelectorAll('.cat-photo > img').forEach(function (img) {
+  function swap() {
+    var box = document.createElement('div');
+    box.className = 'cat-photo photo-pending';
+    box.textContent = 'Photo unavailable';
+    img.closest('.cat-photo').replaceWith(box);
+  }
+  if (img.complete && img.naturalWidth === 0) swap(); else img.addEventListener('error', swap);
 });
-var carousel = document.getElementById('roomCarousel');
-if (carousel) {
-  carousel.addEventListener('slid.bs.carousel', function(e) {
-    var idx = e.to;
-    document.querySelectorAll('.thumb-nav').forEach(function(t, i) {
-      t.style.opacity      = i === idx ? '1' : '.55';
-      t.style.borderColor  = i === idx ? '#4f46e5' : 'transparent';
-    });
-  });
-}
-</script>
-
-<%# ── Full-image lightbox (click any photo to view it uncropped) ──────────── %>
-<div id="imgLightbox" class="img-lb-overlay" onclick="closeImgLightbox()">
-  <span class="img-lb-close">&times;</span>
-  <img id="imgLightboxImg" src="" alt="Full image" onclick="event.stopPropagation()" />
-</div>
-<style>
-  .img-lb-overlay { display:none; position:fixed; inset:0; z-index:10000; background:rgba(2,12,24,.94); backdrop-filter:blur(3px); align-items:center; justify-content:center; }
-  .img-lb-overlay.open { display:flex; }
-  .img-lb-overlay img { max-width:92vw; max-height:88vh; object-fit:contain; border-radius:.5rem; box-shadow:0 10px 40px rgba(0,0,0,.5); }
-  .img-lb-close { position:fixed; top:18px; right:26px; color:#fff; font-size:2.2rem; cursor:pointer; line-height:1; }
-</style>
-<script>
-  window.openImgLightbox = function (src) {
-    var lb = document.getElementById('imgLightbox');
-    document.getElementById('imgLightboxImg').src = src;
-    lb.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  };
-  window.closeImgLightbox = function () {
-    var lb = document.getElementById('imgLightbox');
-    lb.classList.remove('open');
-    document.getElementById('imgLightboxImg').src = '';
-    document.body.style.overflow = '';
-  };
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeImgLightbox(); });
 </script>

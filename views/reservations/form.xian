@@ -1,186 +1,466 @@
 <% layout('layouts/main') %>
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/reservations">Reservations</a></li><li class="breadcrumb-item active">New Reservation</li></ol></nav>
-    <h3 class="mb-0">New Reservation</h3>
-  </div>
-</div>
+<!--page-head-->
+<a href="/reservations" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Reservations</a>
+<h1 class="ph-title">New walk-in reservation</h1>
+<!--/page-head-->
 
 <% if (errors && errors.length > 0) { %>
-<div class="alert alert-danger"><% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %></div>
-<% } %>
-
-<div class="row">
-  <div class="col-lg-8">
-    <div class="card">
-      <div class="card-body">
-        <form action="/reservations" method="POST">
-
-          <!-- Step 1: Customer & Type -->
-          <h6 class="form-section-title"><i class="fas fa-user me-2"></i>Customer & Booking Type</h6>
-          <div class="row g-3 mb-4">
-            <div class="col-md-6">
-              <label class="form-label required">Customer</label>
-              <select name="customer_id" class="form-select" required>
-                <option value="">Select customer...</option>
-                <% for (const c of customers) { %>
-                <option value="<%= c.id %>" <%= String(old.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.first_name %> <%= c.last_name %> (<%= c.customer_code %>)</option>
-                <% } %>
-              </select>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Reservation Type</label>
-              <select name="reservation_type" id="reservationType" class="form-select" required>
-                <option value="">Select type...</option>
-                <option value="room"   <%= old.reservation_type === 'room'   ? 'selected' : '' %>>Room</option>
-                <option value="venue"  <%= old.reservation_type === 'venue'  ? 'selected' : '' %>>Venue</option>
-                <option value="event"  <%= old.reservation_type === 'event'  ? 'selected' : '' %>>Event</option>
-                <option value="cottage"<%= old.reservation_type === 'cottage'? 'selected' : '' %>>Cottage</option>
-              </select>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Number of Guests</label>
-              <input type="number" name="num_guests" class="form-control" value="<%= old.num_guests || 1 %>" min="1" required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Source</label>
-              <select name="source" class="form-select">
-                <% for (const s of ['walk_in','online','phone','staff']) { %>
-                <option value="<%= s %>" <%= (old.source || 'walk_in') === s ? 'selected' : '' %>><%= s.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) %></option>
-                <% } %>
-              </select>
-            </div>
-          </div>
-
-          <!-- Step 2: Room Fields -->
-          <div id="roomFields" class="booking-fields" style="display:none;">
-            <h6 class="form-section-title"><i class="fas fa-door-open me-2"></i>Room Details</h6>
-            <div class="row g-3 mb-4">
-              <div class="col-md-12">
-                <label class="form-label">Select Room</label>
-                <select name="item_id" class="form-select">
-                  <option value="">Select available room...</option>
-                  <% for (const r of rooms) { %>
-                  <option value="<%= r.id %>" data-price="<%= r.price %>"><%= r.room_number %> – <%= r.name %> (Cap: <%= r.capacity %>) – <%= formatPeso(r.price) %>/night</option>
-                  <% } %>
-                </select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label required">Check-in Date</label>
-                <input type="date" name="check_in_date" class="form-control" id="checkInDate" value="<%= old.check_in_date || '' %>" />
-              </div>
-              <div class="col-md-6">
-                <label class="form-label required">Check-out Date</label>
-                <input type="date" name="check_out_date" class="form-control" id="checkOutDate" value="<%= old.check_out_date || '' %>" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 2: Venue / Event Fields -->
-          <div id="venueFields" class="booking-fields" style="display:none;">
-            <h6 class="form-section-title"><i class="fas fa-map-marker-alt me-2"></i>Venue / Event Details</h6>
-            <div class="row g-3 mb-4">
-              <div class="col-md-12">
-                <label class="form-label">Select Venue</label>
-                <select name="item_id" class="form-select">
-                  <option value="">Select venue...</option>
-                  <% for (const v of venues) { %>
-                  <option value="<%= v.id %>" data-price="<%= v.price %>"><%= v.name %> (Cap: <%= v.capacity %>) – <%= formatPeso(v.price) %></option>
-                  <% } %>
-                </select>
-              </div>
-              <div class="col-md-12">
-                <label class="form-label">Event Package (optional)</label>
-                <select name="package_id" class="form-select">
-                  <option value="">No package</option>
-                  <% for (const p of packages) { %>
-                  <option value="<%= p.id %>" data-price="<%= p.price %>"><%= p.name %> – <%= formatPeso(p.price) %></option>
-                  <% } %>
-                </select>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label required">Event Date</label>
-                <input type="date" name="event_date" class="form-control" value="<%= old.event_date || '' %>" />
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Start Time</label>
-                <input type="time" name="start_time" class="form-control" value="<%= old.start_time || '' %>" />
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">End Time</label>
-                <input type="time" name="end_time" class="form-control" value="<%= old.end_time || '' %>" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Step 3: Pricing -->
-          <h6 class="form-section-title"><i class="fas fa-money-bill-wave me-2"></i>Pricing</h6>
-          <div class="row g-3 mb-4">
-            <div class="col-md-6">
-              <label class="form-label required">Total Amount (₱)</label>
-              <div class="input-group">
-                <span class="input-group-text">₱</span>
-                <input type="number" name="total_amount" id="totalAmount" class="form-control" value="<%= old.total_amount || '' %>" min="0" step="0.01" required />
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Required Downpayment (₱)</label>
-              <div class="input-group">
-                <span class="input-group-text">₱</span>
-                <input type="number" name="downpayment_req" id="downpaymentReq" class="form-control" value="<%= old.downpayment_req || '' %>" min="0" step="0.01" />
-              </div>
-            </div>
-          </div>
-
-          <!-- Notes -->
-          <div class="mb-4">
-            <label class="form-label">Special Requests / Notes</label>
-            <textarea name="special_requests" class="form-control" rows="3" placeholder="Any special requests or notes..."><%= old.special_requests || '' %></textarea>
-          </div>
-
-          <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Create Reservation</button>
-            <a href="/reservations" class="btn btn-outline-secondary">Cancel</a>
-          </div>
-
-        </form>
-      </div>
-    </div>
+<div class="alert alert-danger flash-msg form-error-summary" role="alert" tabindex="-1" id="serverErrors">
+  <i class="fas fa-exclamation-circle flash-icon" aria-hidden="true"></i>
+  <div class="flex-grow-1">
+    <strong>The reservation was not saved. Please fix the following — everything you entered is still here:</strong>
+    <ul class="mb-0 mt-1 ps-3"><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
   </div>
 </div>
+<% } %>
+
+<%
+  const sel = (a, b) => String(a ?? '') === String(b ?? '') ? 'selected' : '';
+  const statusNote = (row) => ['maintenance','unavailable'].includes(row.status) ? ' [' + row.status + ']' : '';
+%>
+
+<form action="/reservations" method="POST" id="walkInForm" novalidate data-no-autosubmit-lock>
+<div class="form-layout">
+  <div>
+    <p class="form-intro">For a guest at the front desk or on the phone. Every type takes dates and times, there is no guest limit, and the total can be edited. Fields marked <span class="req-mark" aria-hidden="true">*</span><span class="visually-hidden">with an asterisk</span> are required.</p>
+
+    <!-- 1. Customer -->
+    <section class="form-block" aria-labelledby="fb1">
+      <h2 id="fb1"><span class="fb-num" aria-hidden="true">1</span>Customer</h2>
+      <p class="fb-help">Pick an existing customer. New guests are added under CRM → Customers first.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="customerId">Customer</label>
+          <select name="customer_id" id="customerId" class="form-select" required>
+            <option value="">Select customer...</option>
+            <% for (const c of customers) { %>
+            <option value="<%= c.id %>" <%= sel(old.customer_id, c.id) %>><%= c.first_name %> <%= c.last_name %> (<%= c.customer_code %>)</option>
+            <% } %>
+          </select>
+          <div class="form-text"><a href="/crm/customers/new">Add a new customer</a> if they're not listed.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label required" for="numGuests">Guests</label>
+          <input type="number" name="num_guests" id="numGuests" class="form-control" value="<%= old.num_guests || 1 %>" min="1" step="1" inputmode="numeric" required />
+          <div class="form-text">No upper limit.</div>
+        </div>
+        <div class="col-6 col-md-3">
+          <label class="form-label" for="bookingSource">Source</label>
+          <select name="source" id="bookingSource" class="form-select" aria-describedby="sourceHelp">
+            <option value="walk_in" selected>Walk In</option>
+          </select>
+          <div class="form-text" id="sourceHelp">Always Walk In here.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Type and item -->
+    <section class="form-block" aria-labelledby="fb2">
+      <h2 id="fb2"><span class="fb-num" aria-hidden="true">2</span>What's being booked</h2>
+      <p class="fb-help">Prices are the live catalogue rates. Rooms are per night; cottages, venues and packages are a flat rate per booking.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="reservationType">Reservation type</label>
+          <select name="reservation_type" id="reservationType" class="form-select" required>
+            <option value="">Select type...</option>
+            <option value="room"    <%= sel(old.reservation_type, 'room') %>>Room</option>
+            <option value="cottage" <%= sel(old.reservation_type, 'cottage') %>>Cottage</option>
+            <option value="venue"   <%= sel(old.reservation_type, 'venue') %>>Venue</option>
+            <option value="event"   <%= sel(old.reservation_type, 'event') %>>Event</option>
+          </select>
+        </div>
+      </div>
+      <div class="row g-3 mt-0" id="itemFields" style="display:none;">
+        <div class="col-12 item-field" data-types="room">
+          <label class="form-label required" for="roomId">Room</label>
+          <select name="room_id" id="roomId" class="form-select price-source">
+            <option value="">Select room...</option>
+            <% for (const r of rooms) { %>
+            <option value="<%= r.id %>" data-price="<%= r.price %>" <%= sel(old.room_id, r.id) %>><%= r.room_number %> – <%= r.name %> (Cap: <%= r.capacity %>) – <%= formatPeso(r.price) %>/night<%= statusNote(r) %></option>
+            <% } %>
+          </select>
+        </div>
+        <div class="col-12 item-field" data-types="cottage">
+          <label class="form-label required" for="cottageId">Cottage</label>
+          <select name="cottage_id" id="cottageId" class="form-select price-source">
+            <option value="">Select cottage...</option>
+            <% for (const c of cottages) { %>
+            <option value="<%= c.id %>" data-price="<%= c.price %>" <%= sel(old.cottage_id, c.id) %>><%= c.name %> #<%= c.id %> (Cap: <%= c.capacity %>) – <%= formatPeso(c.price) %><%= statusNote(c) %></option>
+            <% } %>
+          </select>
+        </div>
+        <div class="col-md-6 item-field" data-types="venue event">
+          <label class="form-label" id="venueLabel" for="venueId">Venue</label>
+          <select name="venue_id" id="venueId" class="form-select price-source">
+            <option value="">Select venue...</option>
+            <% for (const v of venues) { %>
+            <option value="<%= v.id %>" data-price="<%= v.price %>" <%= sel(old.venue_id, v.id) %>><%= v.name %> #<%= v.id %> (Cap: <%= v.capacity %>) – <%= formatPeso(v.price) %><%= statusNote(v) %></option>
+            <% } %>
+          </select>
+        </div>
+        <div class="col-md-6 item-field" data-types="venue event">
+          <label class="form-label" id="packageLabel" for="packageId">Event Package</label>
+          <select name="package_id" id="packageId" class="form-select price-source">
+            <option value="">No package</option>
+            <% for (const p of packages) { %>
+            <option value="<%= p.id %>" data-price="<%= p.price %>" <%= sel(old.package_id, p.id) %>><%= p.name %> – <%= formatPeso(p.price) %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Date and time (all types) -->
+    <section class="form-block" aria-labelledby="fb3">
+      <h2 id="fb3"><span class="fb-num" aria-hidden="true">3</span>Date &amp; time</h2>
+      <p class="fb-help" id="scheduleHint">Rooms need a check-out date after the check-in date. Cottages, venues and events can start and end on the same day.</p>
+      <div class="row g-3">
+        <div class="col-6">
+          <label class="form-label required" for="checkInDate">Check-in date</label>
+          <input type="date" name="check_in_date" id="checkInDate" class="form-control" value="<%= old.check_in_date || '' %>" required />
+        </div>
+        <div class="col-6">
+          <label class="form-label required" for="checkOutDate">Check-out date</label>
+          <input type="date" name="check_out_date" id="checkOutDate" class="form-control" value="<%= old.check_out_date || '' %>" required aria-describedby="scheduleError" />
+        </div>
+        <div class="col-6">
+          <label class="form-label" for="startTime">Time-in</label>
+          <input type="time" name="start_time" id="startTime" class="form-control" value="<%= old.start_time || '' %>" />
+        </div>
+        <div class="col-6">
+          <label class="form-label" for="endTime">Time-out</label>
+          <input type="time" name="end_time" id="endTime" class="form-control" value="<%= old.end_time || '' %>" />
+        </div>
+        <div class="col-12">
+          <div class="field-error d-none" id="scheduleError" role="alert"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Amount and payment -->
+    <section class="form-block" aria-labelledby="fb4">
+      <h2 id="fb4"><span class="fb-num" aria-hidden="true">4</span>Amount &amp; payment</h2>
+      <p class="fb-help">The total fills in from the selected item; you can change it. Walk-ins default to cash.</p>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="totalAmount">Total amount (₱) <span class="override-tag" id="overrideTag" hidden>Edited</span></label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" name="total_amount" id="totalAmount" class="form-control" value="<%= old.total_amount || '' %>" min="0" step="0.01" inputmode="decimal" required aria-describedby="totalHint" />
+            <button type="button" class="btn btn-secondary-quiet" id="recalcTotal" title="Use the price of the selected item"><i class="fas fa-calculator me-1" aria-hidden="true"></i>Use price</button>
+          </div>
+          <div class="form-text" id="totalHint" aria-live="polite">Auto-filled from the selected item's price. You can change it.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="downpaymentReq">Required downpayment (₱)</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" name="downpayment_req" id="downpaymentReq" class="form-control" value="<%= old.downpayment_req || '' %>" min="0" step="0.01" inputmode="decimal" />
+          </div>
+          <div class="form-text">Defaults to <%= downpaymentPercent %>% of the total.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="paymentMethod">Payment method</label>
+          <select name="payment_method" id="paymentMethod" class="form-select">
+            <% for (const m of paymentMethods) { %>
+            <option value="<%= m %>" <%= sel(old.payment_method || 'cash', m) %>><%= m === 'gcash' ? 'GCash' : m.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) %></option>
+            <% } %>
+          </select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="paymentNow">Payment received now (₱) <span class="label-opt">optional</span></label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" name="payment_now" id="paymentNow" class="form-control" value="<%= old.payment_now || '' %>" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
+          </div>
+          <div class="form-text">Recorded as a payment on the new booking.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Notes and status -->
+    <section class="form-block" aria-labelledby="fb5">
+      <h2 id="fb5"><span class="fb-num" aria-hidden="true">5</span>Notes &amp; status</h2>
+      <p class="fb-help">Special requests are part of the guest's booking and visible to them. Internal notes are staff only.</p>
+      <div class="row g-3">
+        <div class="col-md-5">
+          <label class="form-label" for="initialStatus">Starting status</label>
+          <select name="initial_status" id="initialStatus" class="form-select" aria-describedby="initialStatusHelp">
+            <option value="pending" <%= sel(old.initial_status || 'pending', 'pending') %>>Pending</option>
+            <option value="pencil"  <%= sel(old.initial_status, 'pencil') %>>Pencil Booking</option>
+          </select>
+          <div class="form-text" id="initialStatusHelp">Pencil Booking = tentative; its dates are still held.</div>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="specialRequests">Guest's special requests <span class="label-opt">visible to the guest</span></label>
+          <textarea name="special_requests" id="specialRequests" class="form-control" rows="3" placeholder="e.g. Extra pillows, early check-in if possible"><%= old.special_requests || '' %></textarea>
+        </div>
+        <div class="col-12 note-internal-field">
+          <label class="form-label" for="internalNotesNew"><i class="fas fa-lock me-1" aria-hidden="true"></i>Internal notes <span class="label-opt">staff only · up to 5,000 characters</span></label>
+          <textarea name="notes" id="internalNotesNew" class="form-control" rows="4" maxlength="5000" placeholder="e.g. Paid deposit by phone, confirm room setup with housekeeping"><%= old.notes || '' %></textarea>
+        </div>
+      </div>
+    </section>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk me-1" aria-hidden="true"></i>Create reservation</button>
+      <a href="/reservations" class="btn btn-secondary-quiet">Cancel</a>
+    </div>
+  </div>
+
+  <!-- Live summary -->
+  <aside class="form-aside" aria-label="Booking summary">
+    <div class="panel">
+      <div class="panel-head"><h2>Summary</h2></div>
+      <div class="panel-body">
+        <dl aria-live="polite">
+          <dt>Type</dt><dd id="sumType">—</dd>
+          <dt>Booked</dt><dd id="sumItem" style="text-align:right;font-weight:500">—</dd>
+          <dt>Dates</dt><dd id="sumDates" style="font-weight:500">—</dd>
+          <dt class="fa-total">Total</dt><dd class="fa-total" id="sumTotal">—</dd>
+          <dt>Downpayment</dt><dd id="sumDown">—</dd>
+          <dt>Paid now</dt><dd id="sumNow">—</dd>
+          <dt>Balance after</dt><dd id="sumBal">—</dd>
+        </dl>
+      </div>
+      <div class="panel-foot">Availability is checked when you save; conflicting dates are refused with a message and nothing you typed is lost.</div>
+    </div>
+  </aside>
+</div>
+</form>
 
 <script>
-const resType     = document.getElementById('reservationType');
-const roomFields  = document.getElementById('roomFields');
-const venueFields = document.getElementById('venueFields');
-const totalAmt    = document.getElementById('totalAmount');
-const downpayReq  = document.getElementById('downpaymentReq');
+(function () {
+  var form        = document.getElementById('walkInForm');
+  var resType     = document.getElementById('reservationType');
+  var itemFields  = document.getElementById('itemFields');
+  var checkIn     = document.getElementById('checkInDate');
+  var checkOut    = document.getElementById('checkOutDate');
+  var startTime   = document.getElementById('startTime');
+  var endTime     = document.getElementById('endTime');
+  var totalAmt    = document.getElementById('totalAmount');
+  var downpayReq  = document.getElementById('downpaymentReq');
+  var schedError  = document.getElementById('scheduleError');
+  var DP_PERCENT  = <%- JSON.stringify(Number(downpaymentPercent) || 0) %>;
 
-function toggleFields() {
-  const val = resType.value;
-  roomFields.style.display  = val === 'room'    ? '' : 'none';
-  venueFields.style.display = (val === 'venue' || val === 'event') ? '' : 'none';
-}
-resType.addEventListener('change', toggleFields);
-toggleFields();
+  // Once staff type their own amount, item/date changes stop overwriting it
+  // (the calculator button brings the computed price back).
+  var totalTouched = totalAmt.value !== '';
+  var dpTouched    = downpayReq.value !== '';
 
-// Auto-calculate total for rooms based on nights
-const checkIn  = document.getElementById('checkInDate');
-const checkOut = document.getElementById('checkOutDate');
-if (checkIn && checkOut) {
-  function calcTotal() {
-    const roomSel = document.querySelector('[name="item_id"]');
-    const price   = roomSel ? parseFloat(roomSel.options[roomSel.selectedIndex]?.dataset?.price || 0) : 0;
-    if (checkIn.value && checkOut.value && price > 0) {
-      const nights = Math.ceil((new Date(checkOut.value) - new Date(checkIn.value)) / 86400000);
-      if (nights > 0) {
-        totalAmt.value = (price * nights).toFixed(2);
-        downpayReq.value = (price * nights * 0.5).toFixed(2);
-      }
+  function selectFor(name) { return form.querySelector('[name="' + name + '"]'); }
+  function priceOf(name) {
+    var s = selectFor(name);
+    var opt = s && s.options[s.selectedIndex];
+    return opt && opt.value ? parseFloat(opt.dataset.price || 0) : 0;
+  }
+
+  function toggleFields() {
+    var type = resType.value;
+    itemFields.style.display = type ? '' : 'none';
+    form.querySelectorAll('.item-field').forEach(function (el) {
+      var on = (el.dataset.types || '').split(' ').indexOf(type) !== -1;
+      el.style.display = on ? '' : 'none';
+      el.querySelectorAll('select').forEach(function (s) { s.disabled = !on; });
+    });
+    document.getElementById('venueLabel').classList.toggle('required', type === 'venue');
+    document.getElementById('venueLabel').textContent = type === 'event' ? 'Venue (optional)' : 'Venue';
+    document.getElementById('packageLabel').classList.toggle('required', type === 'event');
+    document.getElementById('packageLabel').textContent = type === 'event' ? 'Event Package' : 'Event Package (optional)';
+  }
+
+  function nights() {
+    if (!checkIn.value || !checkOut.value) return 0;
+    return Math.round((new Date(checkOut.value) - new Date(checkIn.value)) / 86400000);
+  }
+
+  // Rooms: nightly price × nights. Cottages, venues and packages: flat price.
+  function computedTotal() {
+    var type = resType.value;
+    if (type === 'room') {
+      var n = nights();
+      return n > 0 ? priceOf('room_id') * n : 0;
+    }
+    if (type === 'cottage') return priceOf('cottage_id');
+    if (type === 'venue' || type === 'event') return priceOf('venue_id') + priceOf('package_id');
+    return 0;
+  }
+
+  function fillDownpayment() {
+    var total = parseFloat(totalAmt.value || 0);
+    if (!dpTouched && total > 0) downpayReq.value = Math.ceil(total * DP_PERCENT / 100).toFixed(2);
+  }
+
+  function fillTotal(force) {
+    if (totalTouched && !force) return;
+    var total = computedTotal();
+    if (total > 0) {
+      totalAmt.value = total.toFixed(2);
+      if (force) totalTouched = false;
+      fillDownpayment();
     }
   }
-  checkIn.addEventListener('change', calcTotal);
-  checkOut.addEventListener('change', calcTotal);
-}
+
+  function checkSchedule() {
+    var msg = '';
+    if (checkIn.value && checkOut.value) {
+      if (resType.value === 'room' && checkOut.value <= checkIn.value) msg = 'Check-out must be after check-in for rooms.';
+      else if (checkOut.value < checkIn.value) msg = 'Check-out cannot be before check-in.';
+      else if (checkOut.value === checkIn.value && startTime.value && endTime.value && endTime.value <= startTime.value) msg = 'Time-out must be after time-in for a same-day booking.';
+    }
+    schedError.textContent = msg;
+    schedError.classList.toggle('d-none', !msg);
+    return !msg;
+  }
+
+  resType.addEventListener('change', function () { toggleFields(); fillTotal(false); checkSchedule(); });
+  form.querySelectorAll('.price-source').forEach(function (s) { s.addEventListener('change', function () { fillTotal(false); }); });
+  checkIn.addEventListener('change', function () {
+    // Suggest a check-out: next day for rooms, same day otherwise.
+    if (checkIn.value && !checkOut.value) {
+      var d = new Date(checkIn.value + 'T00:00:00');
+      if (resType.value === 'room') d.setDate(d.getDate() + 1);
+      checkOut.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    }
+  });
+  [checkIn, checkOut].forEach(function (el) { el.addEventListener('change', function () { fillTotal(false); checkSchedule(); }); });
+  [startTime, endTime].forEach(function (el) { el.addEventListener('change', checkSchedule); });
+  totalAmt.addEventListener('input', function () { totalTouched = true; fillDownpayment(); });
+  downpayReq.addEventListener('input', function () { dpTouched = downpayReq.value !== ''; });
+  document.getElementById('recalcTotal').addEventListener('click', function () { fillTotal(true); });
+  // ── Inline validation: messages sit under each field, the first problem gets focus ──
+  var REQUIRED_ITEM = { room: 'room_id', cottage: 'cottage_id', venue: 'venue_id', event: 'package_id' };
+  var ITEM_MSG = { room_id: 'Select a room.', cottage_id: 'Select a cottage.', venue_id: 'Select a venue.', package_id: 'Select an event package.' };
+  function msgBox(el) {
+    var id = el.id + 'Msg', box = document.getElementById(id);
+    if (!box) {
+      box = document.createElement('div'); box.id = id; box.className = 'field-msg'; box.setAttribute('aria-live', 'polite');
+      var anchor = el.closest('.input-group') || el;
+      anchor.insertAdjacentElement('afterend', box);
+      el.setAttribute('aria-describedby', ((el.getAttribute('aria-describedby') || '') + ' ' + id).trim());
+    }
+    return box;
+  }
+  function labelText(el) { var l = form.querySelector('label[for="' + el.id + '"]'); return l ? l.textContent.replace(/\s*\(.*\)\s*$/, '').trim() : 'This field'; }
+  function problem(el) {
+    if (el.disabled) return '';
+    var item = REQUIRED_ITEM[resType.value];
+    if (item && el.name === item && !el.value) return ITEM_MSG[item];
+    if (el === customerSel && !el.value) return 'Select a customer, or add them under CRM first.';
+    if (el === resType && !el.value) return 'Choose what is being booked.';
+    if (el === numGuests && !(/^\d+$/.test(el.value) && Number(el.value) >= 1)) return 'Enter a whole number of at least 1 (there is no upper limit).';
+    if (el === totalAmt && (el.value === '' || Number(el.value) < 0)) return 'Enter the total amount (₱0 or more). “Use price” fills it from the catalogue.';
+    if (el.type === 'date') {
+      if (!el.value) return labelText(el) + ' is required.';
+      if (!el.checkValidity()) return el.validationMessage;   // e.g. "Please select Oct 24, 2026 onward."
+    }
+    if (el === paymentNow && el.value !== '' && Number(el.value) < 0) return 'Payment received cannot be negative.';
+    if (el === paymentNow && el.value !== '' && totalAmt.value !== '' && Number(el.value) > Number(totalAmt.value)) return 'Payment received is more than the total amount.';
+    return '';
+  }
+  var customerSel = document.getElementById('customerId');
+  var numGuests   = document.getElementById('numGuests');
+  var paymentNow  = document.getElementById('paymentNow');
+  var FIELDS = [customerSel, resType, numGuests, document.getElementById('roomId'), document.getElementById('cottageId'), document.getElementById('venueId'), document.getElementById('packageId'), checkIn, checkOut, totalAmt, paymentNow];
+  function show(el, msg) {
+    var box = msgBox(el);
+    box.textContent = msg; box.classList.toggle('is-shown', !!msg);
+    el.classList.toggle('is-invalid', !!msg);
+    if (msg) el.setAttribute('aria-invalid', 'true'); else el.removeAttribute('aria-invalid');
+    var block = el.closest('.form-block');
+    if (block) block.classList.toggle('has-error', !!block.querySelector('.is-invalid'));
+  }
+  function validate(el) { var m = problem(el); show(el, m); return !m; }
+  var touched = {};
+  FIELDS.forEach(function (el) {
+    if (!el) return;
+    el.addEventListener('change', function () { touched[el.id] = true; validate(el); });
+    el.addEventListener('blur', function () { if (touched[el.id] || el.value) { touched[el.id] = true; validate(el); } });
+    el.addEventListener('input', function () { if (el.classList.contains('is-invalid')) validate(el); });
+  });
+  resType.addEventListener('change', function () {
+    // Item selects that are hidden for this type are not checked.
+    FIELDS.forEach(function (el) { if (el && el.disabled) show(el, ''); });
+  });
+  // Values filled in by the form itself (total from the price, suggested check-out)
+  // clear their message too.
+  form.addEventListener('change', function () {
+    setTimeout(function () { FIELDS.forEach(function (el) { if (el && el.classList.contains('is-invalid')) validate(el); }); }, 0);
+  });
+  form.addEventListener('submit', function (e) {
+    var firstBad = null;
+    FIELDS.forEach(function (el) { if (el && !validate(el) && !firstBad) firstBad = el; });
+    if (!checkSchedule() && !firstBad) firstBad = checkOut;
+    if (firstBad) {
+      e.preventDefault();
+      firstBad.focus();
+      if (window.appNotify) window.appNotify('Some details need attention — see the highlighted fields.', 'warning');
+      return;
+    }
+    var btn = form.querySelector('[type="submit"]');
+    btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" aria-hidden="true"></span>Saving reservation…';
+  });
+
+  // Show clearly when the total no longer matches the catalogue price (a staff override).
+  var overrideTag = document.getElementById('overrideTag');
+  var totalHint   = document.getElementById('totalHint');
+  var pesoFmt = function (v) { return '₱' + Number(v || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  function syncOverride() {
+    var computed = computedTotal();
+    var typed = totalAmt.value === '' ? null : Number(totalAmt.value);
+    var edited = typed !== null && computed > 0 && Math.abs(typed - computed) > 0.004;
+    overrideTag.hidden = !edited;
+    totalAmt.classList.toggle('is-overridden', edited);
+    totalHint.textContent = edited
+      ? 'Edited total. The catalogue price is ' + pesoFmt(computed) + ' — “Use price” puts it back.'
+      : (computed > 0 ? 'Matches the catalogue price. You can change it.' : 'Auto-filled from the selected item’s price. You can change it.');
+  }
+  form.addEventListener('input', syncOverride);
+  form.addEventListener('change', function () { setTimeout(syncOverride, 0); });
+  document.getElementById('recalcTotal').addEventListener('click', function () { setTimeout(syncOverride, 0); });
+
+  toggleFields();
+  if (!totalTouched) fillTotal(false);
+  syncOverride();
+  // After a refused save, move focus to the explanation so it is read first.
+  var serverErrors = document.getElementById('serverErrors');
+  if (serverErrors) serverErrors.focus();
+})();
+</script>
+
+<script>
+// Live summary beside the form (display only — the server recalculates nothing from it).
+(function () {
+  var form = document.getElementById('walkInForm');
+  if (!form) return;
+  var $ = function (id) { return document.getElementById(id); };
+  var peso = function (v) { return '₱' + Number(v || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+  var TYPES = { room: 'Room', cottage: 'Cottage', venue: 'Venue', event: 'Event' };
+  var fmt = function (v) { return v ? new Date(v + 'T00:00:00').toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : ''; };
+  function chosen(name) {
+    var s = form.querySelector('[name="' + name + '"]');
+    if (!s || s.disabled || !s.value) return '';
+    return s.options[s.selectedIndex].text.split(' – ').slice(0, name === 'room_id' ? 2 : 1).join(' – ').replace(/ \(Cap:.*$/, '');
+  }
+  function update() {
+    var type = $('reservationType').value;
+    $('sumType').textContent = TYPES[type] || '—';
+    var items = ['room_id', 'cottage_id', 'venue_id', 'package_id'].map(chosen).filter(Boolean);
+    $('sumItem').textContent = items.length ? items.join(' + ') : '—';
+    var a = $('checkInDate').value, b = $('checkOutDate').value;
+    var t = [$('startTime').value, $('endTime').value].filter(Boolean).join('–');
+    $('sumDates').textContent = a ? fmt(a) + (b && b !== a ? ' – ' + fmt(b) : '') + (t ? ' · ' + t : '') : '—';
+    var total = parseFloat($('totalAmount').value || 0), down = parseFloat($('downpaymentReq').value || 0), now = parseFloat($('paymentNow').value || 0);
+    $('sumTotal').textContent = total ? peso(total) : '—';
+    $('sumDown').textContent = down ? peso(down) : '—';
+    $('sumNow').textContent = now ? peso(now) : peso(0);
+    $('sumBal').textContent = total ? peso(Math.max(total - now, 0)) : '—';
+  }
+  form.addEventListener('input', update);
+  form.addEventListener('change', function () { setTimeout(update, 0); });
+  $('recalcTotal').addEventListener('click', function () { setTimeout(update, 0); });
+  update();
+})();
 </script>

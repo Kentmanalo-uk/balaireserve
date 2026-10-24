@@ -1,41 +1,104 @@
 <% layout('layouts/portal') %>
-<div class="container-lg px-4 py-5">
-  <div class="row justify-content-center">
-    <div class="col-lg-7">
-      <div class="bg-white rounded-3 border shadow-sm p-4">
-        <h4 class="fw-bold mb-1"><i class="fas fa-envelope me-2 text-primary"></i>Contact Us</h4>
-        <p class="text-muted small mb-4">Have a question or need help? Send us a message and we'll get back to you.</p>
-
-        <% if (errors && errors.length > 0) { %>
-        <div class="alert alert-danger"><% for(const e of errors){%><div><%= e.msg %></div><%}%></div>
-        <% } %>
-
-        <form action="/portal/inquire" method="POST">
-          <div class="row g-3">
-            <div class="col-md-6"><label class="form-label required">Your Name</label><input type="text" name="name" class="form-control" value="<%= old.name || (currentUser ? currentUser.firstName + ' ' + currentUser.lastName : '') %>" required /></div>
-            <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="<%= old.email || (currentUser ? currentUser.email : '') %>" /></div>
-            <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control" value="<%= old.phone || '' %>" placeholder="09XX-XXX-XXXX" /></div>
-            <div class="col-md-6"><label class="form-label">Category</label>
-              <select name="category" class="form-select">
-                <% for (const [v,l] of [['general','General Inquiry'],['room','Room & Accommodation'],['venue','Venue & Events'],['pricing','Pricing & Packages'],['complaint','Complaint'],['other','Other']]) { %>
-                <option value="<%= v %>" <%= (old.category||'general')===v?'selected':'' %>><%= l %></option>
-                <% } %>
-              </select>
-            </div>
-            <div class="col-12"><label class="form-label required">Subject</label><input type="text" name="subject" class="form-control" value="<%= old.subject||'' %>" required /></div>
-            <div class="col-12"><label class="form-label required">Message</label><textarea name="message" class="form-control" rows="5" required><%= old.message||'' %></textarea></div>
-          </div>
-          <div class="d-flex gap-3 mt-4">
-            <button type="submit" class="btn btn-primary px-4"><i class="fas fa-paper-plane me-2"></i>Send Inquiry</button>
-            <a href="/portal" class="btn btn-outline-secondary">Back</a>
-          </div>
-        </form>
-      </div>
-
-      <div class="bg-white rounded-3 border p-4 mt-3">
-        <h6 class="fw-bold mb-3">Or chat with our assistant</h6>
-        <p class="text-muted small mb-2">Get instant answers about room availability, pricing, and packages using our chatbot — look for the chat icon at the bottom right.</p>
-      </div>
+<% const rc = (typeof resortContact !== 'undefined' && resortContact) || {}; %>
+<div class="pt-page">
+  <div class="pt-page-head">
+    <div>
+      <% if (currentUser) { %><a href="/portal/my-inquiries" class="pt-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>My inquiries</a><% } %>
+      <h1 class="pt-title">Message the resort</h1>
+      <p class="pt-lede">Ask about dates, prices, packages or an existing booking. <% if (currentUser) { %>The reply appears under My inquiries and you’ll get a notification.<% } else { %>Sign in first if you’d like to read the reply in the portal.<% } %></p>
     </div>
   </div>
+
+  <div class="inq-layout">
+    <div class="pt-surface">
+      <% if (errors && errors.length > 0) { %>
+      <div class="alert alert-danger" role="alert"><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div>
+      <% } %>
+
+      <form action="/portal/inquire" method="POST" id="inquiryForm" novalidate data-no-autosubmit-lock>
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label" for="inqName">Your name</label>
+            <input type="text" name="name" id="inqName" class="form-control" autocomplete="name" value="<%= old.name || (currentUser ? currentUser.firstName + ' ' + currentUser.lastName : '') %>" required data-msg="Please enter your name." />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="inqEmail">Email <span class="opt">(optional)</span></label>
+            <input type="email" name="email" id="inqEmail" class="form-control" autocomplete="email" value="<%= old.email || (currentUser ? currentUser.email : '') %>" data-msg="Enter a valid email address, like name@example.com." />
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="inqPhone">Mobile number <span class="opt">(optional)</span></label>
+            <input type="tel" name="phone" id="inqPhone" class="form-control" autocomplete="tel" inputmode="tel" value="<%= old.phone || '' %>" aria-describedby="inqPhoneHint" />
+            <div class="form-text" id="inqPhoneHint">09XXXXXXXXX or +639XXXXXXXXX</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="inqCategory">Topic</label>
+            <select name="category" id="inqCategory" class="form-select">
+              <% for (const [v, l] of [['general','General question'],['room','Rooms and stays'],['venue','Venue and events'],['pricing','Prices and packages'],['complaint','Complaint'],['other','Other']]) { %>
+              <option value="<%= v %>" <%= (old.category || 'general') === v ? 'selected' : '' %>><%= l %></option>
+              <% } %>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="inqSubject">Subject</label>
+            <input type="text" name="subject" id="inqSubject" class="form-control" value="<%= old.subject || '' %>" required maxlength="255" data-msg="Please add a short subject." />
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="inqMessage">Message</label>
+            <textarea name="message" id="inqMessage" class="form-control" rows="6" required aria-describedby="inqMessageHint" data-msg="Please write your message."><%= old.message || '' %></textarea>
+            <div class="form-text" id="inqMessageHint">Include your booking reference (BK-…) if it’s about an existing booking.</div>
+          </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 mt-4">
+          <button type="submit" class="btn btn-primary" id="inqSubmit"><i class="far fa-paper-plane" aria-hidden="true"></i>Send message</button>
+          <a href="<%= currentUser ? '/portal' : '/' %>" class="btn btn-secondary-quiet">Cancel</a>
+        </div>
+      </form>
+    </div>
+
+    <aside class="inq-aside" aria-labelledby="inqAsideHeading">
+      <h2 class="pt-h3" id="inqAsideHeading">Other ways to reach us</h2>
+      <ul class="hm-facts">
+        <li><i class="fas fa-location-dot" aria-hidden="true"></i><span><%= rc.address || 'Brgy. San Antonio, Gloria, Oriental Mindoro, Philippines' %></span></li>
+        <% if (rc.phone) { %><li><i class="fas fa-phone" aria-hidden="true"></i><a href="tel:<%= String(rc.phone).replace(/[^\d+]/g, '') %>"><%= rc.phone %></a></li><% } %>
+        <% if (rc.email) { %><li><i class="far fa-envelope" aria-hidden="true"></i><a href="mailto:<%= rc.email %>"><%= rc.email %></a></li><% } %>
+        <li><i class="fab fa-facebook" aria-hidden="true"></i><a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener">Balai Miciano on Facebook<span class="br-sr-only"> (opens in a new tab)</span></a></li>
+      </ul>
+      <p class="pt-small text-muted mb-0">For quick answers about prices and times, you can also use the chat assistant at the bottom of the page.</p>
+    </aside>
+  </div>
 </div>
+
+<script>
+(function () {
+  // Coming from a booking page (?booking=BK-…): start the message with that reference.
+  var ref = new URLSearchParams(location.search).get('booking');
+  var subject = document.getElementById('inqSubject'), msg = document.getElementById('inqMessage');
+  if (ref && /^BK-\d{4}-\d{3,}$/.test(ref)) {
+    if (subject && !subject.value) subject.value = 'About booking ' + ref;
+    if (msg && !msg.value) msg.value = 'Booking ' + ref + ':\n';
+  }
+  // Inline validation: errors directly under the field, focus the first one, keep what was typed.
+  var form = document.getElementById('inquiryForm'), btn = document.getElementById('inqSubmit');
+  if (!form) return;
+  function setErr(f, m) {
+    var id = f.id + 'Err', box = document.getElementById(id);
+    if (!m) { if (box) box.remove(); f.classList.remove('is-invalid'); f.removeAttribute('aria-invalid'); return; }
+    if (!box) { box = document.createElement('div'); box.id = id; box.className = 'field-error'; f.insertAdjacentElement('afterend', box);
+      f.setAttribute('aria-describedby', ((f.getAttribute('aria-describedby') || '') + ' ' + id).trim()); }
+    box.textContent = m; f.classList.add('is-invalid'); f.setAttribute('aria-invalid', 'true');
+  }
+  function check(f) {
+    var v = f.value.trim();
+    if (f.required && !v) return setErr(f, f.dataset.msg), false;
+    if (f.type === 'email' && v && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return setErr(f, f.dataset.msg), false;
+    setErr(f, ''); return true;
+  }
+  var fields = Array.prototype.slice.call(form.querySelectorAll('[data-msg]'));
+  fields.forEach(function (f) { f.addEventListener('blur', function () { if (f.value.trim() || f.classList.contains('is-invalid')) check(f); }); });
+  form.addEventListener('submit', function (e) {
+    var bad = fields.filter(function (f) { return !check(f); });
+    if (bad.length) { e.preventDefault(); bad[0].focus(); return; }
+    btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Sending…';
+  });
+})();
+</script>

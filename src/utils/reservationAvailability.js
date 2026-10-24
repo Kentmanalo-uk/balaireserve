@@ -14,6 +14,17 @@ const FINAL_RESERVATION_STATUSES = new Set([
   'checked_out',
 ]);
 
+// Active statuses that keep their dates blocked but wait for an admin decision,
+// so the reconciler never auto-completes them even after the date has passed.
+const ADMIN_HELD_STATUSES = new Set([
+  'pencil',
+  'on_hold',
+]);
+
+const SKIPPED_STATUS_SQL = [...FINAL_RESERVATION_STATUSES, ...ADMIN_HELD_STATUSES]
+  .map(status => `'${status}'`)
+  .join(', ');
+
 async function releaseReservationItems(db, reservationId) {
   const items = await db.prepare(`
     SELECT item_type, item_id
@@ -41,21 +52,24 @@ async function reconcileExpiredReservations(db) {
   const expiredReservations = await db.prepare(`
     SELECT id, check_in_date, check_out_date, event_date, end_time
     FROM reservations
-    WHERE status NOT IN ('completed', 'cancelled', 'rejected', 'no_show', 'checked_out')
+    WHERE status NOT IN (${SKIPPED_STATUS_SQL})
       AND (
         (reservation_type = 'room' AND check_out_date IS NOT NULL AND check_out_date <= ?)
         OR
-        (reservation_type = 'cottage' AND check_in_date IS NOT NULL AND (
-          (check_out_date IS NOT NULL AND check_out_date <= ?)
-          OR
-          (check_out_date IS NULL AND end_time IS NOT NULL AND (
-            check_in_date < ? OR (check_in_date = ? AND end_time <= ?)
+        -- Cottage / venue / event: finished once the last day has passed, or on
+        -- the last day once its time-out has passed. Older venue rows only have
+        -- event_date, older cottage rows only check_in_date.
+        (reservation_type IN ('cottage', 'venue', 'event')
+          AND COALESCE(check_out_date, check_in_date, event_date) IS NOT NULL
+          AND (
+            COALESCE(check_out_date, check_in_date, event_date) < ?
+            OR (
+              COALESCE(check_out_date, check_in_date, event_date) = ?
+              AND end_time IS NOT NULL AND end_time <> '' AND end_time <= ?
+            )
           ))
-        ))
-        OR
-        (reservation_type IN ('venue', 'event') AND event_date IS NOT NULL AND event_date <= ?)
       )
-  `).all(today, today, today, today, currentTime, today);
+  `).all(today, today, today, currentTime);
 
   const completeReservation = (reservation) => db.transaction(async () => {
     const row = await db.prepare(`
@@ -63,13 +77,13 @@ async function reconcileExpiredReservations(db) {
     `).get(reservation.id);
 
     const previousStatus = row ? row.status : null;
-    if (!previousStatus || FINAL_RESERVATION_STATUSES.has(previousStatus)) return false;
+    if (!previousStatus || FINAL_RESERVATION_STATUSES.has(previousStatus) || ADMIN_HELD_STATUSES.has(previousStatus)) return false;
 
     const result = await db.prepare(`
       UPDATE reservations
       SET status = 'completed', updated_at = NOW()
       WHERE id = ?
-        AND status NOT IN ('completed', 'cancelled', 'rejected', 'no_show', 'checked_out')
+        AND status NOT IN (${SKIPPED_STATUS_SQL})
     `).run(reservation.id);
 
     if (result.changes === 0) return false;
@@ -111,6 +125,8 @@ function startReservationAvailabilityReconciler(db, intervalMs = 60000) {
 }
 
 module.exports = {
+  FINAL_RESERVATION_STATUSES,
+  ADMIN_HELD_STATUSES,
   releaseReservationItems,
   reconcileExpiredReservations,
   startReservationAvailabilityReconciler,

@@ -1,65 +1,82 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/events">Events</a></li><li class="breadcrumb-item active"><%= event.event_name %></li></ol></nav>
-    <h3 class="mb-0"><%= event.event_name %></h3>
-  </div>
-  <div class="page-header-actions">
-    <%- statusBadge(event.status) %>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <form action="/events/<%= event.id %>/status" method="POST" class="d-inline-flex gap-2">
-      <select name="status" class="form-select form-select-sm"><% for (const s of ['pending','confirmed','in_progress','completed','cancelled']) { %><option value="<%= s %>" <%= event.status === s ? 'selected' : '' %>><%= s %></option><% } %></select>
-      <button type="submit" class="btn btn-sm btn-primary">Update</button>
-    </form>
-    <% } %>
-  </div>
-</div>
-<div class="row g-3">
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-body">
-        <h6 class="mb-3">Event Details</h6>
-        <table class="table table-sm table-borderless mb-0">
-          <tr><th>Customer</th><td><a href="/crm/customers/<%= event.customer_id %>"><%= event.customer_name %></a></td></tr>
-          <tr><th>Phone</th><td><%= event.customer_phone || '—' %></td></tr>
-          <tr><th>Event Type</th><td><%= event.event_type.replace(/_/g,' ') %></td></tr>
-          <tr><th>Date</th><td><%= formatDate(event.event_date) %></td></tr>
-          <tr><th>Time</th><td><%= event.start_time %> – <%= event.end_time %></td></tr>
-          <tr><th>Venue</th><td><%= event.venue_name || '—' %></td></tr>
-          <tr><th>Package</th><td><%= event.package_name || '—' %></td></tr>
-          <tr><th>Attendees</th><td><%= event.num_attendees %></td></tr>
-          <tr><th>Total Cost</th><td class="fw-bold text-primary"><%= formatPeso(event.total_cost) %></td></tr>
-          <tr><th>Payment</th><td><%- statusBadge(event.payment_status) %></td></tr>
-        </table>
+<% const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff'); %>
+<div class="ap-page cat-show">
+
+<!--page-head-->
+<a href="/events" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Events</a>
+<h1 class="ph-title"><%= event.event_name %></h1>
+<!--/page-head-->
+<div class="page-meta"><%= statusLabel(event.event_type) %> · <%= formatDate(event.event_date) %>, <%= event.start_time %>–<%= event.end_time %> · <%- statusBadge(event.status) %></div>
+
+<div class="ap-split">
+  <div class="cat-main">
+    <section class="ap-panel" aria-labelledby="eventDetailsHeading">
+      <div class="ap-panel-head"><h2 id="eventDetailsHeading">Event details</h2></div>
+      <div class="ap-panel-body">
+        <dl class="ap-dl">
+          <dt>Customer</dt><dd><a href="/crm/customers/<%= event.customer_id %>"><%= event.customer_name %></a></dd>
+          <dt>Phone</dt><dd><%= event.customer_phone || '—' %></dd>
+          <dt>Event type</dt><dd><%= statusLabel(event.event_type) %></dd>
+          <dt>Date</dt><dd><%= formatDate(event.event_date) %></dd>
+          <dt>Time</dt><dd><%= event.start_time %> – <%= event.end_time %></dd>
+          <dt>Venue</dt><dd><%= event.venue_name || '—' %></dd>
+          <dt>Package</dt><dd><%= event.package_name || '—' %></dd>
+          <dt>Guests</dt><dd><%= event.num_attendees %></dd>
+        </dl>
         <% if (event.special_requests) { %>
-        <div class="alert alert-info mt-3 py-2 small"><i class="fas fa-sticky-note me-1"></i><%= event.special_requests %></div>
+        <h3 class="cat-subhead">Special requests</h3>
+        <p class="cat-desc-text"><%= event.special_requests %></p>
         <% } %>
       </div>
-    </div>
-  </div>
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-tools me-2"></i>Equipment Assignments</h6></div>
-      <div class="card-body p-0">
-        <% if (!assignments || assignments.length === 0) { %>
-        <div class="empty-state py-4"><i class="fas fa-toolbox"></i><p>No equipment assigned yet.</p></div>
-        <% } else { %>
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Equipment</th><th>Qty</th><th>Assigned</th><th>Expected Return</th><th>Status</th></tr></thead>
+    </section>
+
+    <section class="ap-panel" aria-labelledby="eventEquipHeading">
+      <div class="ap-panel-head"><h2 id="eventEquipHeading">Equipment assigned</h2></div>
+      <% if (!assignments || assignments.length === 0) { %>
+      <div class="ap-empty"><strong>No equipment assigned yet</strong>Sound systems, tents and other gear assigned to this event will be listed here.</div>
+      <% } else { %>
+      <div class="ap-table-wrap">
+        <table class="table-br ap-table ap-stack">
+          <thead><tr><th scope="col">Equipment</th><th scope="col" class="num">Qty</th><th scope="col">Assigned</th><th scope="col">Expected return</th><th scope="col">Status</th></tr></thead>
           <tbody>
             <% for (const a of assignments) { %>
             <tr>
-              <td><%= a.equipment_name %></td>
-              <td><%= a.quantity %></td>
-              <td class="small"><%= formatDate(a.date_assigned) %></td>
-              <td class="small"><%= formatDate(a.expected_return) || '—' %></td>
-              <td><%- statusBadge(a.status) %></td>
+              <td class="ap-cell-title"><span class="ap-name"><%= a.equipment_name %></span></td>
+              <td class="num" data-label="Qty"><%= a.quantity %></td>
+              <td data-label="Assigned"><%= formatDate(a.date_assigned) %></td>
+              <td data-label="Expected return"><%= formatDate(a.expected_return) || '—' %></td>
+              <td class="ap-cell-status"><%- statusBadge(a.status) %></td>
             </tr>
             <% } %>
           </tbody>
         </table>
-        <% } %>
       </div>
-    </div>
+      <% } %>
+    </section>
   </div>
+
+  <aside class="cat-aside">
+    <section class="ap-panel" aria-labelledby="eventAmountHeading">
+      <div class="ap-panel-head"><h2 id="eventAmountHeading">Amount</h2></div>
+      <div class="ap-panel-body">
+        <dl class="ap-amounts">
+          <div class="is-total"><dt>Total cost</dt><dd><%= formatPeso(event.total_cost) %></dd></div>
+          <div><dt>Payment</dt><dd><%- statusBadge(event.payment_status) %></dd></div>
+        </dl>
+      </div>
+      <% if (canManage) { %>
+      <div class="ap-panel-foot">
+        <form action="/events/<%= event.id %>/status" method="POST" class="cat-status-form">
+          <div class="ap-field">
+            <label for="eventStatusSelect">Change status</label>
+            <select name="status" id="eventStatusSelect" class="form-select"><% for (const s of ['pending','confirmed','in_progress','completed','cancelled']) { %><option value="<%= s %>" <%= event.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %></select>
+          </div>
+          <button type="submit" class="btn btn-primary">Update</button>
+        </form>
+      </div>
+      <% } %>
+    </section>
+  </aside>
+</div>
+
 </div>

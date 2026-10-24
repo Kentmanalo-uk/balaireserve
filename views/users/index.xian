@@ -1,115 +1,117 @@
 <% layout('layouts/main') %>
+<% const filtered = !!(filters.search || filters.role || filters.status); %>
+<div class="ap-page">
 
-<div class="page-header">
-  <div><h3 class="mb-1">User Management</h3><p class="text-muted mb-0">Manage staff accounts and system access</p></div>
-  <div class="page-header-actions">
-    <a href="/users/new" class="btn btn-primary btn-sm"><i class="fas fa-user-plus me-1"></i>Add Staff User</a>
+<!--page-head-->
+<h1 class="ph-title">Users</h1>
+<div class="ph-actions">
+    <a href="/users/new" class="btn btn-primary"><i class="fas fa-user-plus" aria-hidden="true"></i>Add staff user</a>
   </div>
-</div>
+<!--/page-head-->
+<p class="page-intro">Staff and admin accounts that can sign in to the back office, plus registered guests. Deactivate an account to block sign-in without deleting its history.</p>
 
-<!-- Filters -->
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/users" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4">
-        <input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Name or email…" />
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="role" class="form-select form-select-sm">
-          <option value="">All Roles</option>
-          <% for (const r of roles) { %>
-            <option value="<%= r.name %>" <%= filters.role === r.name ? 'selected' : '' %>><%= r.label %></option>
-          <% } %>
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="status" class="form-select form-select-sm">
-          <option value="">All Statuses</option>
-          <option value="active"   <%= filters.status === 'active'   ? 'selected' : '' %>>Active</option>
-          <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
-        </select>
-      </div>
-      <div class="col-6 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search me-1"></i>Search</button></div>
-      <div class="col-6 col-md-2"><a href="/users" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-    </form>
+<form method="GET" action="/users" class="ap-toolbar" role="search" aria-label="Filter users">
+  <div class="ap-field ap-field-search">
+    <label for="userSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="userSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Name or email" /></div>
   </div>
-</div>
+  <div class="ap-field">
+    <label for="userRole">Role</label>
+    <select id="userRole" name="role" class="form-select">
+      <option value="">All roles</option>
+      <% for (const r of roles) { %>
+        <option value="<%= r.name %>" <%= filters.role === r.name ? 'selected' : '' %>><%= r.label %></option>
+      <% } %>
+    </select>
+  </div>
+  <div class="ap-field">
+    <label for="userStatus">Status</label>
+    <select id="userStatus" name="status" class="form-select">
+      <option value="">All statuses</option>
+      <option value="active"   <%= filters.status === 'active'   ? 'selected' : '' %>>Active</option>
+      <option value="inactive" <%= filters.status === 'inactive' ? 'selected' : '' %>>Inactive</option>
+    </select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/users" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
 
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Email</th>
-            <th class="role-badge-cell">Role</th>
-            <th class="hide-md">Phone</th>
-            <th class="hide-md">Last Login</th>
-            <th>Status</th>
-            <th class="text-end">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% if (!users || users.length === 0) { %>
-          <tr><td colspan="7" class="text-center py-4 text-muted">No users found.</td></tr>
-          <% } else { %>
-            <% for (const u of users) { %>
-            <tr class="<%= u.is_active ? '' : 'opacity-50' %>">
-              <td>
-                <div class="d-flex align-items-center gap-2">
-                  <div class="user-avatar-sm flex-shrink-0" style="width:34px;height:34px;font-size:.75rem;">
-                    <span><%= u.first_name.charAt(0) %><%= u.last_name.charAt(0) %></span>
-                  </div>
-                  <div>
-                    <a href="/users/<%= u.id %>" class="fw-medium text-decoration-none text-dark"><%= u.first_name %> <%= u.last_name %></a>
-                    <% if (u.id === currentUser.id) { %><span class="badge bg-primary ms-1 small">You</span><% } %>
-                  </div>
-                </div>
-              </td>
-              <td class="text-muted small"><%= u.email %></td>
-              <td class="role-badge-cell">
-                <span class="badge <%= u.role_name === 'admin' ? 'bg-primary' : u.role_name === 'staff' ? 'bg-success' : 'bg-secondary' %>">
-                  <%= u.role_label %>
-                </span>
-              </td>
-              <td class="small text-muted hide-md"><%= u.phone || '—' %></td>
-              <td class="small text-muted hide-md"><%= formatDateTime(u.last_login) || 'Never' %></td>
-              <td>
-                <% if (u.is_active) { %>
-                  <span class="badge badge-success">Active</span>
-                <% } else { %>
-                  <span class="badge badge-secondary">Inactive</span>
-                <% } %>
-              </td>
-              <td class="text-end">
-                <div class="d-flex gap-1 justify-content-end">
-                  <a href="/users/<%= u.id %>/edit"
-                    class="btn btn-xs btn-outline-secondary"
-                    title="Edit <%= u.first_name %> <%= u.last_name %>'s details">
-                    <i class="fas fa-edit"></i>
-                  </a>
-                  <% if (u.id !== currentUser.id) { %>
-                  <form action="/users/<%= u.id %>/toggle" method="POST" class="d-inline">
-                    <button type="submit"
-                      class="btn btn-xs <%= u.is_active ? 'btn-outline-danger' : 'btn-outline-success' %>"
-                      title="<%= u.is_active ? 'Deactivate — prevent this user from logging in' : 'Activate — restore login access' %>"
-                      data-confirm="<%= u.is_active ? 'Deactivate' : 'Activate' %> the account for <%= u.first_name %> <%= u.last_name %>?<%= u.is_active ? ' They will no longer be able to log in.' : ' They will regain login access.' %>"
-                      data-confirm-title="<%= u.is_active ? 'Deactivate User' : 'Activate User' %>"
-                      data-confirm-type="<%= u.is_active ? 'danger' : 'primary' %>"
-                      data-confirm-ok="<%= u.is_active ? 'Deactivate' : 'Activate' %>">
-                      <i class="fas fa-<%= u.is_active ? 'ban' : 'check' %>"></i>
-                    </button>
-                  </form>
-                  <% } %>
-                </div>
-              </td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
+<section class="ap-panel" aria-labelledby="usersHeading">
+  <div class="ap-panel-head">
+    <h2 id="usersHeading">Accounts <span class="ap-meta"><%= pagination ? pagination.total : (users ? users.length : 0) %><%= filtered ? ' match' : '' %></span></h2>
   </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
+  <% if (!users || users.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No users match these filters' : 'No users yet' %></strong>
+    <% if (filtered) { %><div><a href="/users" class="btn btn-outline-secondary btn-sm">Clear filters</a></div><% } %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Role</th>
+          <th scope="col" class="usr-col-phone">Phone</th>
+          <th scope="col">Last sign-in</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const u of users) { const fullName = u.first_name + ' ' + u.last_name; %>
+        <tr class="<%= u.is_active ? '' : 'is-inactive' %>">
+          <td class="ap-cell-title">
+            <a href="/users/<%= u.id %>" class="ap-name"><%= fullName %></a><% if (u.id === currentUser.id) { %> <span class="ap-meta">(you)</span><% } %>
+            <span class="ap-line2"><%= u.email %></span>
+          </td>
+          <td data-label="Role"><%= u.role_label %></td>
+          <td data-label="Phone" class="usr-col-phone"><%= u.phone || '—' %></td>
+          <td data-label="Last sign-in"><%= u.last_login ? formatDateTime(u.last_login) : 'Never' %></td>
+          <td class="ap-cell-status">
+            <% if (u.is_active) { %><span class="status-chip st-teal">Active</span><% } else { %><span class="status-chip st-gray">Inactive</span><% } %>
+          </td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <a href="/users/<%= u.id %>/edit" class="ap-act" aria-label="Edit <%= fullName %>">Edit</a>
+              <a href="/users/<%= u.id %>" class="ap-act">Activity<span class="br-sr-only"> for <%= fullName %></span></a>
+              <% if (u.id !== currentUser.id) { %>
+              <% if (!u.is_active) { %>
+              <form action="/users/<%= u.id %>/toggle" method="POST" class="d-inline">
+                <button type="submit" class="ap-act"
+                  data-confirm="Activate the account for <%= fullName %>? They will regain login access."
+                  data-confirm-title="Activate User" data-confirm-type="primary" data-confirm-ok="Activate">Activate<span class="br-sr-only"> <%= fullName %></span></button>
+              </form>
+              <% } else { %>
+              <div class="dropdown">
+                <button type="button" class="ap-act ap-more dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for <%= fullName %>">More<i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+                <ul class="dropdown-menu dropdown-menu-end ap-menu">
+                  <li>
+                    <form action="/users/<%= u.id %>/toggle" method="POST">
+                      <button type="submit" class="dropdown-item is-danger"
+                        data-confirm="Deactivate the account for <%= fullName %>? They will no longer be able to log in."
+                        data-confirm-title="Deactivate User" data-confirm-type="danger" data-confirm-ok="Deactivate">
+                        <i class="fas fa-ban" aria-hidden="true"></i>Deactivate account…
+                      </button>
+                    </form>
+                  </li>
+                </ul>
+              </div>
+              <% } %>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+  <% if (pagination && pagination.totalPages > 1) { %>
+  <div class="ap-panel-foot"><%include('partials/pagination')%></div>
+  <% } %>
+</section>
+
 </div>

@@ -1,0 +1,18 @@
+<%# Shared photo viewer + listing behaviours (photo carousels, booking sheet) for the landing page,
+    /stay detail pages and the portal catalogue. Any element inside [data-photos='[…]'] with
+    data-photo-index opens it; public/js/listing.js drives it. Native <dialog>: focus stays
+    inside, Esc closes, focus returns to the photo that opened it. %>
+<dialog class="br-lb" id="brLightbox" aria-labelledby="brLbTitle">
+  <div class="br-lb-bar">
+    <p class="br-lb-title" id="brLbTitle">Photos</p>
+    <span class="br-lb-count" id="brLbCount" aria-live="polite"></span>
+    <button type="button" class="br-lb-btn" data-lb-close aria-label="Close photos"><i class="fas fa-times" aria-hidden="true"></i></button>
+  </div>
+  <figure class="br-lb-stage">
+    <img id="brLbImg" alt="" />
+    <figcaption id="brLbCaption" hidden></figcaption>
+  </figure>
+  <button type="button" class="br-lb-btn br-lb-prev" data-lb-step="-1" aria-label="Previous photo"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+  <button type="button" class="br-lb-btn br-lb-next" data-lb-step="1" aria-label="Next photo"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+</dialog>
+<script src="/js/listing.js" defer></script>

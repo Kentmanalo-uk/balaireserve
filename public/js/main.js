@@ -98,8 +98,8 @@
       msgEl.textContent   = opts.message || 'Are you sure you want to proceed?';
 
       // Icon + colour theming
-      iconEl.style.background = isDanger ? '#fee2e2' : '#eef2ff';
-      iconEl.style.color      = isDanger ? '#dc2626' : '#4f46e5';
+      iconEl.style.background = isDanger ? '#fee2e2' : '#e8f3f1';
+      iconEl.style.color      = isDanger ? '#dc2626' : '#0f5c66';
       iconEl.innerHTML = '<i class="fas fa-' + (isDanger ? 'exclamation-triangle' : 'question-circle') + '"></i>';
 
       okBtn.className = 'btn px-4 ' + (isDanger ? 'btn-danger' : 'btn-primary');
@@ -311,8 +311,9 @@
   const checkInField  = document.getElementById('checkInDate');
   const checkOutField = document.getElementById('checkOutDate');
   if (checkInField && checkOutField) {
-    // Set min dates
-    const today = new Date().toISOString().slice(0, 10);
+    // Set min dates (local date, not UTC)
+    const now   = new Date();
+    const today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     checkInField.min  = today;
     checkOutField.min = today;
 
@@ -325,6 +326,18 @@
       checkOutField.min = checkInField.value;
     });
   }
+
+  // ── Date fields: say "onward" instead of the browser's "or later" ──
+  const formatDateLabel = (value) => new Date(value + 'T00:00:00')
+    .toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  document.addEventListener('invalid', (e) => {
+    const field = e.target;
+    if (field.type !== 'date' || !field.min || !field.validity.rangeUnderflow) return;
+    field.setCustomValidity(`Please select ${formatDateLabel(field.min)} onward.`);
+  }, true);
+  document.addEventListener('input', (e) => {
+    if (e.target.type === 'date') e.target.setCustomValidity('');
+  }, true);
 
   // ── Data Tables: Search highlight ─────────────────────────
   function highlightSearchTerms() {

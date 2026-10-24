@@ -1,258 +1,114 @@
 <% layout('layouts/portal') %>
+<%
+  const titleCase = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const showTypeFilter = venueTypes && venueTypes.length > 1;
+  const cols = showTypeFilter ? 4 : 3;
+  const fmtT = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return ''; const h = +m[1]; return (h % 12 || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const hasTimes = !!(filters.start_time && filters.end_time);
+  const carry = new URLSearchParams();
+  if (filters.date) carry.set('date', filters.date);
+  if (filters.date && hasTimes) { carry.set('start_time', filters.start_time); carry.set('end_time', filters.end_time); }
+  if (filters.guests) carry.set('guests', filters.guests);
+  const qs = carry.toString() ? '?' + carry.toString() : '';
+  const when = filters.date ? formatDate(filters.date, 'ddd, MMM D') + (hasTimes ? ', ' + fmtT(filters.start_time) + ' – ' + fmtT(filters.end_time) : '') : '';
+  // Packages that fit the searched guest count.
+  const shownPackages = (packages || []).filter(p => !filters.guests || !p.capacity || Number(p.capacity) >= Number(filters.guests));
+%>
 
-<style>
-.accom-card { background:#fff;border-radius:1rem;overflow:hidden;border:1px solid #e5e7eb;transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;height:100%; }
-.accom-card:hover { transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,.12); }
-.accom-img-wrap { position:relative;height:220px;overflow:hidden;background:linear-gradient(135deg,#1e1b4b,#4f46e5);cursor:pointer; }
-.accom-img-wrap img { width:100%;height:100%;object-fit:cover;transition:transform .3s; }
-.accom-card:hover .accom-img-wrap img { transform:scale(1.04); }
-.img-count-badge { position:absolute;bottom:.5rem;right:.5rem;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:999px; }
-.accom-img-placeholder { width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:4rem; }
-.accom-body { padding:1.25rem;flex:1;display:flex;flex-direction:column; }
-.accom-type { font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#10b981;margin-bottom:.25rem; }
-.accom-name { font-size:1.05rem;font-weight:700;margin-bottom:.25rem;color:#111827; }
-.accom-meta { font-size:.8rem;color:#6b7280;margin-bottom:.75rem; }
-.accom-amenities { display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.75rem; }
-.accom-amenity { font-size:.68rem;background:#f3f4f6;color:#374151;padding:2px 8px;border-radius:999px;border:1px solid #e5e7eb; }
-.accom-desc { font-size:.8rem;color:#6b7280;flex:1;margin-bottom:1rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
-.accom-footer { display:flex;justify-content:space-between;align-items:center;padding-top:.75rem;border-top:1px solid #f3f4f6;margin-top:auto; }
-.accom-price { font-size:1.2rem;font-weight:700;color:#4f46e5; }
-.accom-price span { font-size:.75rem;font-weight:400;color:#9ca3af; }
-.filter-bar { background:#fff;border-radius:.875rem;border:1px solid #e5e7eb;padding:1rem 1.25rem; }
-.accom-img-wrap.is-unavailable img { filter:grayscale(1) brightness(.7); }
-.accom-unavailable-badge { position:absolute;top:10px;right:10px;z-index:2;background:rgba(220,38,38,.95);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:999px; }
-.lb-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center; }
-.lb-overlay.open { display:flex; }
-.lb-content { position:relative;max-width:90vw;max-height:90vh; }
-.lb-content img { max-width:100%;max-height:85vh;border-radius:.5rem;object-fit:contain; }
-.lb-close { position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:1.75rem;cursor:pointer;line-height:1; }
-.lb-prev,.lb-next { position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.25rem;cursor:pointer;transition:background .2s; }
-.lb-prev:hover,.lb-next:hover { background:rgba(255,255,255,.3); }
-.lb-prev { left:-56px; } .lb-next { right:-56px; }
-.lb-counter { position:absolute;bottom:-32px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:.8rem; }
-/* Package card */
-.pkg-card { background:#fff;border:1px solid #e5e7eb;border-radius:.875rem;padding:1.25rem;transition:box-shadow .2s; }
-.pkg-card:hover { box-shadow:0 6px 20px rgba(0,0,0,.08); }
-.pkg-type-badge { font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.05em; }
-.pkg-incl { font-size:.75rem;color:#6b7280; }
-.pkg-incl li { padding:.15rem 0; }
-</style>
-
-<div class="lb-overlay" id="lightbox">
-  <div class="lb-content">
-    <button class="lb-close" id="lbClose">&times;</button>
-    <button class="lb-prev" id="lbPrev"><i class="fas fa-chevron-left"></i></button>
-    <img id="lbImg" src="" alt="Venue photo" />
-    <button class="lb-next" id="lbNext"><i class="fas fa-chevron-right"></i></button>
-    <div class="lb-counter" id="lbCounter"></div>
-  </div>
-</div>
-
-<div class="container-lg px-4 py-4">
-
-  <nav aria-label="breadcrumb" class="mb-2">
-    <ol class="breadcrumb mb-0" style="font-size:.82rem;">
-      <li class="breadcrumb-item"><a href="/portal">Home</a></li>
-      <li class="breadcrumb-item active">Venues & Events</li>
-    </ol>
-  </nav>
-  <div class="d-flex justify-content-between align-items-end mb-4">
+<div class="pt-page">
+  <div class="pt-page-head">
     <div>
-      <h4 class="fw-bold mb-1">Venues & Event Spaces</h4>
-      <p class="text-muted mb-0"><%= venues.length %> venue<%= venues.length !== 1 ? 's' : '' %> available</p>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="/portal/rooms"    class="btn btn-sm btn-outline-secondary"><i class="fas fa-bed me-1"></i>Rooms</a>
-      <a href="/portal/cottages" class="btn btn-sm btn-outline-secondary"><i class="fas fa-home me-1"></i>Cottages</a>
-      <a href="/portal/book?type=venue" class="btn btn-sm btn-primary"><i class="fas fa-calendar-plus me-1"></i>Book Venue</a>
+      <h1 class="pt-title">Venues &amp; event packages</h1>
+      <p class="pt-lede">Book the function hall on its own, or choose an event package. Both are one price per booking, with a <%= downpaymentPercent %>% downpayment paid online.</p>
     </div>
   </div>
 
-  <%# Filters %>
-  <div class="filter-bar mb-4">
-    <form method="GET" action="/portal/venues" class="row g-2 align-items-end">
-      <div class="col-6 col-md-3">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Event Date</label>
-        <input type="date" name="date" value="<%= filters.date %>" class="form-control form-control-sm" />
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Guests</label>
-        <input type="number" name="guests" value="<%= filters.guests %>" class="form-control form-control-sm" min="1" placeholder="Any" />
-      </div>
-      <div class="col-6 col-md-3">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Venue Type</label>
-        <select name="type" class="form-select form-select-sm">
-          <option value="">All Types</option>
-          <% for (const t of venueTypes) { %>
-          <option value="<%= t %>" <%= filters.type===t?'selected':'' %>><%= t.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase()) %></option>
-          <% } %>
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Price</label>
-        <select name="sort" class="form-select form-select-sm">
-          <option value="price_asc"  <%= filters.sort==='price_asc'  ?'selected':'' %>>Low to High</option>
-          <option value="price_desc" <%= filters.sort==='price_desc' ?'selected':'' %>>High to Low</option>
-        </select>
-      </div>
-      <div class="col-6 col-md-2 d-flex gap-1 align-items-end">
-        <button type="submit" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-search me-1"></i>Search</button>
-        <a href="/portal/venues" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times"></i></a>
-      </div>
-    </form>
-  </div>
+  <%include('portal/_catalog-tabs')%>
 
-  <%# Venue Cards %>
-  <% if (!venues || venues.length === 0) { %>
-  <div class="text-center py-5 bg-white rounded-3 border mb-4">
-    <i class="fas fa-map-marker-alt fa-3x text-muted mb-3 d-block" style="opacity:.3;"></i>
-    <h5 class="text-muted">No venues found for your search.</h5>
-    <a href="/portal/venues" class="btn btn-outline-primary mt-2">Show All Venues</a>
-  </div>
-  <% } else { %>
-  <div class="row g-4 mb-5">
-    <% for (const v of venues) { %>
-    <%
-      let vImgs = [];
-      try { vImgs = JSON.parse(v.images || '[]'); } catch {}
-      const vAmen = (() => { try { return JSON.parse(v.amenities || '[]'); } catch { return []; } })();
-      const vImgsJson = JSON.stringify(vImgs);
-    %>
-    <div class="col-12 col-sm-6 col-lg-4">
-      <div class="accom-card">
-        <div class="accom-img-wrap<%= v.isAvailable ? '' : ' is-unavailable' %>"
-          <% if (vImgs.length > 0) { %>data-lightbox="<%= vImgsJson %>" data-lightbox-name="<%= v.name %>"<% } %>
-          style="<%= vImgs.length > 0 ? 'cursor:zoom-in;' : 'cursor:default;' %>"
-          title="<%= vImgs.length > 0 ? 'Click to view ' + vImgs.length + ' photo(s)' : 'No photos yet' %>">
-          <% if (vImgs.length > 0) { %>
-            <img src="<%= vImgs[0] %>" alt="<%= v.name %>" loading="lazy" />
-            <% if (vImgs.length > 1) { %>
-            <span class="img-count-badge"><i class="fas fa-images me-1"></i><%= vImgs.length %> photos</span>
-            <% } %>
-          <% } else { %>
-            <div class="accom-img-placeholder"><i class="fas fa-map-marker-alt"></i></div>
-          <% } %>
-          <%# Venue type overlay badge %>
-          <div style="position:absolute;top:.75rem;left:.75rem;">
-            <span class="badge text-white" style="background:rgba(0,0,0,.5);font-size:.7rem;backdrop-filter:blur(4px);">
-              <%= v.venue_type.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase()) %>
-            </span>
-          </div>
-          <% if (!v.isAvailable) { %>
-          <span class="accom-unavailable-badge"><i class="fas fa-ban me-1"></i>Unavailable</span>
-          <% } %>
-        </div>
-
-        <div class="accom-body">
-          <div class="accom-type"><i class="fas fa-star me-1"></i>Venue</div>
-          <div class="accom-name"><%= v.name %></div>
-          <div class="accom-meta">
-            <i class="fas fa-users me-1"></i>Up to <%= v.capacity %> guests
-            <% if (v.location) { %>&nbsp;&middot;&nbsp;<i class="fas fa-map-pin me-1"></i><%= v.location %><% } %>
-          </div>
-
-          <% if (vAmen.length > 0) { %>
-          <div class="accom-amenities">
-            <% for (const a of vAmen.slice(0,5)) { %>
-            <span class="accom-amenity"><i class="fas fa-check me-1" style="font-size:.6rem;color:#10b981;"></i><%= a %></span>
-            <% } %>
-            <% if (vAmen.length > 5) { %><span class="accom-amenity text-muted">+<%= vAmen.length-5 %> more</span><% } %>
-          </div>
-          <% } %>
-
-          <% if (v.description) { %>
-          <div class="accom-desc"><%= v.description %></div>
-          <% } %>
-
-          <div class="accom-footer">
-            <div>
-              <div class="accom-price"><%= formatPeso(v.price) %><span> / event</span></div>
-              <% if (v.price_note) { %><div style="font-size:.7rem;color:#9ca3af;"><%= v.price_note %></div><% } %>
-              <div style="font-size:.72rem;color:#d97706;">
-                Downpayment: <%= formatPeso(Math.ceil(v.price * 0.5)) %>
-              </div>
-            </div>
-            <div class="d-flex gap-2">
-              <% if (vImgs.length > 0) { %>
-              <button type="button" class="btn btn-sm btn-outline-secondary"
-                data-lightbox="<%= vImgsJson %>" data-lightbox-name="<%= v.name %>"
-                title="View photos"><i class="fas fa-images"></i></button>
-              <% } %>
-              <% if (v.isAvailable) { %>
-              <a href="/portal/book?type=venue&item_id=<%= v.id %>&date=<%= encodeURIComponent(filters.date) %>" class="btn btn-primary btn-sm px-3">Book</a>
-              <% } else { %>
-              <span class="btn btn-sm px-3 disabled" style="background:#e5e7eb;color:#9ca3af;cursor:not-allowed;"><i class="fas fa-ban me-1"></i>Unavailable</span>
-              <% } %>
-            </div>
-          </div>
-        </div>
-      </div>
+  <form method="GET" action="/portal/venues" class="cat-filters" style="--cat-cols:<%= cols %>;" aria-label="Check venue availability">
+    <div>
+      <label class="form-label" for="fDate">Event date</label>
+      <input type="date" id="fDate" name="date" value="<%= filters.date %>" class="form-control" />
     </div>
-    <% } %>
-  </div>
-  <% } %>
-
-  <%# Event Packages Section %>
-  <% if (packages && packages.length > 0) { %>
-  <div class="mb-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="fw-bold mb-0"><i class="fas fa-star me-2 text-warning"></i>Event Packages</h5>
-      <a href="/portal/book?type=event" class="btn btn-sm btn-warning">Book a Package</a>
+    <div>
+      <label class="form-label" for="fGuests">Guests</label>
+      <input type="number" id="fGuests" name="guests" value="<%= filters.guests %>" class="form-control" min="1" inputmode="numeric" placeholder="Any" />
     </div>
-    <div class="row g-3">
-      <% for (const p of packages) { %>
+    <% if (showTypeFilter) { %>
+    <div>
+      <label class="form-label" for="fType">Venue type</label>
+      <select id="fType" name="type" class="form-select">
+        <option value="">All types</option>
+        <% for (const t of venueTypes) { %>
+        <option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= titleCase(t) %></option>
+        <% } %>
+      </select>
+    </div>
+    <% } else if (filters.type) { %><input type="hidden" name="type" value="<%= filters.type %>" /><% } %>
+    <div>
+      <label class="form-label" for="fSort">Sort by price</label>
+      <select id="fSort" name="sort" class="form-select">
+        <option value="price_asc"  <%= filters.sort === 'price_asc'  ? 'selected' : '' %>>Lowest first</option>
+        <option value="price_desc" <%= filters.sort === 'price_desc' ? 'selected' : '' %>>Highest first</option>
+      </select>
+    </div>
+    <% if (hasTimes) { %><input type="hidden" name="start_time" value="<%= filters.start_time %>" /><input type="hidden" name="end_time" value="<%= filters.end_time %>" /><% } %>
+    <div class="cat-filters-actions">
+      <button type="submit" class="btn btn-primary">Check availability</button>
+      <% if (filters.date || filters.guests || filters.type) { %><a href="/portal/venues" class="btn btn-outline-secondary">Clear</a><% } %>
+    </div>
+  </form>
+
+  <section aria-labelledby="venuesHeading">
+    <h2 class="br-sr-only" id="venuesHeading">Venues</h2>
+    <p class="cat-result" role="status">
+      <%= venues.length %> venue<%= venues.length !== 1 ? 's' : '' %><% if (filters.guests) { %> for <%= filters.guests %>+ guests<% } %><% if (when) { %> · availability for <%= when %><% } else { %> · add a date to see if it's free<% } %>
+    </p>
+
+    <% if (!venues || venues.length === 0) { %>
+    <div class="pt-surface pt-empty">
+      <h2>No venues match this search</h2>
+      <p>Try fewer guests or another date.</p>
+      <a href="/portal/venues" class="btn btn-outline-secondary">Show all venues</a>
+    </div>
+    <% } else { %>
+    <div class="lst-list">
+      <% for (const v of venues) { %>
       <%
-        let inclusions = [];
-        try { inclusions = JSON.parse(p.inclusions || '[]'); } catch {}
+        const book = new URLSearchParams({ type: 'venue', item_id: String(v.id) });
+        if (filters.date) book.set('date', filters.date);
+        if (filters.date && hasTimes) { book.set('start_time', filters.start_time); book.set('end_time', filters.end_time); }
+        const note = v.isAvailable ? (when ? 'Open on ' + when : '') : (filters.date ? 'Booked ' + (hasTimes ? 'at that time' : 'on this date') : 'Not taking bookings right now');
       %>
-      <div class="col-12 col-md-6 col-lg-4">
-        <div class="pkg-card h-100 d-flex flex-column">
-          <div class="d-flex justify-content-between align-items-start mb-2">
-            <h6 class="fw-bold mb-0"><%= p.name %></h6>
-            <% if (p.event_type) { %>
-            <span class="badge bg-light text-dark pkg-type-badge"><%= p.event_type.replace(/_/g,' ') %></span>
-            <% } %>
-          </div>
-          <% if (p.capacity) { %>
-          <div class="text-muted small mb-2"><i class="fas fa-users me-1"></i>Up to <%= p.capacity %> guests</div>
-          <% } %>
-          <% if (p.description) { %>
-          <p class="text-muted small mb-2" style="font-size:.8rem;"><%= p.description.slice(0,120) %><%= p.description.length > 120 ? '…' : '' %></p>
-          <% } %>
-          <% if (inclusions.length > 0) { %>
-          <ul class="pkg-incl list-unstyled mb-3 flex-grow-1">
-            <% for (const inc of inclusions.slice(0,6)) { %>
-            <li><i class="fas fa-check-circle me-1 text-success" style="font-size:.7rem;"></i><%= inc %></li>
-            <% } %>
-            <% if (inclusions.length > 6) { %><li class="text-muted">+<%= inclusions.length - 6 %> more inclusions...</li><% } %>
-          </ul>
-          <% } %>
-          <div class="d-flex justify-content-between align-items-center mt-auto pt-2" style="border-top:1px solid #f3f4f6;">
-            <div>
-              <div class="accom-price" style="font-size:1.1rem;"><%= formatPeso(p.price) %></div>
-              <div style="font-size:.72rem;color:#d97706;">DP: <%= formatPeso(Math.ceil(p.price * 0.5)) %></div>
-            </div>
-            <a href="/portal/book?type=event&package_id=<%= p.id %>&date=<%= encodeURIComponent(filters.date) %>" class="btn btn-warning btn-sm">Book Package</a>
-          </div>
-        </div>
-      </div>
+      <%include('partials/listing-card', Object.assign({}, __locals, { card: {
+        row: v, kind: 'venue', variant: 'row', h: 'h3', qs: qs,
+        avail: filters.date || !v.isAvailable ? v.isAvailable : undefined, availNote: note,
+        bookHref: '/portal/book?' + book.toString(), dp: downpaymentPercent
+      } }))%>
+      <% if (v.price_note) { %><p class="cat-result"><%= v.price_note %></p><% } %>
       <% } %>
     </div>
-  </div>
-  <% } %>
+    <% } %>
+  </section>
 
+  <% if (shownPackages.length > 0) { %>
+  <section class="pt-section" id="packages" aria-labelledby="packagesHeading" tabindex="-1">
+    <div class="pt-section-head">
+      <h2 class="pt-h2" id="packagesHeading">Event packages</h2>
+      <p class="pt-meta mb-0">One price per package, including the items listed. Optional add-ons are added to your total and downpayment when you choose them in the booking form.</p>
+    </div>
+    <%include('partials/package-rows', Object.assign({}, __locals, { pkgRows: { list: shownPackages, dp: downpaymentPercent, date: filters.date, h: 'h3', book: true } }))%>
+  </section>
+  <% } %>
 </div>
+
+<%include('portal/_lightbox')%>
 
 <script>
 (function () {
-  var lb=document.getElementById('lightbox'),lbImg=document.getElementById('lbImg'),lbClose=document.getElementById('lbClose'),lbPrev=document.getElementById('lbPrev'),lbNext=document.getElementById('lbNext'),lbCtr=document.getElementById('lbCounter'),current=0,allImgs=[];
-  window.openLightbox=function(imgs,idx){if(!imgs||!imgs.length)return;allImgs=imgs;current=idx||0;showImg();lb.classList.add('open');document.body.style.overflow='hidden';};
-  document.addEventListener('click',function(e){var t=e.target.closest('[data-lightbox]');if(!t)return;e.preventDefault();var imgs=[];try{imgs=JSON.parse(t.getAttribute('data-lightbox')||'[]');}catch(err){imgs=[];}window.openLightbox(imgs,0);});
-  function showImg(){lbImg.src=allImgs[current];lbCtr.textContent=(current+1)+' / '+allImgs.length;lbPrev.style.display=allImgs.length>1?'':'none';lbNext.style.display=allImgs.length>1?'':'none';}
-  function close(){lb.classList.remove('open');document.body.style.overflow='';lbImg.src='';}
-  lbClose.addEventListener('click',close);lb.addEventListener('click',function(e){if(e.target===lb)close();});
-  lbPrev.addEventListener('click',function(){current=(current-1+allImgs.length)%allImgs.length;showImg();});
-  lbNext.addEventListener('click',function(){current=(current+1)%allImgs.length;showImg();});
-  document.addEventListener('keydown',function(e){if(!lb.classList.contains('open'))return;if(e.key==='Escape')close();if(e.key==='ArrowLeft'){current=(current-1+allImgs.length)%allImgs.length;showImg();}if(e.key==='ArrowRight'){current=(current+1)%allImgs.length;showImg();}});
+  var now = new Date();
+  var today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  var d = document.getElementById('fDate');
+  if (d) d.min = today;
 })();
 </script>

@@ -1,0 +1,267 @@
+/* ============================================================
+   Balai-Reserve — sign-in and registration
+   Loaded after main.css by layouts/auth.xian and overrides its .auth-* block:
+   a calm two-part page — the resort's beachfront photo beside a light form.
+   (main.css styles the fields with !important for its old dark glass card,
+   so the few field rules below must use !important to win.)
+   ============================================================ */
+
+body.auth-body {
+  display: block;
+  min-height: 100vh;
+  padding: 0;
+  overflow: visible;
+  background: var(--br-canvas);
+  color: var(--br-ink);
+  font-family: var(--br-font-ui);
+}
+
+.auth-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "photo header" "photo main";
+  min-height: 100vh;
+}
+.auth-photo  { grid-area: photo; }
+.auth-header { grid-area: header; }
+.auth-main   { grid-area: main; }
+
+/* ── Header: the public site's wordmark + a way back ───────── */
+.auth-header {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--br-space-3);
+  padding: var(--br-space-4) var(--br-space-6);
+  min-height: 72px;
+}
+.auth-mark { display: inline-flex; flex-direction: column; text-decoration: none; color: var(--br-ink-teal); min-width: 0; }
+.auth-mark-name { font-family: var(--br-font-display); font-size: 1.25rem; font-weight: 600; line-height: 1.1; letter-spacing: -.01em; color: var(--br-ink-teal); white-space: nowrap; }
+.auth-mark-sub { font-size: var(--br-fs-meta); color: var(--br-ink-2); line-height: 1.1; margin-top: 2px; white-space: nowrap; }
+.auth-mark:hover .auth-mark-name { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Photo side ─────────────────────────────────────────── */
+.auth-photo {
+  position: sticky; top: 0;
+  height: 100vh;
+  display: flex; flex-direction: column; justify-content: flex-end;
+  padding: var(--br-space-6) var(--br-space-7);
+  color: #fff;
+  /* Only the bottom and top edges are darkened, where the text sits */
+  background:
+    linear-gradient(180deg, rgba(8, 24, 28, .55) 0%, rgba(8, 24, 28, 0) 28%, rgba(8, 24, 28, 0) 55%, rgba(8, 24, 28, .72) 100%),
+    url('/images/landing/beachfront-gazebo.jpg') center / cover no-repeat,
+    var(--br-ink-teal);
+}
+.auth-wordmark {
+  font-family: var(--br-font-display);
+  font-size: 1.5rem; font-weight: 600;
+  color: #fff; text-decoration: none;
+  align-self: flex-start;
+}
+.auth-wordmark:hover { color: #fff; text-decoration: underline; text-underline-offset: 4px; }
+.auth-wordmark:focus-visible { outline-color: #fff; }
+.auth-photo-tagline {
+  font-family: var(--br-font-display);
+  font-size: clamp(1.75rem, 1.2rem + 1.6vw, 2.5rem);
+  font-weight: 500;
+  line-height: var(--br-lh-tight);
+  margin: 0 0 var(--br-space-2);
+  max-width: 16ch;
+}
+.auth-photo-place { margin: 0; font-size: var(--br-fs-small); color: rgba(255, 255, 255, .86); }
+
+/* ── Form side ──────────────────────────────────────────── */
+.auth-main {
+  display: flex; flex-direction: column;
+  padding: 0 var(--br-space-6) var(--br-space-6);
+  min-width: 0;
+}
+body.auth-body .auth-back-home {
+  position: static;
+  align-self: center;
+  display: inline-flex; align-items: center; gap: var(--br-space-2);
+  min-height: 44px; padding: var(--br-space-2) var(--br-space-3);
+  margin-right: calc(-1 * var(--br-space-3));
+  white-space: nowrap;
+  background: none; border: 0; border-radius: var(--br-radius);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  color: var(--br-ink-2); font-size: var(--br-fs-small); font-weight: 600;
+  text-decoration: none;
+}
+body.auth-body .auth-back-home:hover { background: var(--br-surface-alt); color: var(--br-ink); border: 0; }
+
+body.auth-body .auth-wrapper {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  max-width: none; width: 100%;
+  padding-top: var(--br-space-5);
+}
+body.auth-body .auth-card {
+  width: 100%; max-width: 420px;
+  background: none; border: 0; border-radius: 0;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: none; padding: 0;
+  color: var(--br-ink);
+}
+
+body.auth-body .auth-title {
+  font-family: var(--br-font-display);
+  font-size: var(--br-fs-page);
+  font-weight: 600;
+  color: var(--br-ink-teal);
+  text-align: left;
+  margin: 0 0 var(--br-space-2);
+}
+body.auth-body .auth-subtitle {
+  text-align: left; color: var(--br-ink-2);
+  font-size: var(--br-fs-small); line-height: 1.55;
+  margin: 0 0 var(--br-space-5);
+}
+
+/* Fields */
+.auth-field { margin-bottom: var(--br-space-4); }
+body.auth-body .auth-card .form-label { color: var(--br-ink) !important; font-size: var(--br-fs-small); font-weight: 600; margin-bottom: 6px; }
+body.auth-body .auth-card .form-control,
+body.auth-body .auth-card .form-select {
+  background: var(--br-surface) !important;
+  border: 1px solid var(--br-hairline-2) !important;
+  color: var(--br-ink) !important;
+  border-radius: var(--br-radius) !important;
+  min-height: 46px;
+  font-size: var(--br-fs-body);
+}
+body.auth-body .auth-card .form-control::placeholder { color: #8a979a; }
+body.auth-body .auth-card .form-control:focus,
+body.auth-body .auth-card .form-select:focus {
+  border-color: var(--br-deep-sea) !important;
+  box-shadow: 0 0 0 3px rgba(15, 92, 102, .18) !important;
+  background: var(--br-surface) !important;
+}
+body.auth-body .auth-card .form-control.is-invalid { border-color: var(--br-danger) !important; }
+body.auth-body .auth-card .form-control.is-invalid:focus { box-shadow: 0 0 0 3px rgba(180, 35, 24, .16) !important; }
+body.auth-body .auth-card .invalid-feedback { color: var(--br-danger); font-size: var(--br-fs-meta); margin-top: 6px; }
+body.auth-body .auth-card .form-text { color: var(--br-ink-2); font-size: var(--br-fs-meta); }
+.auth-req { color: var(--br-danger); }
+.auth-optional { color: var(--br-ink-2); font-weight: 400; }
+
+/* Password with a labelled show/hide toggle inside the field */
+.auth-pass { position: relative; }
+body.auth-body .auth-pass .form-control { padding-right: 92px; }
+.auth-pass-toggle {
+  position: absolute; top: 3px; right: 3px; bottom: 3px;
+  display: inline-flex; align-items: center; gap: 6px;
+  min-width: 44px; padding: 0 12px;
+  background: none; border: 0; border-radius: var(--br-radius-sm);
+  color: var(--br-deep-sea); font-size: var(--br-fs-small); font-weight: 600;
+  cursor: pointer;
+}
+.auth-pass-toggle:hover { background: var(--br-deep-sea-tint); }
+.auth-pass-toggle i { font-size: .9rem; }
+
+.auth-strength { height: 4px; margin-top: var(--br-space-2); border-radius: 2px; background: var(--br-hairline); overflow: hidden; }
+.auth-strength > div { height: 100%; width: 0; background: var(--br-danger); transition: width var(--br-dur) var(--br-ease), background-color var(--br-dur) var(--br-ease); }
+.auth-strength > div.is-fair { background: var(--br-warning); }
+.auth-strength > div.is-good { background: var(--br-success); }
+#pwMatchMsg.is-ok { color: var(--br-success); }
+#pwMatchMsg.is-bad { color: var(--br-danger); }
+
+.auth-check { display: flex; gap: var(--br-space-2); align-items: flex-start; flex-wrap: wrap; padding-left: 0; margin: var(--br-space-2) 0 var(--br-space-5); }
+.auth-check .form-check-input { float: none; margin: 2px 0 0; width: 1.25em; height: 1.25em; flex-shrink: 0; border-color: var(--br-hairline-2); }
+.auth-check .form-check-input:checked { background-color: var(--br-deep-sea); border-color: var(--br-deep-sea); }
+.auth-check .form-check-label { flex: 1; font-size: var(--br-fs-small); color: var(--br-ink); }
+.auth-check .invalid-feedback { flex-basis: 100%; }
+
+/* Buttons */
+body.auth-body .auth-card .btn-primary,
+body.auth-body .auth-card .btn-auth {
+  background: var(--br-deep-sea) !important;
+  color: #fff !important;
+  border: 1px solid var(--br-deep-sea) !important;
+  border-radius: var(--br-radius) !important;
+  font-weight: 600 !important;
+  min-height: 48px;
+  font-size: var(--br-fs-body);
+}
+body.auth-body .auth-card .btn-primary:hover,
+body.auth-body .auth-card .btn-auth:hover { background: var(--br-deep-sea-dark) !important; border-color: var(--br-deep-sea-dark) !important; }
+.auth-google {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--br-space-2);
+  min-height: 48px;
+  background: var(--br-surface); color: var(--br-ink);
+  border: 1px solid var(--br-hairline-2);
+}
+.auth-google:hover { background: var(--br-surface-alt); color: var(--br-ink); border-color: var(--br-hairline-2); }
+
+.auth-divider { display: flex; align-items: center; gap: var(--br-space-3); margin: var(--br-space-4) 0; color: var(--br-ink-2); font-size: var(--br-fs-meta); }
+.auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--br-hairline); }
+
+.auth-alt { margin-top: var(--br-space-5); padding-top: var(--br-space-4); border-top: 1px solid var(--br-hairline); font-size: var(--br-fs-small); color: var(--br-ink-2); }
+.auth-alt p { margin: 0 0 var(--br-space-2); }
+body.auth-body .auth-card a { color: var(--br-deep-sea); font-weight: 600; }
+body.auth-body .auth-card a:hover { color: var(--br-deep-sea-dark); }
+body.auth-body .auth-card a.auth-quiet-link { color: var(--br-ink-2); font-weight: 500; }
+body.auth-body .auth-card a.btn { text-decoration: none; }
+
+/* Alerts */
+body.auth-body .auth-alert {
+  display: flex; gap: var(--br-space-2); align-items: flex-start;
+  font-size: var(--br-fs-small);
+  border-radius: var(--br-radius);
+  padding: var(--br-space-3);
+  margin-bottom: var(--br-space-4);
+}
+body.auth-body .auth-alert > i { margin-top: 3px; }
+
+/* ── Narrow screens: photo becomes a short band above the form ── */
+@media (max-width: 991.98px) {
+  .auth-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto 1fr; grid-template-areas: "header" "photo" "main"; }
+  .auth-header { padding: var(--br-space-3) var(--br-space-4); min-height: 64px; border-bottom: 1px solid var(--br-hairline); background: var(--br-canvas); }
+  .auth-photo {
+    position: relative; height: auto; min-height: 200px;
+    padding: var(--br-space-4) var(--br-space-4) var(--br-space-5);
+    gap: var(--br-space-6);
+    /* Text covers most of the short band, so it needs an even overlay to stay legible */
+    background:
+      linear-gradient(180deg, rgba(8, 24, 28, .5) 0%, rgba(8, 24, 28, .74) 100%),
+      url('/images/landing/beachfront-gazebo.jpg') center 60% / cover no-repeat,
+      var(--br-ink-teal);
+  }
+  .auth-photo-tagline { font-size: 1.5rem; }
+  .auth-main { padding: var(--br-space-5) var(--br-space-4) var(--br-space-7); }
+  body.auth-body .auth-wrapper { align-items: flex-start; padding-top: var(--br-space-3); }
+}
+@media (max-width: 575.98px) {
+  .auth-photo { min-height: 132px; }
+  .auth-photo-tagline { font-size: 1.25rem; }
+  .auth-back-home .fa-arrow-left { display: none; }
+  .auth-photo-place { font-size: var(--br-fs-meta); }
+}
+
+/* Header sits at the top of its column; brand and back link share one centre line */
+.auth-header { align-self: start; }
+.auth-header > * { align-self: center; }
+
+/* ── V3: the same full-width header as the public site (wordmark left, one quiet link right) ── */
+@media (min-width: 992px) {
+  .auth-shell { grid-template-rows: auto 1fr; grid-template-areas: "header header" "photo main"; }
+  .auth-header {
+    position: sticky; top: 0; z-index: 5;
+    min-height: 80px;
+    padding: 0 var(--gutter);
+    background: var(--color-canvas);
+    border-bottom: 1px solid var(--color-divider);
+  }
+  .auth-photo { top: 80px; height: calc(100vh - 80px); border-radius: 0 var(--radius-media) 0 0; }
+  body.auth-body .auth-wrapper { padding-top: var(--space-7); padding-bottom: var(--space-7); }
+}
+.auth-mark-name { font-size: 1.375rem; }
+body.auth-body .auth-back-home { color: var(--color-text); font-size: var(--text-body); font-weight: 500; }
+body.auth-body .auth-back-home:hover { background: var(--color-seaglass-100); color: var(--color-ocean-900); }
+body.auth-body .auth-title { font-size: clamp(28px, 2.4vw, 36px); line-height: 1.12; }
+body.auth-body .auth-card .btn-primary:active, body.auth-body .auth-card .btn-auth:active { transform: scale(.98); }
+body.auth-body .auth-card .form-control:focus-visible { outline: none; }
+.auth-photo-tagline { text-wrap: balance; }
+
+/* ── Brand badge: logo spans both lines of the wordmark ───────── */
+.auth-mark { display: inline-grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; align-content: center; }
+.auth-mark > .brand-logo { grid-column: 1; grid-row: 1 / span 2; }
+.auth-mark > :not(.brand-logo) { grid-column: 2; }

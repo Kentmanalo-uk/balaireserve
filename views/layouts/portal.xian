@@ -2,142 +2,191 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#faf9f6" />
   <title><%= title || 'Balai-Reserve' %></title>
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/brand/balai-icon-32.png" />
+  <link rel="apple-touch-icon" href="/images/brand/balai-icon-192.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/main.css" />
   <link rel="stylesheet" href="/css/portal.css" />
+  <link rel="stylesheet" href="/css/listing.css" />
 </head>
 <body class="portal-body">
+<%
+  const _path = currentPath || '';
+  const _here = (p) => (_path === p || _path.indexOf(p + '/') === 0) ? 'aria-current="page"' : '';
+  const _isHome = _path === '/portal' || _path === '/portal/';
+  const _unread = unreadNotifCount || 0;
+  const _navLinks = [
+    ['/portal/rooms', 'Rooms'],
+    ['/portal/cottages', 'Cottages'],
+    ['/portal/venues', 'Venue & events'],
+    ['/portal/calendar', 'Availability'],
+  ];
+  const _accountLinks = [
+    ['/portal/my-reservations', 'My reservations'],
+    ['/portal/my-inquiries', 'My inquiries'],
+    ['/portal/notifications', 'Notifications'],
+    ['/portal/profile', 'Profile and password'],
+  ];
+  const _bookHref = currentUser ? '/portal/book' : '/auth/login';
+  const _bookLabel = currentUser ? 'Book now' : 'Sign in to book';
+%>
+  <a href="#portalMain" class="pt-skip">Skip to content</a>
 
-  <!-- Portal Navbar -->
-  <nav class="portal-navbar">
-    <div class="container-fluid px-4 d-flex align-items-center justify-content-between" style="height:64px;">
-
-      <!-- Brand -->
-      <a href="/" class="portal-brand text-decoration-none gap-2">
-        <div class="brand-icon-sm me-2"><i class="fas fa-home"></i></div>
-        <div>
-          <div class="fw-bold" style="color:white;font-size:.95rem;letter-spacing:-.2px;">Balai-Reserve</div>
-          <div style="font-size:.6rem;color:rgba(0,229,255,.6);letter-spacing:.04em;">Gloria, Oriental Mindoro</div>
-        </div>
+  <header class="pt-header" id="ptHeader">
+    <div class="pt-header-bar">
+      <a href="<%= currentUser ? '/portal' : '/' %>" class="pt-brand" aria-label="Balai-Reserve <%= currentUser ? 'guest portal home' : 'home' %>">
+        <img src="/images/brand/balai-icon-96.png" alt="" width="44" height="44" class="brand-logo" />
+        <span class="pt-brand-name">Balai-Reserve</span>
+        <span class="pt-brand-sub">Gloria, Oriental Mindoro</span>
       </a>
 
-      <!-- Nav links (desktop) -->
-      <div class="d-none d-md-flex align-items-center gap-4">
-        <a href="/portal/rooms"    class="text-white-50 small text-decoration-none portal-nav-link">Rooms</a>
-        <a href="/portal/venues"   class="text-white-50 small text-decoration-none portal-nav-link">Venues</a>
-        <a href="/portal/cottages" class="text-white-50 small text-decoration-none portal-nav-link">Cottages</a>
-        <a href="/portal/calendar" class="text-white-50 small text-decoration-none portal-nav-link">Availability</a>
-        <a href="/#how-to-book"    class="text-white-50 small text-decoration-none portal-nav-link">How to Book</a>
-        <a href="/portal/inquire"  class="text-white-50 small text-decoration-none portal-nav-link">Contact</a>
-      </div>
+      <nav class="pt-nav" aria-label="Main">
+        <% for (const [href, label] of _navLinks) { %>
+        <a href="<%= href %>" <%- _here(href) %>><%= label %></a>
+        <% } %>
+      </nav>
 
-      <!-- Actions -->
-      <div class="d-flex align-items-center gap-2">
+      <div class="pt-actions">
         <% if (currentUser) { %>
+        <a href="/portal/my-reservations" class="pt-header-link pt-header-link--wide" <%- _here('/portal/my-reservations') %>>My reservations</a>
 
-          <!-- Notification Bell -->
-          <div class="dropdown">
-            <button class="portal-bell-btn" type="button" id="portalNotifBtn"
-              data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
-              title="Notifications">
-              <i class="fas fa-bell"></i>
-              <span class="portal-bell-badge" id="portalNotifBadge"
-                style="<%= (unreadNotifCount && unreadNotifCount > 0) ? '' : 'display:none;' %>">
-                <%= (unreadNotifCount && unreadNotifCount > 9) ? '9+' : (unreadNotifCount || 0) %>
-              </span>
-            </button>
-            <div class="dropdown-menu dropdown-menu-end portal-notif-dropdown" aria-labelledby="portalNotifBtn">
-              <div class="portal-notif-header d-flex align-items-center justify-content-between">
-                <span>Notifications</span>
-                <button type="button" id="portalNotifMarkAll" class="portal-notif-markall">Mark all read</button>
-              </div>
-              <div class="portal-notif-list" id="portalNotifList">
-                <% if (!recentNotifications || recentNotifications.length === 0) { %>
-                  <div class="portal-notif-empty">No notifications yet</div>
-                <% } else { %>
-                  <% for (const n of recentNotifications) { %>
-                  <a href="<%= n.link || '/portal/notifications' %>" class="portal-notif-item <%= n.is_read ? '' : 'unread' %>">
-                    <div class="portal-notif-icon notif-<%= n.type %>">
-                      <% if (n.type === 'reservation') { %><i class="fas fa-calendar-check"></i>
-                      <% } else if (n.type === 'payment') { %><i class="fas fa-money-bill-wave"></i>
-                      <% } else if (n.type === 'inquiry') { %><i class="fas fa-question-circle"></i>
-                      <% } else { %><i class="fas fa-bell"></i><% } %>
-                    </div>
-                    <div class="portal-notif-text">
-                      <div class="portal-notif-title"><%= n.title %></div>
-                      <div class="portal-notif-msg"><%= n.message %></div>
-                      <div class="portal-notif-time"><%= formatDate(n.created_at) %></div>
-                    </div>
-                  </a>
-                  <% } %>
+        <div class="dropdown">
+          <button class="portal-bell-btn" type="button" id="portalNotifBtn"
+            data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+            aria-label="Notifications<%= _unread > 0 ? ', ' + _unread + ' unread' : '' %>">
+            <i class="fas fa-bell" aria-hidden="true"></i>
+            <span class="portal-bell-badge" id="portalNotifBadge" aria-hidden="true"
+              style="<%= _unread > 0 ? '' : 'display:none;' %>"><%= _unread > 9 ? '9+' : _unread %></span>
+          </button>
+          <div class="dropdown-menu dropdown-menu-end portal-notif-dropdown" aria-labelledby="portalNotifBtn">
+            <div class="portal-notif-header d-flex align-items-center justify-content-between">
+              <span>Notifications</span>
+              <button type="button" id="portalNotifMarkAll" class="portal-notif-markall">Mark all as read</button>
+            </div>
+            <div class="portal-notif-list" id="portalNotifList">
+              <% if (!recentNotifications || recentNotifications.length === 0) { %>
+                <div class="portal-notif-empty">No notifications yet</div>
+              <% } else { %>
+                <% for (const n of recentNotifications) { %>
+                <a href="<%= n.link || '/portal/notifications' %>" class="portal-notif-item <%= n.is_read ? '' : 'unread' %>">
+                  <div class="portal-notif-icon notif-<%= n.type %>" aria-hidden="true">
+                    <% if (n.type === 'reservation') { %><i class="fas fa-calendar-check"></i>
+                    <% } else if (n.type === 'payment') { %><i class="fas fa-money-bill-wave"></i>
+                    <% } else if (n.type === 'inquiry') { %><i class="fas fa-question-circle"></i>
+                    <% } else { %><i class="fas fa-bell"></i><% } %>
+                  </div>
+                  <div class="portal-notif-text">
+                    <div class="portal-notif-title"><% if (!n.is_read) { %><span class="br-sr-only">Unread: </span><% } %><%= n.title %></div>
+                    <div class="portal-notif-msg"><%= n.message %></div>
+                    <div class="portal-notif-time"><%= formatDateTime(n.created_at) %></div>
+                  </div>
+                </a>
                 <% } %>
-              </div>
-              <div class="portal-notif-footer">
-                <a href="/portal/notifications">View all notifications</a>
-              </div>
+              <% } %>
+            </div>
+            <div class="portal-notif-footer">
+              <a href="/portal/notifications">View all notifications</a>
             </div>
           </div>
-
-          <!-- Account dropdown -->
-          <div class="dropdown">
-            <button class="btn btn-sm btn-outline-light dropdown-toggle" type="button"
-              data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="fas fa-user-circle me-1"></i><span class="d-none d-sm-inline"><%= currentUser.firstName %></span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end">
-              <li><a class="dropdown-item" href="/portal/my-reservations"><i class="fas fa-calendar-check me-2"></i>My Bookings</a></li>
-              <li><a class="dropdown-item" href="/portal/my-inquiries"><i class="fas fa-comments me-2"></i>My Inquiries</a></li>
-              <li><a class="dropdown-item" href="/portal/notifications"><i class="fas fa-bell me-2"></i>Notifications</a></li>
-              <li><a class="dropdown-item" href="/portal/profile"><i class="fas fa-user-cog me-2"></i>Profile Settings</a></li>
-              <li><hr class="dropdown-divider"></li>
-              <li><a class="dropdown-item text-danger" href="/auth/logout"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
-            </ul>
-          </div>
-
+        </div>
         <% } else { %>
-          <a href="/" class="btn btn-sm btn-outline-light">
-            <i class="fas fa-arrow-left me-1"></i>Home
-          </a>
-          <a href="/auth/login" class="btn btn-sm btn-light">
-            <i class="fas fa-sign-in-alt me-1"></i>Sign In
-          </a>
+        <a href="/auth/login" class="pt-header-link">Sign in</a>
         <% } %>
-      </div>
 
+        <a href="<%= _bookHref %>" class="btn btn-primary pt-book-btn"><%= _bookLabel %></a>
+
+        <% if (currentUser) { %>
+        <div class="dropdown pt-account">
+          <button class="pt-account-btn" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu for <%= currentUser.firstName %>">
+            <span class="pt-avatar" aria-hidden="true"><%= (currentUser.firstName || '?').charAt(0).toUpperCase() %></span>
+            <span class="pt-account-name"><%= currentUser.firstName %></span><i class="fas fa-chevron-down" aria-hidden="true"></i>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><h2 class="dropdown-header"><%= currentUser.firstName %> <%= currentUser.lastName %></h2></li>
+            <li><a class="dropdown-item" href="/portal" <%- _isHome ? 'aria-current="page"' : '' %>>Portal home</a></li>
+            <% for (const [href, label] of _accountLinks) { %>
+            <li><a class="dropdown-item" href="<%= href %>" <%- _here(href) %>><%= label %><% if (href === '/portal/notifications' && _unread > 0) { %> <span class="pt-count">(<%= _unread %> unread)</span><% } %></a></li>
+            <% } %>
+            <li><a class="dropdown-item" href="/portal/inquire" <%- _here('/portal/inquire') %>>Contact the resort</a></li>
+            <li><hr class="dropdown-divider"></li>
+            <li><a class="dropdown-item" href="/auth/logout">Sign out</a></li>
+          </ul>
+        </div>
+        <% } %>
+
+        <button class="pt-menu-btn" type="button" id="ptMenuBtn" aria-controls="ptMobileMenu" aria-expanded="false" aria-haspopup="dialog">
+          <i class="fas fa-bars" aria-hidden="true"></i><span class="pt-menu-label-text">Menu</span>
+        </button>
+      </div>
     </div>
-  </nav>
+  </header>
+
+  <%# Mobile / tablet menu: a full-screen sheet (focus trap + Esc), same pattern as the public site %>
+  <div class="pt-menu-sheet" id="ptMobileMenu" role="dialog" aria-modal="true" aria-labelledby="ptMenuTitle" hidden>
+    <div class="pt-menu-head">
+      <span class="pt-menu-brand"><img src="/images/brand/balai-icon-96.png" alt="" width="40" height="40" class="brand-logo" /><span class="pt-brand-name" id="ptMenuTitle">Balai-Reserve</span></span>
+      <button type="button" class="pt-menu-close" id="ptMenuClose"><i class="fas fa-times" aria-hidden="true"></i><span>Close</span></button>
+    </div>
+    <a href="<%= _bookHref %>" class="btn btn-primary btn-lg w-100"><%= _bookLabel %></a>
+    <nav aria-label="Main (menu)">
+      <% if (currentUser) { %><a href="/portal" <%- _isHome ? 'aria-current="page"' : '' %>>Portal home</a><% } %>
+      <% for (const [href, label] of _navLinks) { %>
+      <a href="<%= href %>" <%- _here(href) %>><%= label %></a>
+      <% } %>
+      <a href="/portal/inquire" <%- _here('/portal/inquire') %>>Contact the resort</a>
+    </nav>
+    <% if (currentUser) { %>
+    <p class="pt-menu-label">Signed in as <%= currentUser.firstName %> <%= currentUser.lastName %></p>
+    <nav aria-label="Your account">
+      <% for (const [href, label] of _accountLinks) { %>
+      <a href="<%= href %>" <%- _here(href) %>><%= label %><% if (href === '/portal/notifications' && _unread > 0) { %><span class="pt-count">&nbsp;(<%= _unread %> unread)</span><% } %></a>
+      <% } %>
+      <a href="/auth/logout">Sign out</a>
+    </nav>
+    <% } else { %>
+    <nav aria-label="Account">
+      <a href="/auth/login">Sign in</a>
+      <a href="/auth/register">Create an account</a>
+      <a href="/">Back to the resort website</a>
+    </nav>
+    <% } %>
+  </div>
 
   <!-- Flash Messages -->
   <% if (flash && (flash.success || flash.error || flash.warning || flash.info)) { %>
-  <div class="container-lg pt-3 px-4" id="portalFlash">
+  <div class="pt-flash" id="portalFlash" role="status">
     <% if (flash.success) { %>
-    <div class="alert alert-success alert-dismissible fade show d-flex align-items-start" role="alert">
-      <i class="fas fa-check-circle me-2 mt-1"></i>
+    <div class="alert alert-success alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+      <i class="fas fa-check-circle" aria-hidden="true"></i>
       <div class="flex-grow-1"><%= flash.success %></div>
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     <% } %>
     <% if (flash.error) { %>
-    <div class="alert alert-danger alert-dismissible fade show d-flex align-items-start" role="alert">
-      <i class="fas fa-exclamation-circle me-2 mt-1"></i>
+    <div class="alert alert-danger alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+      <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
       <div class="flex-grow-1"><%= flash.error %></div>
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     <% } %>
     <% if (flash.warning) { %>
-    <div class="alert alert-warning alert-dismissible fade show d-flex align-items-start" role="alert">
-      <i class="fas fa-exclamation-triangle me-2 mt-1"></i>
+    <div class="alert alert-warning alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+      <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
       <div class="flex-grow-1"><%= flash.warning %></div>
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
     <% } %>
     <% if (flash.info) { %>
-    <div class="alert alert-info alert-dismissible fade show d-flex align-items-start" role="alert">
-      <i class="fas fa-info-circle me-2 mt-1"></i>
+    <div class="alert alert-info alert-dismissible fade show d-flex align-items-start gap-2" role="alert">
+      <i class="fas fa-info-circle" aria-hidden="true"></i>
       <div class="flex-grow-1"><%= flash.info %></div>
       <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
     </div>
@@ -146,71 +195,126 @@
   <% } %>
 
   <!-- Content -->
-  <main>
+  <main id="portalMain" tabindex="-1">
     <%- body %>
   </main>
 
   <!-- Footer -->
-  <footer class="portal-footer mt-5">
-    <div class="container-lg px-4 py-5">
-      <div class="row g-4 mb-4">
-        <div class="col-12 col-md-4">
-          <div class="d-flex align-items-center gap-2 mb-2">
-            <div style="width:32px;height:32px;background:linear-gradient(135deg,#ffd166,#e6a800);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#0a0a0a;font-size:.85rem;box-shadow:0 0 10px rgba(255,209,102,.35);"><i class="fas fa-home"></i></div>
-            <span style="font-size:1rem;font-weight:800;color:#fff;">Balai-Reserve</span>
-          </div>
-          <p style="font-size:.78rem;color:rgba(255,255,255,.45);line-height:1.7;margin-bottom:.75rem;">
-            A premier resort and event venue in Brgy. San Antonio, Gloria, Oriental Mindoro — offering rooms, venues, cottages, and full event management.
-          </p>
-          <div class="d-flex gap-2">
-            <a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener" style="width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.6);text-decoration:none;transition:all .2s;" onmouseover="this.style.background='#ffd166';this.style.color='#0a0a0a';" onmouseout="this.style.background='rgba(255,255,255,.08)';this.style.color='rgba(255,255,255,.6)';"><i class="fab fa-facebook-f" style="font-size:.8rem;"></i></a>
-          </div>
-        </div>
-        <div class="col-6 col-md-2">
-          <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.08em;">Browse</div>
-          <div class="d-flex flex-column gap-2" style="font-size:.8rem;">
-            <a href="/portal/rooms"    class="text-white-50 text-decoration-none portal-footer-link">Rooms</a>
-            <a href="/portal/venues"   class="text-white-50 text-decoration-none portal-footer-link">Venues</a>
-            <a href="/portal/cottages" class="text-white-50 text-decoration-none portal-footer-link">Cottages</a>
-            <a href="/portal/book"     class="text-white-50 text-decoration-none portal-footer-link">Book Now</a>
-          </div>
-        </div>
-        <div class="col-6 col-md-2">
-          <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.08em;">Account</div>
-          <div class="d-flex flex-column gap-2" style="font-size:.8rem;">
-            <% if (currentUser) { %>
-              <a href="/portal/my-reservations" class="text-white-50 text-decoration-none portal-footer-link">My Bookings</a>
-              <a href="/portal/my-inquiries" class="text-white-50 text-decoration-none portal-footer-link">My Inquiries</a>
-              <a href="/auth/logout" class="text-white-50 text-decoration-none portal-footer-link">Logout</a>
-            <% } else { %>
-              <a href="/auth/login"    class="text-white-50 text-decoration-none portal-footer-link">Sign In</a>
-              <a href="/auth/register" class="text-white-50 text-decoration-none portal-footer-link">Register</a>
-            <% } %>
-          </div>
-        </div>
-        <div class="col-12 col-md-4">
-          <div style="font-size:.75rem;font-weight:700;color:rgba(255,255,255,.5);margin-bottom:.75rem;text-transform:uppercase;letter-spacing:.08em;">Contact</div>
-          <div class="d-flex flex-column gap-2" style="font-size:.8rem;color:rgba(255,255,255,.6);">
-            <div><i class="fas fa-map-marker-alt me-2" style="color:#ffd166;"></i>Brgy. San Antonio, Gloria, Oriental Mindoro</div>
-            <div><i class="fas fa-phone-alt me-2" style="color:#ffd166;"></i>(02) 8123-4567</div>
-            <div><i class="fas fa-envelope me-2" style="color:#ffd166;"></i>info@balai-reserve.com</div>
-          </div>
-        </div>
+  <footer class="pt-footer">
+    <div class="pt-footer-inner">
+      <% const _rc = (typeof resortContact !== 'undefined' && resortContact) || {}; %>
+      <div>
+        <p class="pt-footer-brand">Balai-Reserve</p>
+        <p>Your Home Away From Home — rooms, cottages, a function hall and event packages by the beach.</p>
+        <address class="pt-footer-addr"><%= _rc.address || 'Brgy. San Antonio, Gloria, Oriental Mindoro, Philippines' %></address>
+        <ul>
+          <% if (_rc.phone) { %><li><a href="tel:<%= String(_rc.phone).replace(/[^\d+]/g, '') %>"><%= _rc.phone %></a></li><% } %>
+          <% if (_rc.email) { %><li><a href="mailto:<%= _rc.email %>"><%= _rc.email %></a></li><% } %>
+          <li><a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener">Facebook page<span class="br-sr-only"> (opens in a new tab)</span></a></li>
+        </ul>
       </div>
-      <hr style="border-color:rgba(255,255,255,.08);margin:0 0 1rem;" />
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2" style="font-size:.75rem;color:rgba(255,255,255,.35);">
-        <span>&copy; <%= new Date().getFullYear() %> Balai-Reserve. All rights reserved.</span>
-        <a href="/" style="color:rgba(0,229,255,.5);text-decoration:none;">Back to Home</a>
+      <div>
+        <h2>Book</h2>
+        <ul>
+          <li><a href="/portal/rooms">Rooms</a></li>
+          <li><a href="/portal/cottages">Cottages</a></li>
+          <li><a href="/portal/venues">Venue &amp; events</a></li>
+          <li><a href="/portal/calendar">Availability</a></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Your account</h2>
+        <ul>
+          <% if (currentUser) { %>
+            <li><a href="/portal/my-reservations">My reservations</a></li>
+            <li><a href="/portal/my-inquiries">My inquiries</a></li>
+            <li><a href="/portal/inquire">Contact the resort</a></li>
+            <li><a href="/auth/logout">Sign out</a></li>
+          <% } else { %>
+            <li><a href="/auth/login">Sign in</a></li>
+            <li><a href="/auth/register">Create an account</a></li>
+            <li><a href="/portal/inquire">Contact the resort</a></li>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+    <div class="pt-footer-base">
+      <div>
+        <span>&copy; <%= new Date().getFullYear() %> Balai-Reserve</span>
+        <a href="/">Resort website</a>
       </div>
     </div>
   </footer>
 
   <!-- Toast container for real-time notifications -->
-  <div id="toastContainer"></div>
+  <div id="toastContainer" aria-live="polite"></div>
 
   <%include('partials/chatbot')%>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="/js/main.js"></script>
+  <script>
+  // A catalogue photo whose file is missing shows the honest empty state instead of a broken image.
+  (function () {
+    function swap(img) {
+      var box = img.closest('.listing-photo, .discover-photo, .pt-photo');
+      if (!box || box.querySelector('.photo-pending')) return;
+      var btn = img.closest('.listing-photo-btn');
+      var ph = document.createElement('div');
+      ph.className = 'photo-pending';
+      ph.innerHTML = '<i class="far fa-image" aria-hidden="true"></i>Photo unavailable';
+      (btn || img).replaceWith(ph);
+      var count = box.querySelector('.listing-photo-count'); if (count) count.remove();
+    }
+    document.querySelectorAll('.listing-photo img, .discover-photo img, .pt-photo img').forEach(function (img) {
+      if (img.complete && img.naturalWidth === 0 && img.getAttribute('src')) swap(img);
+      else img.addEventListener('error', function () { swap(img); });
+    });
+  })();
+
+  // Header: hairline once the page scrolls; menu sheet with focus trap, Esc and focus return.
+  (function () {
+    var header = document.getElementById('ptHeader');
+    function onScroll() { if (header) header.classList.toggle('is-scrolled', window.scrollY > 4); }
+    window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+
+    var btn = document.getElementById('ptMenuBtn'), sheet = document.getElementById('ptMobileMenu'), close = document.getElementById('ptMenuClose');
+    if (!btn || !sheet) return;
+    function focusables() { return Array.prototype.filter.call(sheet.querySelectorAll('a[href], button:not([disabled])'), function (el) { return el.offsetParent !== null; }); }
+    function open() {
+      sheet.hidden = false; document.body.classList.add('pt-menu-open'); btn.setAttribute('aria-expanded', 'true');
+      var f = focusables(); if (close) close.focus(); else if (f[0]) f[0].focus();
+    }
+    function shut(restore) {
+      if (sheet.hidden) return;
+      sheet.hidden = true; document.body.classList.remove('pt-menu-open'); btn.setAttribute('aria-expanded', 'false');
+      if (restore !== false) btn.focus();
+    }
+    btn.addEventListener('click', open);
+    // Tablet side sheet: a click on the dimmed page behind it closes it.
+    document.addEventListener('click', function (e) { if (!sheet.hidden && !sheet.contains(e.target) && !btn.contains(e.target)) shut(); });
+    if (close) close.addEventListener('click', function () { shut(); });
+    sheet.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); shut(); return; }
+      if (e.key !== 'Tab') return;
+      var f = focusables(); if (!f.length) return;
+      var first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    });
+    window.addEventListener('resize', function () { if (window.innerWidth >= 1080) shut(false); });
+  })();
+
+  // Keep the bell's accessible name in step with the live unread badge (notifications.js updates the badge).
+  (function () {
+    var bell = document.getElementById('portalNotifBtn'), badge = document.getElementById('portalNotifBadge');
+    if (!bell || !badge || !window.MutationObserver) return;
+    function sync() {
+      var shown = badge.style.display !== 'none' && badge.textContent.trim() && badge.textContent.trim() !== '0';
+      bell.setAttribute('aria-label', 'Notifications' + (shown ? ', ' + badge.textContent.trim() + ' unread' : ''));
+    }
+    new MutationObserver(sync).observe(badge, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+  })();
+  </script>
   <% if (currentUser) { %>
   <script src="/js/notifications.js"></script>
   <% } %>

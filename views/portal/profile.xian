@@ -1,146 +1,124 @@
 <% layout('layouts/portal') %>
+<% const pc = (old && old.preferred_contact) || (customer && customer.preferred_contact) || 'email'; %>
 
-<div class="container-lg px-4 py-4">
-  <div class="mb-4">
-    <h4 class="fw-bold mb-1"><i class="fas fa-user-cog me-2 text-primary"></i>Profile Settings</h4>
-    <p class="text-muted mb-0" style="font-size:.85rem;">Manage your account details and password</p>
+<div class="pt-page">
+  <div class="pt-page-head">
+    <div>
+      <h1 class="pt-title">Profile and password</h1>
+      <p class="pt-lede">Keep your contact details current so the resort can reach you about your bookings.</p>
+    </div>
   </div>
 
-  <div class="row g-4">
+  <div class="profile-layout">
+    <aside class="pt-surface profile-card" aria-label="Account summary">
+      <span class="profile-avatar" aria-hidden="true"><%= (account.first_name || '?').charAt(0).toUpperCase() %></span>
+      <h2 class="pt-h2 mb-1"><%= account.first_name %> <%= account.last_name %></h2>
+      <p class="pt-small text-muted mb-3" style="overflow-wrap:anywhere;"><%= account.email %></p>
+      <dl class="pt-dl">
+        <dt>Mobile</dt><dd><%= account.phone || '—' %></dd>
+        <dt>Sign-in</dt><dd>Email and password</dd>
+        <dt>Member since</dt><dd><%= formatDate(account.created_at) %></dd>
+      </dl>
+    </aside>
 
-    <!-- Left: summary card -->
-    <div class="col-lg-4">
-      <div class="bg-white rounded-3 border p-4 text-center">
-        <div class="mx-auto mb-3 d-flex align-items-center justify-content-center"
-          style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;font-size:1.8rem;font-weight:700;">
-          <%= (account.first_name||'?').charAt(0) %><%= (account.last_name||'').charAt(0) %>
+    <div class="profile-forms">
+      <!-- Edit Profile -->
+      <section class="pt-surface" id="profile" aria-labelledby="profileHeading">
+        <h2 class="pt-h2" id="profileHeading">Personal details</h2>
+        <% if (errors && errors.length > 0) { %>
+        <div class="alert alert-danger" role="alert">
+          <% for (const e of errors) { %><div><%= e.msg %></div><% } %>
         </div>
-        <h5 class="fw-bold mb-0"><%= account.first_name %> <%= account.last_name %></h5>
-        <div class="text-muted small mb-2"><%= account.email %></div>
-        <span class="badge bg-primary-subtle text-primary" style="background:#eef2ff;color:#4f46e5;">
-          <i class="fas fa-user me-1"></i>Customer
-        </span>
-        <hr />
-        <div class="text-start small">
-          <div class="d-flex justify-content-between py-1">
-            <span class="text-muted">Phone</span>
-            <span class="fw-medium"><%= account.phone || '—' %></span>
-          </div>
-          <div class="d-flex justify-content-between py-1">
-            <span class="text-muted">Sign-in</span>
-            <span class="fw-medium">Email and password</span>
-          </div>
-          <div class="d-flex justify-content-between py-1">
-            <span class="text-muted">Member since</span>
-            <span class="fw-medium"><%= formatDate(account.created_at) %></span>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Right: tabbed forms -->
-    <div class="col-lg-8">
-      <div class="bg-white rounded-3 border overflow-hidden">
-
-        <!-- Tabs -->
-        <ul class="nav nav-tabs px-3 pt-2" id="profileTabs" role="tablist" style="border-bottom:1px solid #e2e8f0;">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link <%= activeTab !== 'password' ? 'active' : '' %>" id="tab-profile"
-              data-bs-toggle="tab" data-bs-target="#pane-profile" type="button" role="tab">
-              <i class="fas fa-user me-1"></i>Edit Profile
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link <%= activeTab === 'password' ? 'active' : '' %>" id="tab-password"
-              data-bs-toggle="tab" data-bs-target="#pane-password" type="button" role="tab">
-              <i class="fas fa-lock me-1"></i>Change Password
-            </button>
-          </li>
-        </ul>
-
-        <div class="tab-content p-4">
-
-          <!-- Edit Profile -->
-          <div class="tab-pane fade <%= activeTab !== 'password' ? 'show active' : '' %>" id="pane-profile" role="tabpanel">
-            <% if (errors && errors.length > 0) { %>
-            <div class="alert alert-danger py-2 small">
-              <% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
+        <% } %>
+        <form action="/portal/profile" method="POST" class="js-validate" novalidate data-no-autosubmit-lock>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="pfFirst">First name</label>
+              <input type="text" name="first_name" id="pfFirst" class="form-control" autocomplete="given-name"
+                value="<%= (old && old.first_name) || account.first_name || '' %>" required />
             </div>
-            <% } %>
-            <form action="/portal/profile" method="POST">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">First Name <span class="text-danger">*</span></label>
-                  <input type="text" name="first_name" class="form-control"
-                    value="<%= (old && old.first_name) || account.first_name || '' %>" required />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">Last Name <span class="text-danger">*</span></label>
-                  <input type="text" name="last_name" class="form-control"
-                    value="<%= (old && old.last_name) || account.last_name || '' %>" required />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">Email <span class="text-muted">(cannot be changed)</span></label>
-                  <input type="email" class="form-control" value="<%= account.email || '' %>" disabled />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">Phone Number</label>
-                  <input type="text" name="phone" class="form-control"
-                    value="<%= (old && old.phone) || account.phone || '' %>" placeholder="09XX-XXX-XXXX" />
-                </div>
-                <div class="col-12">
-                  <label class="form-label small fw-semibold">Address</label>
-                  <input type="text" name="address" class="form-control"
-                    value="<%= (old && old.address) || (customer && customer.address) || '' %>"
-                    placeholder="City, Province" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">Preferred Contact Method</label>
-                  <% const pc = (old && old.preferred_contact) || (customer && customer.preferred_contact) || 'email'; %>
-                  <select name="preferred_contact" class="form-select">
-                    <option value="email" <%= pc === 'email' ? 'selected' : '' %>>Email</option>
-                    <option value="phone" <%= pc === 'phone' ? 'selected' : '' %>>Phone Call</option>
-                    <option value="sms"   <%= pc === 'sms'   ? 'selected' : '' %>>SMS / Text</option>
-                  </select>
-                </div>
-              </div>
-              <div class="mt-4">
-                <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>Save Changes</button>
-              </div>
-            </form>
-          </div>
-
-          <!-- Change Password -->
-          <div class="tab-pane fade <%= activeTab === 'password' ? 'show active' : '' %>" id="pane-password" role="tabpanel">
-            <% if (pwErrors && pwErrors.length > 0) { %>
-            <div class="alert alert-danger py-2 small">
-              <% for (const e of pwErrors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
+            <div class="col-md-6">
+              <label class="form-label" for="pfLast">Last name</label>
+              <input type="text" name="last_name" id="pfLast" class="form-control" autocomplete="family-name"
+                value="<%= (old && old.last_name) || account.last_name || '' %>" required />
             </div>
-            <% } %>
-            <form action="/portal/profile/password" method="POST">
-              <div class="row g-3">
-                <div class="col-12">
-                  <label class="form-label small fw-semibold">Current Password <span class="text-danger">*</span></label>
-                  <input type="password" name="current_password" class="form-control" required autocomplete="current-password" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">New Password <span class="text-danger">*</span></label>
-                  <input type="password" name="new_password" id="newPass" class="form-control" required minlength="8" autocomplete="new-password" />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label small fw-semibold">Confirm New Password <span class="text-danger">*</span></label>
-                  <input type="password" name="confirm_password" id="confirmPass" class="form-control" required autocomplete="new-password" />
-                  <div id="pwMatch" class="form-text" style="font-size:.72rem;"></div>
-                </div>
-              </div>
-              <div class="mt-4">
-                <button type="submit" class="btn btn-primary px-4"><i class="fas fa-key me-1"></i>Update Password</button>
-              </div>
-            </form>
+            <div class="col-md-6">
+              <label class="form-label" for="pfEmail">Email <span class="opt">(can't be changed here)</span></label>
+              <input type="email" id="pfEmail" class="form-control" value="<%= account.email || '' %>" disabled />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="pfPhone">Mobile number</label>
+              <input type="tel" name="phone" id="pfPhone" class="form-control" autocomplete="tel" inputmode="tel"
+                value="<%= (old && old.phone) || account.phone || '' %>" aria-describedby="pfPhoneHint"
+                data-pattern="^(?:\+639|09)\d{9}$" data-msg-pattern="Enter a Philippine mobile number: 09XXXXXXXXX or +639XXXXXXXXX." />
+              <div class="form-text" id="pfPhoneHint">09XXXXXXXXX or +639XXXXXXXXX — used for booking updates.</div>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="pfAddress">Address</label>
+              <input type="text" name="address" id="pfAddress" class="form-control" autocomplete="street-address"
+                value="<%= (old && old.address) || (customer && customer.address) || '' %>"
+                placeholder="City, province" />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="pfContact">Preferred contact method</label>
+              <select name="preferred_contact" id="pfContact" class="form-select">
+                <option value="email" <%= pc === 'email' ? 'selected' : '' %>>Email</option>
+                <option value="phone" <%= pc === 'phone' ? 'selected' : '' %>>Phone call</option>
+                <option value="sms"   <%= pc === 'sms'   ? 'selected' : '' %>>SMS / text</option>
+              </select>
+            </div>
           </div>
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Save details</button>
+          </div>
+        </form>
+      </section>
 
+      <!-- Change Password -->
+      <section class="pt-surface" id="password" aria-labelledby="passwordHeading">
+        <h2 class="pt-h2" id="passwordHeading">Change password</h2>
+        <% if (pwErrors && pwErrors.length > 0) { %>
+        <div class="alert alert-danger" role="alert">
+          <% for (const e of pwErrors) { %><div><%= e.msg %></div><% } %>
         </div>
-      </div>
+        <% } %>
+        <form action="/portal/profile/password" method="POST" class="js-validate" novalidate data-no-autosubmit-lock>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label" for="currentPass">Current password</label>
+              <div class="input-group">
+                <input type="password" name="current_password" id="currentPass" class="form-control" required autocomplete="current-password" />
+                <button type="button" class="input-group-text btn-toggle-pass" data-target="currentPass" aria-label="Show current password">
+                  <i class="fas fa-eye" aria-hidden="true"></i>
+                </button>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="newPass">New password</label>
+              <div class="input-group">
+                <input type="password" name="new_password" id="newPass" class="form-control" required minlength="8" autocomplete="new-password" aria-describedby="newPassHint" />
+                <button type="button" class="input-group-text btn-toggle-pass" data-target="newPass" aria-label="Show new password">
+                  <i class="fas fa-eye" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div class="form-text" id="newPassHint">At least 8 characters.</div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="confirmPass">Confirm new password</label>
+              <div class="input-group">
+                <input type="password" name="confirm_password" id="confirmPass" class="form-control" required autocomplete="new-password" aria-describedby="pwMatch" />
+                <button type="button" class="input-group-text btn-toggle-pass" data-target="confirmPass" aria-label="Show password confirmation">
+                  <i class="fas fa-eye" aria-hidden="true"></i>
+                </button>
+              </div>
+              <div id="pwMatch" class="form-text" aria-live="polite"></div>
+            </div>
+          </div>
+          <div class="mt-4">
+            <button type="submit" class="btn btn-primary">Update password</button>
+          </div>
+        </form>
+      </section>
     </div>
   </div>
 </div>
@@ -153,11 +131,53 @@
   if (np && cp && msg) {
     function check() {
       if (!cp.value) { msg.textContent = ''; return; }
-      if (cp.value === np.value) { msg.style.color = '#16a34a'; msg.textContent = 'Passwords match'; }
-      else { msg.style.color = '#dc2626'; msg.textContent = 'Passwords do not match'; }
+      if (cp.value === np.value) { msg.style.color = 'var(--br-success)'; msg.textContent = 'Passwords match'; }
+      else { msg.style.color = 'var(--br-danger)'; msg.textContent = 'Passwords do not match'; }
     }
     np.addEventListener('input', check);
     cp.addEventListener('input', check);
   }
+  // Show/hide password: main.js swaps the field type; keep the button's state announced.
+  document.querySelectorAll('.btn-toggle-pass').forEach(function (b) {
+    b.setAttribute('aria-pressed', 'false');
+    b.addEventListener('click', function () {
+      setTimeout(function () {
+        var f = document.getElementById(b.dataset.target);
+        b.setAttribute('aria-pressed', f && f.type === 'text' ? 'true' : 'false');
+      }, 0);
+    });
+  });
+  // Inline validation: concise errors under the field, focus the first problem, busy state while saving.
+  function setErr(f, m) {
+    var host = f.closest('.input-group') || f, id = f.id + 'Err', box = document.getElementById(id);
+    if (!m) { if (box) box.remove(); f.classList.remove('is-invalid'); f.removeAttribute('aria-invalid'); return true; }
+    if (!box) { box = document.createElement('div'); box.id = id; box.className = 'field-error'; host.insertAdjacentElement('afterend', box);
+      f.setAttribute('aria-describedby', ((f.getAttribute('aria-describedby') || '') + ' ' + id).trim()); }
+    box.textContent = m; f.classList.add('is-invalid'); f.setAttribute('aria-invalid', 'true'); return false;
+  }
+  function label(f) { var l = document.querySelector('label[for="' + f.id + '"]'); return l ? l.childNodes[0].textContent.trim() : 'This field'; }
+  function validateField(f) {
+    var v = f.value.trim();
+    if (f.required && !v) return setErr(f, label(f) + ' is required.');
+    if (f.minLength > 0 && v && v.length < f.minLength) return setErr(f, 'Use at least ' + f.minLength + ' characters.');
+    if (f.dataset.pattern && v && !new RegExp(f.dataset.pattern).test(v.replace(/[\s-]/g, ''))) return setErr(f, f.dataset.msgPattern);
+    if (f.id === 'confirmPass' && v && np && v !== np.value) return setErr(f, 'Passwords do not match.');
+    return setErr(f, '');
+  }
+  document.querySelectorAll('form.js-validate').forEach(function (form) {
+    var fields = Array.prototype.slice.call(form.querySelectorAll('input:not([type=hidden]):not(:disabled)'));
+    fields.forEach(function (f) { f.addEventListener('blur', function () { if (f.value || f.classList.contains('is-invalid')) validateField(f); }); });
+    form.addEventListener('submit', function (e) {
+      var bad = fields.filter(function (f) { return !validateField(f); });
+      if (bad.length) { e.preventDefault(); bad[0].focus(); return; }
+      var btn = form.querySelector('[type=submit]');
+      if (btn) { btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Saving…'; }
+    });
+  });
+  // After a password error the server re-renders with the password section active.
+  <% if (activeTab === 'password') { %>
+  var pw = document.getElementById('password');
+  if (pw) pw.scrollIntoView({ block: 'start' });
+  <% } %>
 })();
 </script>

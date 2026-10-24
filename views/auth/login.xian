@@ -1,63 +1,45 @@
 <% layout('layouts/auth') %>
 
 <% if (errors && errors.length > 0) { %>
-<div class="alert alert-danger">
-  <% for (const e of errors) { %>
-    <div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div>
-  <% } %>
+<div class="alert alert-danger auth-alert" role="alert">
+  <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+  <div><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div>
 </div>
 <% } %>
 
-<h4 class="auth-title">Welcome Back</h4>
-<p class="auth-subtitle">Sign in to your account to continue</p>
+<h1 class="auth-title">Sign in</h1>
+<p class="auth-subtitle">Guests can book and track their stays. Resort staff sign in to the back office here too.</p>
 
-<form action="/auth/login" method="POST" novalidate>
-  <div class="mb-3">
-    <label for="email" class="form-label">Email Address</label>
-    <div class="input-group">
-      <span class="input-group-text"><i class="fas fa-envelope"></i></span>
-      <input type="email" id="email" name="email" class="form-control"
-        value="<%= old && old.email ? escape(old.email) : '' %>"
-        placeholder="your@email.com" required autocomplete="email" />
-    </div>
+<form action="/auth/login" method="POST" novalidate class="auth-form">
+  <div class="auth-field">
+    <label for="email" class="form-label">Email address</label>
+    <input type="email" id="email" name="email" class="form-control"
+      value="<%= old && old.email ? escape(old.email) : '' %>"
+      placeholder="you@example.com" required autocomplete="email" inputmode="email" />
   </div>
-  <div class="mb-4">
+  <div class="auth-field">
     <label for="password" class="form-label">Password</label>
-    <div class="input-group">
-      <span class="input-group-text"><i class="fas fa-lock"></i></span>
+    <div class="auth-pass">
       <input type="password" id="password" name="password" class="form-control"
-        placeholder="Enter your password" required autocomplete="current-password" />
-      <button type="button" class="input-group-text" id="togglePass">
-        <i class="fas fa-eye"></i>
+        required autocomplete="current-password" />
+      <button type="button" class="auth-pass-toggle" id="togglePass" aria-controls="password" aria-pressed="false" aria-label="Show password">
+        <i class="fas fa-eye" aria-hidden="true"></i><span class="auth-pass-label">Show</span>
       </button>
     </div>
   </div>
-  <button type="submit" class="btn btn-primary btn-auth w-100">
-    <i class="fas fa-sign-in-alt me-2"></i>Sign In
-  </button>
+  <button type="submit" class="btn btn-primary btn-auth w-100">Sign in</button>
 </form>
 
 <% if (googleLoginEnabled) { %>
-<div class="d-flex align-items-center gap-3 my-3">
-  <hr class="flex-grow-1" style="border-color:rgba(255,255,255,.2);" />
-  <span style="color:rgba(255,255,255,.5);font-size:.78rem;">OR</span>
-  <hr class="flex-grow-1" style="border-color:rgba(255,255,255,.2);" />
-</div>
-<a href="/auth/google" class="btn btn-outline-light w-100">
-  <i class="fab fa-google me-2"></i>Continue with Google
+<div class="auth-divider"><span>or</span></div>
+<a href="/auth/google" class="btn auth-google w-100">
+  <i class="fab fa-google" aria-hidden="true"></i>Continue with Google
 </a>
 <% } %>
 
-<div class="text-center mt-3">
-  <span style="color:rgba(255,255,255,.5);font-size:.82rem;">Don't have an account?</span>
-  <a href="/auth/register" style="color:#00e5ff;font-size:.82rem;font-weight:600;margin-left:.35rem;">
-    Create one free
-  </a>
-</div>
-<div class="text-center mt-2">
-  <a href="/portal" style="color:rgba(255,255,255,.4);font-size:.76rem;text-decoration:none;">
-    <i class="fas fa-search me-1"></i>Browse rooms &amp; venues without signing in
-  </a>
+<div class="auth-alt">
+  <p>New to Balai-Reserve? <a href="/auth/register">Create an account</a></p>
+  <p><a href="/portal" class="auth-quiet-link">Browse rooms and venues without signing in</a></p>
 </div>
 
 <script>
@@ -69,10 +51,14 @@
 
   toggleBtn.addEventListener('click', function () {
     var icon = toggleBtn.querySelector('i');
+    var label = toggleBtn.querySelector('.auth-pass-label');
     var showPassword = passInput.type === 'password';
     passInput.type = showPassword ? 'text' : 'password';
     icon.classList.toggle('fa-eye', !showPassword);
     icon.classList.toggle('fa-eye-slash', showPassword);
+    toggleBtn.setAttribute('aria-pressed', String(showPassword));
+    toggleBtn.setAttribute('aria-label', showPassword ? 'Hide password' : 'Show password');
+    if (label) label.textContent = showPassword ? 'Hide' : 'Show';
   });
 })();
 </script>

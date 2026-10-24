@@ -1,52 +1,114 @@
 <% layout('layouts/portal') %>
-<div class="container-lg px-4 py-4">
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <div><h4 class="fw-bold mb-1">My Bookings</h4><p class="text-muted mb-0">All your reservation history</p></div>
-    <a href="/portal/book" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>New Booking</a>
+<%
+  const ACTIVE = ['pending', 'pencil', 'on_hold', 'awaiting_payment', 'confirmed', 'checked_in'];
+  const todayPH = new Date(Date.now() + 8 * 3600e3).toISOString().slice(0, 10);
+  const startOf = (r) => String(r.check_in_date || r.event_date || '').slice(0, 10);
+  const endOf = (r) => String(r.check_out_date || r.check_in_date || r.event_date || '').slice(0, 10);
+
+  // Upcoming: open bookings whose date is still ahead.
+  // Active: checked in, or open bookings whose date has arrived (incl. ones still waiting on the resort).
+  // Past & cancelled: completed, cancelled, rejected, no-show.
+  const tabOf = (r) => {
+    if (!ACTIVE.includes(r.status)) return 'past';
+    if (r.status === 'checked_in') return 'active';
+    const s = startOf(r);
+    return s && s <= todayPH ? 'active' : 'upcoming';
+  };
+  const all = reservations || [];
+  const by = { upcoming: [], active: [], past: [] };
+  for (const r of all) by[tabOf(r)].push(r);
+  by.upcoming.sort((a, b) => startOf(a).localeCompare(startOf(b)) || a.id - b.id);
+  by.active.sort((a, b) => startOf(a).localeCompare(startOf(b)) || a.id - b.id);
+  by.past.sort((a, b) => startOf(b).localeCompare(startOf(a)) || b.id - a.id);
+
+  const TABS = [
+    ['upcoming', 'Upcoming', 'Bookings with dates still ahead.', 'No upcoming bookings', 'When you book a room, cottage, venue or package, it appears here with its payment steps and check-in QR.'],
+    ['active', 'Active', 'Stays happening now, and open bookings whose date has arrived.', 'Nothing active right now', 'A booking shows here on its date and while you’re checked in.'],
+    ['past', 'Past & cancelled', 'Completed, cancelled and declined bookings.', 'No past bookings', 'Completed and cancelled bookings are kept here for your records.'],
+  ];
+  const q = String((typeof tab !== 'undefined' && tab) || '');
+  // ?tab= picks the panel server-side (works without JavaScript); otherwise open the first tab that has bookings.
+  const sel = TABS.some(t => t[0] === q) ? q : (by.active.length && by.active.some(r => r.status === 'checked_in') ? 'active' : by.upcoming.length ? 'upcoming' : by.active.length ? 'active' : by.past.length ? 'past' : 'upcoming');
+%>
+<div class="pt-page">
+  <div class="pt-page-head">
+    <div>
+      <h1 class="pt-title">My reservations</h1>
+      <p class="pt-lede">Each booking shows its reservation status and, separately, its payment status — plus what to do next.</p>
+    </div>
+    <a href="/portal/book" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>Book another stay</a>
   </div>
 
-  <% if (!reservations || reservations.length === 0) { %>
-  <div class="text-center py-5 bg-white rounded-3 border">
-    <i class="fas fa-calendar-times fa-3x text-muted mb-3 d-block"></i>
-    <h5 class="text-muted">No bookings yet.</h5>
-    <p class="text-muted small">Make your first reservation today!</p>
-    <a href="/portal/book" class="btn btn-primary mt-2"><i class="fas fa-calendar-plus me-1"></i>Book Now</a>
-  </div>
-  <% } else { %>
-    <% for (const r of reservations) { %>
-    <div class="booking-item">
-      <div class="row g-3 align-items-center">
-        <div class="col-auto">
-          <div class="text-center p-2 rounded-3 bg-light" style="min-width:50px;">
-            <div style="font-size:1.5rem;color:#4f46e5;">
-              <% if (r.reservation_type==='room') { %><i class="fas fa-bed"></i>
-              <% } else if (r.reservation_type==='event') { %><i class="fas fa-star"></i>
-              <% } else if (r.reservation_type==='venue') { %><i class="fas fa-map-marker-alt"></i>
-              <% } else { %><i class="fas fa-home"></i><% } %>
-            </div>
-            <div class="small text-muted mt-1"><%= r.reservation_type %></div>
-          </div>
-        </div>
-        <div class="col">
-          <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
-            <span class="booking-ref"><%= r.booking_ref %></span>
-            <%- statusBadge(r.status) %>
-            <%- statusBadge(r.payment_status) %>
-          </div>
-          <div class="small text-muted">
-            <% if (r.check_in_date) { %><i class="fas fa-calendar me-1"></i><%= formatDate(r.check_in_date) %> → <%= formatDate(r.check_out_date) %><% } %>
-            <% if (r.event_date) { %><i class="fas fa-calendar me-1"></i><%= formatDate(r.event_date) %><% } %>
-            <span class="ms-2"><i class="fas fa-users me-1"></i><%= r.num_guests %> guests</span>
-          </div>
-          <% if (r.special_requests) { %><div class="small text-muted mt-1 fst-italic"><%= r.special_requests.slice(0,80) %></div><% } %>
-        </div>
-        <div class="col-auto text-end">
-          <div class="fw-bold text-primary"><%= formatPeso(r.total_amount) %></div>
-          <div class="small text-muted">Booked <%= formatDate(r.created_at) %></div>
-          <a href="/portal/my-reservations/<%= r.id %>" class="btn btn-sm btn-outline-primary mt-1">View Details</a>
-        </div>
+  <% if (all.length === 0) { %>
+  <div class="hm-empty">
+    <div class="hm-empty-text">
+      <h2 class="hm-empty-title">No bookings yet</h2>
+      <p>When you book a room, cottage, venue or event package, it appears here with its payment steps and check-in QR.</p>
+      <div class="d-flex flex-wrap gap-2">
+        <a href="/portal/rooms" class="btn btn-secondary-quiet">Explore stays</a>
+        <a href="/portal/calendar" class="btn btn-secondary-quiet">Availability calendar</a>
       </div>
     </div>
+  </div>
+  <% } else { %>
+  <div class="bk-tabs" role="tablist" aria-label="Filter reservations" id="bkTabs">
+    <% for (const [id, label] of TABS) { %>
+    <a href="/portal/my-reservations?tab=<%= id %>" role="tab" id="tab-<%= id %>" aria-controls="panel-<%= id %>"
+       aria-selected="<%= sel === id ? 'true' : 'false' %>" tabindex="<%= sel === id ? '0' : '-1' %>" data-tab="<%= id %>">
+      <%= label %> <span class="bk-tab-count"><%= by[id].length %></span>
+    </a>
     <% } %>
+  </div>
+
+  <% for (const [id, label, lede, emptyTitle, emptyText] of TABS) { %>
+  <section class="bk-panel" role="tabpanel" id="panel-<%= id %>" aria-labelledby="tab-<%= id %>" tabindex="0" <%= sel === id ? '' : 'hidden' %>>
+    <p class="bk-panel-lede"><%= lede %></p>
+    <% if (by[id].length) { %>
+    <ul class="rt-list">
+      <% for (const r of by[id]) { %><li><%include('portal/_reservation-tile', Object.assign({}, __locals, { tile: { r, h: 'h2' } }))%></li><% } %>
+    </ul>
+    <% } else { %>
+    <div class="bk-empty">
+      <p class="bk-empty-title"><%= emptyTitle %></p>
+      <p><%= emptyText %></p>
+      <a href="/portal/book" class="btn btn-secondary-quiet">Book a stay</a>
+    </div>
+    <% } %>
+  </section>
+  <% } %>
   <% } %>
 </div>
+
+<script>
+// Tabs: instant switching with arrow keys; links keep working without JavaScript (?tab=…).
+(function () {
+  var list = document.getElementById('bkTabs');
+  if (!list) return;
+  var tabs = Array.prototype.slice.call(list.querySelectorAll('[role="tab"]'));
+  function show(tab, focus) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+    if (focus) tab.focus();
+    try { history.replaceState(null, '', '?tab=' + tab.dataset.tab); } catch (e) {}
+  }
+  var want = new URLSearchParams(location.search).get('tab') || (location.hash || '').slice(1);
+  var initial = tabs.filter(function (t) { return t.dataset.tab === want; })[0];
+  if (initial && initial.getAttribute('aria-selected') !== 'true') show(initial, false);
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function (e) { e.preventDefault(); show(t, false); });
+    t.addEventListener('keydown', function (e) {
+      var k = e.key, n = null;
+      if (k === 'ArrowRight') n = tabs[(i + 1) % tabs.length];
+      else if (k === 'ArrowLeft') n = tabs[(i - 1 + tabs.length) % tabs.length];
+      else if (k === 'Home') n = tabs[0];
+      else if (k === 'End') n = tabs[tabs.length - 1];
+      else if (k === ' ') { e.preventDefault(); show(t, false); return; }
+      if (n) { e.preventDefault(); show(n, true); }
+    });
+  });
+})();
+</script>

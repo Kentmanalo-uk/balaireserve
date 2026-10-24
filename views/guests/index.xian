@@ -1,51 +1,61 @@
 <% layout('layouts/main') %>
+<% const anyFilter = !!(filters.search || filters.status); %>
 
-<div class="page-header">
-  <div><h3 class="mb-1">Guests</h3><p class="text-muted mb-0">Current and past guest records</p></div>
-</div>
-
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/guests" class="row g-2 align-items-end">
-      <div class="col-12 col-md-5">
-        <input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Name, email or booking ref..." />
-      </div>
-      <div class="col-6 col-md-3">
-        <select name="status" class="form-select form-select-sm">
-          <option value="">All Statuses</option>
-          <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/_/g,' ') %></option><% } %>
-        </select>
-      </div>
-      <div class="col-3 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-      <div class="col-3 col-md-2"><a href="/guests" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-    </form>
+<!--page-head-->
+<h1 class="ph-title">Guests</h1>
+<div class="ph-actions">
+    <a href="/reservations/view/calendar" class="btn btn-outline-secondary">Booking calendar</a>
   </div>
-</div>
+<!--/page-head-->
+<p class="page-intro">People staying or arriving, with their check-in state. Check guests in by scanning their booking QR or with <strong>Check in guest</strong> on the reservation; check them out from the reservation.</p>
 
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>Guest</th><th>Booking Ref</th><th>Check-in</th><th>Check-out</th><th>Res. Status</th><th>Guest Status</th><th></th></tr></thead>
-        <tbody>
-          <% if (!guests || guests.length === 0) { %>
-          <tr><td colspan="7" class="text-center py-4 text-muted">No guests found.</td></tr>
-          <% } else { %>
-            <% for (const g of guests) { %>
-            <tr>
-              <td><div class="fw-medium"><%= g.first_name %> <%= g.last_name %></div><div class="text-muted small"><%= g.email || '' %></div></td>
-              <td><a href="/reservations/<%= g.reservation_id %>"><code class="small"><%= g.booking_ref %></code></a></td>
-              <td class="small"><%= formatDate(g.check_in_date) %></td>
-              <td class="small"><%= formatDate(g.check_out_date) %></td>
-              <td><%- statusBadge(g.res_status) %></td>
-              <td><%- statusBadge(g.status) %></td>
-              <td><a href="/guests/<%= g.id %>" class="btn btn-xs btn-outline-primary">View</a></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
+<form method="GET" action="/guests" class="toolbar" role="search" aria-label="Filter guests">
+  <div class="tb-field tb-search">
+    <label for="guestSearch">Search</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="fas fa-search" aria-hidden="true"></i></span>
+      <input type="text" id="guestSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Name, email or booking ref" />
     </div>
   </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
+  <div class="tb-field">
+    <label for="guestStatus">Guest status</label>
+    <select id="guestStatus" name="status" class="form-select">
+      <option value="">All statuses</option>
+      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
+    </select>
+  </div>
+  <div class="tb-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (anyFilter) { %><a href="/guests" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<div class="result-meta"><%= pagination.total %> guest record<%= pagination.total === 1 ? '' : 's' %><%= anyFilter ? ' match these filters' : '' %></div>
+
+<div class="panel">
+  <div class="table-responsive">
+    <table class="table table-br table-hover table-stack mb-0">
+      <caption class="visually-hidden">Guests</caption>
+      <thead><tr><th scope="col">Guest</th><th scope="col">Booking</th><th scope="col">Stay</th><th scope="col">Booking status</th><th scope="col">Guest status</th><th scope="col"><span class="visually-hidden">Action</span></th></tr></thead>
+      <tbody>
+        <% if (!guests || guests.length === 0) { %>
+        <tr><td colspan="6" class="empty-cell text-center py-4 text-muted">No guests found<%= anyFilter ? ' for these filters' : '' %>.</td></tr>
+        <% } else { %>
+          <% for (const g of guests) { %>
+          <tr>
+            <td data-cell="primary"><a href="/guests/<%= g.id %>" class="fw-semibold"><%= g.first_name %> <%= g.last_name %></a><% if (g.email) { %><span class="cell-sub"><%= g.email %></span><% } %></td>
+            <td data-cell="main"><a href="/reservations/<%= g.reservation_id %>" class="ref"><%= g.booking_ref %></a></td>
+            <td data-cell="main" class="cell-meta text-nowrap"><%= formatDate(g.check_in_date) %><% if (g.check_out_date && String(g.check_out_date) !== String(g.check_in_date)) { %> – <%= formatDate(g.check_out_date) %><% } %></td>
+            <td data-cell="side"><%- statusBadge(g.res_status) %></td>
+            <td data-cell="status"><%- statusBadge(g.status) %></td>
+            <td data-cell="action" class="text-end"><a href="/guests/<%= g.id %>" class="row-action" aria-label="Open guest <%= g.first_name %> <%= g.last_name %>">Open</a></td>
+          </tr>
+          <% } %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% if (pagination && pagination.totalPages > 1) { %>
+  <div class="panel-foot"><%include('partials/pagination')%></div>
+  <% } %>
 </div>

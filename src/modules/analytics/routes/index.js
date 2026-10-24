@@ -106,7 +106,7 @@ router.get('/', requireAuth, requireRole('admin'), async (req, res) => {
   const projectedRes = Math.round(last3MonthsRes / 3);
 
   res.render('analytics/index', {
-    title: 'Analytics & Insights – Balai-Reserve',
+    title: 'Analytics – Balai-Reserve',
     layout: 'layouts/main',
     revenueTrend:   JSON.stringify(revenueTrend),
     resTrend:       JSON.stringify(resTrend),

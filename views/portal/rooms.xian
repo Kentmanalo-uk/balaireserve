@@ -1,638 +1,96 @@
 <% layout('layouts/portal') %>
+<%
+  const hasDates = !!(filters.checkin && filters.checkout);
+  const nights = hasDates ? Math.round((new Date(filters.checkout) - new Date(filters.checkin)) / 86400000) : 0;
+  // Searched dates travel with each listing to its page and to the booking form.
+  const carry = new URLSearchParams();
+  if (hasDates && nights > 0) { carry.set('checkin', filters.checkin); carry.set('checkout', filters.checkout); }
+  if (filters.guests) carry.set('guests', filters.guests);
+  const qs = carry.toString() ? '?' + carry.toString() : '';
+  const range = hasDates && nights > 0 ? formatDate(filters.checkin, 'MMM D') + ' – ' + formatDate(filters.checkout, 'MMM D') : '';
+%>
 
-<style>
-/* ═══════════════════════════════════════════════════════════
-   Rooms Browse — Ocean Glassmorphism Theme
-   ═══════════════════════════════════════════════════════════ */
-
-/* ── Page background ───────────────────────────────────────── */
-.rooms-page-bg {
-  min-height: 100vh;
-  background: linear-gradient(160deg, #f0f4f8 0%, #e8eef5 100%);
-}
-
-/* ── Sub-hero banner ────────────────────────────────────────── */
-.rooms-hero {
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(ellipse 80% 60% at 50% 0%,  #0d3b52 0%, transparent 70%),
-    radial-gradient(ellipse 40% 60% at 90% 60%,  #0a2e1e 0%, transparent 55%),
-    linear-gradient(160deg, #020c18 0%, #031220 45%, #04192a 100%);
-  padding: 2.5rem 1.5rem 2rem;
-  color: white;
-  border-bottom: 1px solid rgba(0,229,255,.12);
-}
-.rooms-hero::before {
-  content: '';
-  position: absolute; inset: 0; pointer-events: none;
-  background:
-    radial-gradient(circle 280px at 15% 60%, rgba(0,229,255,.10) 0%, transparent 65%),
-    radial-gradient(circle 200px at 85% 30%, rgba(57,255,138,.08) 0%, transparent 60%);
-}
-.rooms-hero::after {
-  content: '';
-  position: absolute; inset: 0; pointer-events: none;
-  background-image:
-    linear-gradient(rgba(0,229,255,.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,229,255,.03) 1px, transparent 1px);
-  background-size: 60px 60px;
-  mask-image: radial-gradient(ellipse 85% 85% at 50% 50%, black 20%, transparent 100%);
-}
-.rooms-hero-inner { position: relative; z-index: 1; }
-.rooms-hero h4 {
-  font-size: clamp(1.4rem, 3vw, 2rem);
-  font-weight: 800;
-  margin-bottom: .25rem;
-  text-shadow: 0 2px 16px rgba(0,0,0,.4);
-}
-.rooms-hero h4 span {
-  background: linear-gradient(135deg, #ffd166, #ff9f43, #ffd166);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: shimmer 4s linear infinite;
-}
-@keyframes shimmer {
-  0%   { background-position: 0% center; }
-  100% { background-position: 200% center; }
-}
-.rooms-hero p { color: rgba(255,255,255,.65); font-size: .88rem; margin: 0; }
-
-/* ── Filter bar ────────────────────────────────────────────── */
-.filter-bar {
-  background: rgba(255,255,255,.92);
-  backdrop-filter: blur(12px);
-  border-radius: 1rem;
-  border: 1px solid rgba(0,229,255,.18);
-  padding: 1.1rem 1.25rem;
-  box-shadow: 0 4px 24px rgba(0,0,0,.07), 0 0 0 1px rgba(0,229,255,.06) inset;
-}
-.filter-bar .form-control,
-.filter-bar .form-select {
-  border-color: #e2e8f0 !important;
-  border-radius: .625rem !important;
-  font-size: .82rem !important;
-  transition: border-color .2s, box-shadow .2s;
-}
-.filter-bar .form-control:focus,
-.filter-bar .form-select:focus {
-  border-color: rgba(0,229,255,.5) !important;
-  box-shadow: 0 0 0 3px rgba(0,229,255,.12) !important;
-}
-.filter-bar label {
-  font-size: .72rem !important;
-  font-weight: 700 !important;
-  color: #374151 !important;
-  letter-spacing: .03em;
-  text-transform: uppercase;
-}
-.filter-bar .btn-search {
-  background: linear-gradient(135deg, #031220, #0a3d4a);
-  color: #00e5ff;
-  border: none;
-  border-radius: .625rem;
-  font-size: .85rem;
-  box-shadow: 0 0 12px rgba(0,229,255,.15);
-  transition: all .2s;
-}
-.filter-bar .btn-search:hover {
-  background: linear-gradient(135deg, #0a3d4a, #031220);
-  box-shadow: 0 0 20px rgba(0,229,255,.3);
-}
-.filter-bar .btn-clear {
-  background: #f1f5f9;
-  color: #64748b;
-  border: 1px solid #e2e8f0;
-  border-radius: .625rem;
-  font-size: .85rem;
-  transition: all .2s;
-}
-.filter-bar .btn-clear:hover { background: #e2e8f0; color: #374151; }
-
-/* ── Breadcrumb ─────────────────────────────────────────────── */
-.page-breadcrumb {
-  font-size: .8rem;
-  color: rgba(255,255,255,.5);
-}
-.page-breadcrumb a { color: rgba(0,229,255,.7); text-decoration: none; }
-.page-breadcrumb a:hover { color: #00e5ff; }
-.page-breadcrumb .separator { margin: 0 .5rem; opacity: .4; }
-
-/* Quick-nav pills */
-.quick-nav-pill {
-  display: inline-flex; align-items: center; gap: .4rem;
-  padding: .35rem .9rem;
-  border-radius: 2rem;
-  font-size: .78rem; font-weight: 600;
-  border: 1px solid rgba(255,255,255,.2);
-  color: rgba(255,255,255,.8);
-  background: rgba(255,255,255,.08);
-  backdrop-filter: blur(6px);
-  text-decoration: none;
-  transition: all .2s;
-}
-.quick-nav-pill:hover {
-  background: rgba(0,229,255,.12);
-  border-color: rgba(0,229,255,.4);
-  color: #00e5ff;
-  text-decoration: none;
-}
-.btn-book-now {
-  display: inline-flex; align-items: center; gap: .4rem;
-  padding: .38rem 1.1rem;
-  border-radius: 2rem;
-  font-size: .78rem; font-weight: 700;
-  background: linear-gradient(135deg, #ffd166, #e6a800);
-  color: #0a0a0a !important;
-  border: none;
-  box-shadow: 0 0 14px rgba(255,209,102,.3);
-  text-decoration: none;
-  transition: all .2s;
-}
-.btn-book-now:hover {
-  box-shadow: 0 0 24px rgba(255,209,102,.55);
-  transform: translateY(-1px);
-  text-decoration: none;
-}
-
-/* ── Room Cards ─────────────────────────────────────────────── */
-.accom-card {
-  background: #fff;
-  border-radius: 1rem;
-  overflow: hidden;
-  border: 1px solid #e2e8f0;
-  transition: transform .22s, box-shadow .22s, border-color .22s;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  box-shadow: 0 2px 12px rgba(0,0,0,.06);
-}
-.accom-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 16px 40px rgba(0,0,0,.12);
-  border-color: rgba(0,229,255,.25);
-}
-
-.accom-img-wrap {
-  position: relative;
-  height: 220px;
-  overflow: hidden;
-  cursor: pointer;
-  background:
-    radial-gradient(circle 120px at 25% 40%, rgba(0,229,255,.14) 0%, transparent 60%),
-    radial-gradient(circle 80px at 80% 70%, rgba(57,255,138,.09) 0%, transparent 55%),
-    linear-gradient(135deg, #020c18 0%, #041428 40%, #0a3d4a 100%);
-}
-.accom-img-wrap img {
-  width: 100%; height: 100%;
-  object-fit: cover;
-  transition: transform .35s;
-}
-.accom-card:hover .accom-img-wrap img { transform: scale(1.05); }
-
-.img-count-badge {
-  position: absolute; bottom: .6rem; right: .6rem;
-  background: rgba(2,12,24,.7);
-  color: rgba(255,255,255,.9);
-  font-size: .68rem; font-weight: 600;
-  padding: 3px 9px; border-radius: 999px;
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(255,255,255,.15);
-}
-
-.accom-img-placeholder {
-  width: 100%; height: 100%;
-  display: flex; align-items: center; justify-content: center;
-  color: rgba(255,255,255,.2); font-size: 4rem;
-}
-
-/* Type badge overlaid on image */
-.accom-img-type {
-  position: absolute; top: .625rem; left: .625rem;
-  font-size: .65rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
-  background: rgba(2,12,24,.75);
-  color: #ffd166;
-  padding: 2px 9px; border-radius: 999px;
-  backdrop-filter: blur(4px);
-  border: 1px solid rgba(255,209,102,.25);
-}
-
-.accom-body { padding: 1.25rem; flex: 1; display: flex; flex-direction: column; }
-
-.accom-name {
-  font-size: 1rem; font-weight: 700;
-  color: #0f172a;
-  margin-bottom: .25rem;
-}
-.accom-meta {
-  font-size: .78rem; color: #64748b; margin-bottom: .6rem;
-  display: flex; flex-wrap: wrap; gap: .5rem; align-items: center;
-}
-.accom-meta i { color: #0a3d4a; }
-
-.accom-amenities { display: flex; flex-wrap: wrap; gap: .25rem; margin-bottom: .75rem; }
-.accom-amenity {
-  font-size: .67rem;
-  background: #f0f9ff;
-  color: #0369a1;
-  padding: 2px 8px; border-radius: 999px;
-  border: 1px solid #bae6fd;
-  display: flex; align-items: center; gap: 3px;
-}
-.accom-amenity i { color: #10b981; font-size: .55rem; }
-.accom-amenity.more { background: #f8fafc; color: #94a3b8; border-color: #e2e8f0; }
-
-.accom-desc {
-  font-size: .79rem; color: #64748b; flex: 1; margin-bottom: 1rem;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  line-height: 1.6;
-}
-
-.accom-footer {
-  display: flex; justify-content: space-between; align-items: center;
-  padding-top: .75rem;
-  border-top: 1px solid #f1f5f9;
-  margin-top: auto;
-}
-.accom-price {
-  font-size: 1.2rem; font-weight: 800;
-  background: linear-gradient(135deg, #031220, #0a3d4a);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-}
-.accom-price span { font-size: .72rem; font-weight: 400; color: #94a3b8; }
-.accom-downpay { font-size: .7rem; color: #d97706; font-weight: 500; margin-top: 1px; }
-
-/* Card action buttons */
-.btn-photos {
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  color: #475569;
-  border-radius: .5rem;
-  font-size: .78rem;
-  padding: .3rem .65rem;
-  transition: all .18s;
-}
-.btn-photos:hover {
-  background: #e0f2fe; border-color: #7dd3fc; color: #0369a1;
-}
-.btn-book {
-  background: linear-gradient(135deg, #031220, #0a3d4a);
-  color: #00e5ff !important;
-  border: none;
-  border-radius: .5rem;
-  font-size: .8rem;
-  font-weight: 700;
-  padding: .32rem .9rem;
-  box-shadow: 0 0 10px rgba(0,229,255,.15);
-  transition: all .2s;
-  text-decoration: none;
-}
-.btn-book:hover {
-  box-shadow: 0 0 20px rgba(0,229,255,.35);
-  transform: translateY(-1px);
-  color: #fff !important;
-}
-
-/* ── Empty state ────────────────────────────────────────────── */
-.empty-rooms {
-  background: rgba(255,255,255,.85);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(0,229,255,.15);
-  border-radius: 1.25rem;
-  padding: 4rem 2rem;
-  text-align: center;
-  box-shadow: 0 4px 20px rgba(0,0,0,.06);
-}
-.empty-rooms i { font-size: 3rem; color: #cbd5e1; margin-bottom: 1rem; display: block; }
-.empty-rooms h5 { color: #334155; font-weight: 700; }
-.empty-rooms p  { color: #64748b; font-size: .85rem; }
-.btn-show-all {
-  background: linear-gradient(135deg, #031220, #0a3d4a);
-  color: #00e5ff !important;
-  border: none; border-radius: 2rem;
-  font-weight: 600; padding: .5rem 1.5rem;
-  box-shadow: 0 0 12px rgba(0,229,255,.15);
-  text-decoration: none; transition: all .2s;
-}
-.btn-show-all:hover { box-shadow: 0 0 22px rgba(0,229,255,.35); color: #fff !important; }
-
-/* ── Unavailable state ──────────────────────────────────────── */
-.accom-img-wrap.is-unavailable img { filter: grayscale(1) brightness(.7); }
-.accom-unavailable-badge {
-  position: absolute; top: 10px; left: 10px; z-index: 2;
-  background: rgba(220,38,38,.95); color: #fff;
-  font-size: .72rem; font-weight: 700; padding: 4px 10px;
-  border-radius: 999px; letter-spacing: .02em;
-}
-.btn-book-disabled {
-  background: #e5e7eb !important; color: #9ca3af !important;
-  cursor: not-allowed; pointer-events: none; border-color: #e5e7eb !important;
-}
-
-/* ── Lightbox ───────────────────────────────────────────────── */
-.lb-overlay {
-  display: none; position: fixed; inset: 0;
-  background: rgba(2,12,24,.96);
-  z-index: 9999; align-items: center; justify-content: center;
-  backdrop-filter: blur(4px);
-}
-.lb-overlay.open { display: flex; }
-.lb-content { position: relative; max-width: 90vw; max-height: 90vh; }
-.lb-content img {
-  max-width: 100%; max-height: 85vh;
-  border-radius: .75rem; object-fit: contain;
-  border: 1px solid rgba(0,229,255,.15);
-  box-shadow: 0 0 60px rgba(0,0,0,.6);
-}
-.lb-close {
-  position: absolute; top: -44px; right: 0;
-  background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.2);
-  color: #fff; font-size: 1.4rem; cursor: pointer;
-  width: 36px; height: 36px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(6px); transition: background .2s;
-}
-.lb-close:hover { background: rgba(239,68,68,.3); }
-.lb-prev, .lb-next {
-  position: absolute; top: 50%; transform: translateY(-50%);
-  background: rgba(255,255,255,.1);
-  border: 1px solid rgba(255,255,255,.15);
-  color: #fff;
-  width: 44px; height: 44px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 1.1rem; cursor: pointer;
-  backdrop-filter: blur(6px);
-  transition: background .2s, box-shadow .2s;
-}
-.lb-prev:hover, .lb-next:hover {
-  background: rgba(0,229,255,.15);
-  box-shadow: 0 0 16px rgba(0,229,255,.2);
-}
-.lb-prev { left: -56px; } .lb-next { right: -56px; }
-.lb-counter {
-  position: absolute; bottom: -30px; left: 50%; transform: translateX(-50%);
-  color: rgba(255,255,255,.5); font-size: .78rem;
-  background: rgba(255,255,255,.08); padding: 2px 12px; border-radius: 999px;
-  backdrop-filter: blur(4px);
-}
-</style>
-
-<%# Lightbox markup %>
-<div class="lb-overlay" id="lightbox">
-  <div class="lb-content">
-    <button class="lb-close" id="lbClose"><i class="fas fa-times"></i></button>
-    <button class="lb-prev" id="lbPrev"><i class="fas fa-chevron-left"></i></button>
-    <img id="lbImg" src="" alt="Room photo" />
-    <button class="lb-next" id="lbNext"><i class="fas fa-chevron-right"></i></button>
-    <div class="lb-counter" id="lbCounter"></div>
-  </div>
-</div>
-
-<div class="rooms-page-bg">
-
-  <%# Sub-hero banner %>
-  <div class="rooms-hero">
-    <div class="container-lg px-4">
-      <div class="rooms-hero-inner">
-        <%# Breadcrumb %>
-        <div class="page-breadcrumb mb-3">
-          <a href="/">Home</a>
-          <span class="separator">/</span>
-          <a href="/portal">Portal</a>
-          <span class="separator">/</span>
-          <span style="color:rgba(255,255,255,.75);">Rooms</span>
-        </div>
-
-        <div class="d-flex flex-wrap justify-content-between align-items-end gap-3">
-          <div>
-            <h4><span>Available</span> Rooms</h4>
-            <p><%= rooms.length %> room<%= rooms.length !== 1 ? 's' : '' %> found</p>
-          </div>
-          <div class="d-flex flex-wrap gap-2">
-            <a href="/portal/cottages" class="quick-nav-pill">
-              <i class="fas fa-home"></i> Cottages
-            </a>
-            <a href="/portal/venues" class="quick-nav-pill">
-              <i class="fas fa-map-marker-alt"></i> Venues
-            </a>
-            <a href="/portal/book?type=room" class="btn-book-now">
-              <i class="fas fa-calendar-plus"></i> Book Now
-            </a>
-          </div>
-        </div>
-      </div>
+<div class="pt-page">
+  <div class="pt-page-head">
+    <div>
+      <h1 class="pt-title">Rooms</h1>
+      <p class="pt-lede">Overnight stays, priced per night. A <%= downpaymentPercent %>% downpayment is paid online to secure the booking; the balance is settled at the resort.</p>
     </div>
   </div>
 
-  <div class="container-lg px-4 py-4">
+  <%include('portal/_catalog-tabs')%>
 
-    <%# Filter bar %>
-    <div class="filter-bar mb-4">
-      <form method="GET" action="/portal/rooms" class="row g-2 align-items-end">
-        <div class="col-6 col-md-2">
-          <label>Check-in</label>
-          <input type="date" name="checkin" value="<%= filters.checkin %>" class="form-control form-control-sm" />
-        </div>
-        <div class="col-6 col-md-2">
-          <label>Check-out</label>
-          <input type="date" name="checkout" value="<%= filters.checkout %>" class="form-control form-control-sm" />
-        </div>
-        <div class="col-6 col-md-2">
-          <label>Guests</label>
-          <input type="number" name="guests" value="<%= filters.guests %>" class="form-control form-control-sm" min="1" placeholder="Any" />
-        </div>
-        <div class="col-6 col-md-3">
-          <label>Room Type</label>
-          <select name="type" class="form-select form-select-sm">
-            <option value="">All Types</option>
-            <% for (const t of roomTypes) { %>
-            <option value="<%= t.name %>" <%= filters.type === t.name ? 'selected' : '' %>><%= t.name %></option>
-            <% } %>
-          </select>
-        </div>
-        <div class="col-6 col-md-2">
-          <label>Price</label>
-          <select name="sort" class="form-select form-select-sm">
-            <option value="price_asc"  <%= filters.sort==='price_asc'  ?'selected':'' %>>Low to High</option>
-            <option value="price_desc" <%= filters.sort==='price_desc' ?'selected':'' %>>High to Low</option>
-          </select>
-        </div>
-        <div class="col-6 col-md-1 d-flex gap-1">
-          <button type="submit" class="btn btn-sm btn-search flex-fill">
-            <i class="fas fa-search"></i>
-          </button>
-          <a href="/portal/rooms" class="btn btn-sm btn-clear">
-            <i class="fas fa-times"></i>
-          </a>
-        </div>
-      </form>
+  <form method="GET" action="/portal/rooms" class="cat-filters" style="--cat-cols:4;" aria-label="Check room availability">
+    <div>
+      <label class="form-label" for="fCheckin">Check-in</label>
+      <input type="date" id="fCheckin" name="checkin" value="<%= filters.checkin %>" class="form-control" />
     </div>
-
-    <%# No results %>
-    <% if (!rooms || rooms.length === 0) { %>
-    <div class="empty-rooms">
-      <i class="fas fa-bed"></i>
-      <h5>No rooms available for your search.</h5>
-      <p>Try different dates, more guests, or remove filters.</p>
-      <a href="/portal/rooms" class="btn-show-all mt-2 d-inline-block">Show All Rooms</a>
+    <div>
+      <label class="form-label" for="fCheckout">Check-out</label>
+      <input type="date" id="fCheckout" name="checkout" value="<%= filters.checkout %>" class="form-control" />
     </div>
-
-    <% } else { %>
-    <div class="row g-4">
-      <% for (const r of rooms) { %>
-      <%
-        let imgs = [];
-        try { imgs = JSON.parse(r.images || '[]'); } catch {}
-        const amenities = (() => { try { return JSON.parse(r.amenities || '[]'); } catch { return []; } })();
-        // JSON string placed in a data- attribute; the template auto-escapes the
-        // quotes so it is safe inside the double-quoted attribute.
-        const imgsJson  = JSON.stringify(imgs);
-      %>
-      <div class="col-12 col-sm-6 col-xl-4">
-        <div class="accom-card">
-
-          <%# Image section %>
-          <div class="accom-img-wrap <%= r.isAvailable ? '' : 'is-unavailable' %>"
-            <% if (imgs.length > 0) { %>data-lightbox="<%= imgsJson %>" data-lightbox-name="<%= r.name %>"<% } %>
-            style="<%= imgs.length > 0 ? 'cursor:zoom-in;' : 'cursor:default;' %>"
-            title="<%= imgs.length > 0 ? 'Click to view photos' : 'No photos yet' %>">
-            <% if (imgs.length > 0) { %>
-              <img src="<%= imgs[0] %>" alt="<%= r.name %>" loading="lazy" />
-              <span class="img-count-badge">
-                <i class="fas fa-images me-1"></i><%= imgs.length %> photo<%= imgs.length > 1 ? 's' : '' %>
-              </span>
-            <% } else { %>
-              <div class="accom-img-placeholder"><i class="fas fa-bed"></i></div>
-            <% } %>
-            <span class="accom-img-type"><%= r.type_name %></span>
-            <% if (!r.isAvailable) { %>
-            <span class="accom-unavailable-badge"><i class="fas fa-ban me-1"></i>Unavailable</span>
-            <% } %>
-          </div>
-
-          <%# Body %>
-          <div class="accom-body">
-            <div class="accom-name"><%= r.name %></div>
-            <div class="accom-meta">
-              <span><i class="fas fa-users me-1"></i>Up to <%= r.capacity %> guests</span>
-              <% if (r.floor) { %><span><i class="fas fa-layer-group me-1"></i><%= r.floor %></span><% } %>
-              <% if (r.room_number) { %><span><i class="fas fa-door-closed me-1"></i>Room #<%= r.room_number %></span><% } %>
-            </div>
-            <% if (amenities.length > 0) { %>
-            <div class="accom-amenities">
-              <% for (const a of amenities.slice(0, 5)) { %>
-              <span class="accom-amenity"><i class="fas fa-check"></i><%= a %></span>
-              <% } %>
-              <% if (amenities.length > 5) { %>
-              <span class="accom-amenity more">+<%= amenities.length - 5 %> more</span>
-              <% } %>
-            </div>
-            <% } %>
-            <% if (r.description) { %>
-            <div class="accom-desc"><%= r.description %></div>
-            <% } %>
-
-            <div class="accom-footer">
-              <div>
-                <div class="accom-price"><%= formatPeso(r.price) %><span>/night</span></div>
-                <div class="accom-downpay">Downpayment: <%= formatPeso(Math.ceil(r.price * 0.5)) %></div>
-              </div>
-              <div class="d-flex gap-2 align-items-center">
-                <% if (imgs.length > 0) { %>
-                <button type="button" class="btn-photos"
-                  data-lightbox="<%= imgsJson %>" data-lightbox-name="<%= r.name %>"
-                  title="View photos">
-                  <i class="fas fa-images"></i>
-                </button>
-                <% } %>
-                <% if (r.isAvailable) { %>
-                <a href="/portal/book?type=room&item_id=<%= r.id %>&checkin=<%= filters.checkin %>&checkout=<%= filters.checkout %>"
-                  class="btn-book">
-                  Book
-                </a>
-                <% } else { %>
-                <span class="btn-book btn-book-disabled" aria-disabled="true">
-                  <i class="fas fa-ban me-1"></i>Unavailable
-                </span>
-                <% } %>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-      <% } %>
+    <div>
+      <label class="form-label" for="fGuests">Guests</label>
+      <input type="number" id="fGuests" name="guests" value="<%= filters.guests %>" class="form-control" min="1" inputmode="numeric" placeholder="Any" />
     </div>
+    <div>
+      <label class="form-label" for="fSort">Sort by price</label>
+      <select id="fSort" name="sort" class="form-select">
+        <option value="price_asc"  <%= filters.sort === 'price_asc'  ? 'selected' : '' %>>Lowest first</option>
+        <option value="price_desc" <%= filters.sort === 'price_desc' ? 'selected' : '' %>>Highest first</option>
+      </select>
+    </div>
+    <% if (filters.type) { %><input type="hidden" name="type" value="<%= filters.type %>" /><% } %>
+    <div class="cat-filters-actions">
+      <button type="submit" class="btn btn-primary">Check availability</button>
+      <% if (hasDates || filters.guests || filters.type) { %><a href="/portal/rooms" class="btn btn-outline-secondary">Clear</a><% } %>
+    </div>
+  </form>
+
+  <p class="cat-result" role="status">
+    <%= rooms.length %> room<%= rooms.length !== 1 ? 's' : '' %><% if (filters.guests) { %> for <%= filters.guests %>+ guests<% } %><% if (range) { %> · availability for <%= range %>, <%= formatDate(filters.checkout, 'YYYY') %> (<%= nights %> night<%= nights !== 1 ? 's' : '' %>)<% } else { %> · add dates to see which are free<% } %>
+  </p>
+
+  <% if (!rooms || rooms.length === 0) { %>
+  <div class="pt-surface pt-empty">
+    <h2>No rooms match this search</h2>
+    <p>Try fewer guests or different dates.</p>
+    <a href="/portal/rooms" class="btn btn-outline-secondary">Show all rooms</a>
+  </div>
+  <% } else { %>
+  <div class="lst-list">
+    <% for (const r of rooms) { %>
+    <%
+      const bookable = r.isAvailable;
+      const book = new URLSearchParams({ type: 'room', item_id: String(r.id) });
+      if (hasDates && nights > 0) { book.set('checkin', filters.checkin); book.set('checkout', filters.checkout); }
+      const note = bookable ? (range ? 'Open for ' + range : '') : (hasDates ? 'Booked for these dates' : 'Not taking bookings right now');
+    %>
+    <%include('partials/listing-card', Object.assign({}, __locals, { card: {
+      row: r, kind: 'room', variant: 'row', h: 'h2', qs: qs,
+      avail: hasDates || !bookable ? bookable : undefined, availNote: note,
+      bookHref: '/portal/book?' + book.toString(), dp: downpaymentPercent, nights: hasDates && nights > 0 ? nights : 0
+    } }))%>
     <% } %>
-
   </div>
+  <% } %>
 </div>
+
+<%include('portal/_lightbox')%>
 
 <script>
 (function () {
-  var lb      = document.getElementById('lightbox');
-  var lbImg   = document.getElementById('lbImg');
-  var lbClose = document.getElementById('lbClose');
-  var lbPrev  = document.getElementById('lbPrev');
-  var lbNext  = document.getElementById('lbNext');
-  var lbCtr   = document.getElementById('lbCounter');
-  var current = 0;
-  var allImgs = [];
-
-  window.openLightbox = function (imgs, idx, name) {
-    if (!imgs || imgs.length === 0) return;
-    allImgs  = imgs;
-    current  = idx || 0;
-    showImg();
-    lb.classList.add('open');
-    document.body.style.overflow = 'hidden';
-  };
-
-  // Delegated click handler: any element with data-lightbox opens the gallery.
-  document.addEventListener('click', function (e) {
-    var trigger = e.target.closest('[data-lightbox]');
-    if (!trigger) return;
-    e.preventDefault();
-    var imgs = [];
-    try { imgs = JSON.parse(trigger.getAttribute('data-lightbox') || '[]'); } catch (err) { imgs = []; }
-    window.openLightbox(imgs, 0, trigger.getAttribute('data-lightbox-name') || '');
-  });
-
-  function showImg() {
-    lbImg.src = allImgs[current];
-    lbCtr.textContent = (current + 1) + ' / ' + allImgs.length;
-    lbPrev.style.display = allImgs.length > 1 ? '' : 'none';
-    lbNext.style.display = allImgs.length > 1 ? '' : 'none';
-  }
-
-  function close() {
-    lb.classList.remove('open');
-    document.body.style.overflow = '';
-    lbImg.src = '';
-  }
-
-  lbClose.addEventListener('click', close);
-  lb.addEventListener('click', function (e) { if (e.target === lb) close(); });
-  lbPrev.addEventListener('click', function () { current = (current - 1 + allImgs.length) % allImgs.length; showImg(); });
-  lbNext.addEventListener('click', function () { current = (current + 1) % allImgs.length; showImg(); });
-
-  document.addEventListener('keydown', function (e) {
-    if (!lb.classList.contains('open')) return;
-    if (e.key === 'Escape')     close();
-    if (e.key === 'ArrowLeft')  { current = (current - 1 + allImgs.length) % allImgs.length; showImg(); }
-    if (e.key === 'ArrowRight') { current = (current + 1) % allImgs.length; showImg(); }
-  });
-
-  // Min dates
-  var today = new Date().toISOString().slice(0, 10);
-  var ci = document.querySelector('[name="checkin"]');
-  var co = document.querySelector('[name="checkout"]');
+  // Local "today" for the date filters.
+  var now = new Date();
+  var today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  var ci = document.getElementById('fCheckin');
+  var co = document.getElementById('fCheckout');
   if (ci) ci.min = today;
-  if (co) co.min = today;
+  if (co) co.min = ci && ci.value ? ci.value : today;
   if (ci) ci.addEventListener('change', function () {
-    if (co) { co.min = this.value; if (co.value && co.value <= this.value) co.value = ''; }
+    if (!co) return;
+    co.min = this.value || today;
+    if (co.value && co.value <= this.value) co.value = '';
   });
 })();
 </script>

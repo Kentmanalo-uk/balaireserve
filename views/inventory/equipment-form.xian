@@ -1,18 +1,64 @@
 <% layout('layouts/main') %>
-<div class="page-header"><div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/inventory">Inventory</a></li><li class="breadcrumb-item active">Add Equipment</li></ol></nav><h3 class="mb-0">Add Equipment</h3></div></div>
-<% if (errors && errors.length > 0) { %><div class="alert alert-danger"><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div><% } %>
-<div class="row"><div class="col-lg-6"><div class="card"><div class="card-body">
-<form action="/inventory/equipment" method="POST">
-  <div class="row g-3">
-    <div class="col-md-8"><label class="form-label required">Equipment Name</label><input type="text" name="name" class="form-control" value="<%= old.name || '' %>" required /></div>
-    <div class="col-md-4"><label class="form-label required">Quantity</label><input type="number" name="quantity" class="form-control" value="<%= old.quantity || 1 %>" min="1" required /></div>
-    <div class="col-md-6"><label class="form-label">Category</label><select name="category_id" class="form-select"><option value="">Select...</option><% for (const c of categories) { %><option value="<%= c.id %>"><%= c.name %></option><% } %></select></div>
-    <div class="col-md-6"><label class="form-label">Condition</label><select name="condition" class="form-select"><% for (const c of ['excellent','good','needs_maintenance','damaged']) { %><option value="<%= c %>"><%= c.replace(/_/g,' ') %></option><% } %></select></div>
-    <div class="col-12"><label class="form-label">Description</label><textarea name="description" class="form-control" rows="2"><%= old.description || '' %></textarea></div>
+<%
+  const errList = errors || [];
+  const errFor = (k) => errList.filter(e => (e.path || e.param) === k).map(e => e.msg);
+  const fieldErr = (k) => errFor(k).length ? 'is-invalid' : '';
+  const CONDITIONS = { excellent: 'Excellent', good: 'Good', needs_maintenance: 'Needs maintenance', damaged: 'Damaged' };
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/inventory" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Inventory</a>
+<h1 class="ph-title">Add equipment</h1>
+<!--/page-head-->
+
+<% if (errList.length > 0) { %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errList) { %><li><%= e.msg %></li><% } %></ul>
+</div>
+<% } %>
+
+<form data-guard="this equipment" action="/inventory/equipment" method="POST" class="ap-form">
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Equipment</h2>
+      <p>Name, how many you have and their current condition.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required" for="eqName">Equipment name</label>
+          <input type="text" id="eqName" name="name" class="form-control <%= fieldErr('name') %>" value="<%= old.name || '' %>" required />
+          <% for (const m of errFor('name')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required" for="eqQty">Quantity</label>
+          <input type="number" id="eqQty" name="quantity" class="form-control <%= fieldErr('quantity') %>" value="<%= old.quantity || 1 %>" min="1" required />
+          <% for (const m of errFor('quantity')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="eqCategory">Category</label>
+          <select id="eqCategory" name="category_id" class="form-select <%= fieldErr('category_id') %>"><option value="">Select…</option><% for (const c of categories) { %><option value="<%= c.id %>" <%= String(old.category_id || '') === String(c.id) ? 'selected' : '' %>><%= c.name %></option><% } %></select>
+          <% for (const m of errFor('category_id')) { %><div class="invalid-feedback d-block"><%= m %></div><% } %>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="eqCondition">Condition</label>
+          <select id="eqCondition" name="condition" class="form-select"><% for (const [c, label] of Object.entries(CONDITIONS)) { %><option value="<%= c %>" <%= (old.condition || 'excellent') === c ? 'selected' : '' %>><%= label %></option><% } %></select>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="eqDescription">Description</label>
+          <textarea id="eqDescription" name="description" class="form-control" rows="2"><%= old.description || '' %></textarea>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="d-flex gap-2 mt-4">
-    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Add Equipment</button>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
     <a href="/inventory" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary">Add equipment</button>
   </div>
 </form>
-</div></div></div></div>
+
+</div>

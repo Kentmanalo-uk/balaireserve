@@ -1,202 +1,159 @@
 <% layout('layouts/main') %>
+<% const hasPhotos = cottage && cottage.imagesList && cottage.imagesList.length > 0; %>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
-      <li class="breadcrumb-item"><a href="/cottages">Cottages</a></li>
-      <li class="breadcrumb-item active"><%= cottage ? 'Edit' : 'Add Cottage' %></li>
-    </ol></nav>
-    <h3 class="mb-0"><%= cottage ? 'Edit ' + cottage.name : 'Add New Cottage' %></h3>
-  </div>
-</div>
+<!--page-head-->
+<a href="/cottages" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Cottages</a>
+<h1 class="ph-title"><%= cottage ? 'Edit ' + cottage.name : 'Add New Cottage' %></h1>
+<% if (cottage) { %><div class="ph-actions"><a href="/stay/cottage/<%= cottage.id %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Guest view<span class="visually-hidden"> — opens the public cottage page in a new tab</span></a></div><% } %>
+<!--/page-head-->
+<p class="page-intro">Changes to the rate, description and photos show on the public website and guest portal as soon as you save.</p>
 
 <% if (errors && errors.length > 0) { %>
-<div class="alert alert-danger">
-  <% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
 </div>
 <% } %>
 
-<div class="row g-4">
+<!-- IMPORTANT: enctype multipart for file uploads -->
+<form data-guard="this cottage" action="<%= cottage ? '/cottages/' + cottage.id + '/edit' : '/cottages' %>"
+      method="POST" enctype="multipart/form-data" id="cottageForm" class="ap-form">
 
-  <!-- Left: Main Form -->
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-home me-2"></i>Cottage Details</h6></div>
-      <div class="card-body">
-        <!-- IMPORTANT: enctype multipart for file uploads -->
-        <form action="<%= cottage ? '/cottages/' + cottage.id + '/edit' : '/cottages' %>"
-              method="POST" enctype="multipart/form-data" id="cottageForm">
-
-          <div class="row g-3">
-            <div class="col-12">
-              <label class="form-label required">Cottage Name</label>
-              <input type="text" name="name" class="form-control"
-                value="<%= old.name || '' %>" placeholder="e.g. Cottage A – Nipa Hut" required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Capacity (guests)</label>
-              <input type="number" name="capacity" class="form-control"
-                value="<%= old.capacity || 8 %>" min="1" required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Price (₱)</label>
-              <div class="input-group">
-                <span class="input-group-text">₱</span>
-                <input type="number" name="price" class="form-control"
-                  value="<%= old.price || '' %>" min="0" step="0.01" placeholder="0.00" required />
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label">Amenities <small class="text-muted">(comma-separated)</small></label>
-              <input type="text" name="amenities" class="form-control"
-                value="<%= old.amenitiesStr || '' %>"
-                placeholder="Fan, Table, Chairs, Life Vests…" />
-            </div>
-            <div class="col-12">
-              <label class="form-label">Description</label>
-              <textarea name="description" class="form-control" rows="3"
-                placeholder="Brief description of the cottage…"><%= old.description || '' %></textarea>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Status</label>
-              <select name="status" class="form-select">
-                <% for (const s of ['available','reserved','occupied','maintenance','unavailable']) { %>
-                <option value="<%= s %>" <%= (old.status || 'available') === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
-                <% } %>
-              </select>
-            </div>
-          </div>
-
-          <div class="d-flex gap-2 mt-4">
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save me-1"></i><%= cottage ? 'Update Cottage' : 'Create Cottage' %>
-            </button>
-            <a href="/cottages<%= cottage ? '/' + cottage.id : '' %>" class="btn btn-outline-secondary">Cancel</a>
-          </div>
-        </form>
-      </div>
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Cottage</h2>
+      <p>The name guests see when they book.</p>
     </div>
-  </div>
-
-  <!-- Right: Image Upload -->
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-images me-2"></i>Cottage Photos</h6></div>
-      <div class="card-body">
-
-        <!-- Existing images (edit mode) -->
-        <% if (cottage && cottage.imagesList && cottage.imagesList.length > 0) { %>
-        <div class="mb-3">
-          <label class="form-label small fw-bold">Current Photos — uncheck to remove</label>
-          <div class="row g-2" id="existingImagesGrid">
-            <% for (const img of cottage.imagesList) { %>
-            <div class="col-6 existing-img-item" data-img="<%= img %>">
-              <div class="position-relative">
-                <img src="<%= img %>" alt="Cottage photo"
-                  class="img-fluid rounded border"
-                  style="height:110px;width:100%;object-fit:cover;" />
-                <!-- Hidden input preserves this image path on submit -->
-                <input type="hidden" name="keep_images" value="<%= img %>" class="keep-img-input" form="cottageForm" />
-                <!-- Remove button -->
-                <button type="button"
-                  class="btn btn-danger btn-xs position-absolute top-0 end-0 m-1 remove-img-btn"
-                  style="padding:2px 6px;font-size:.7rem;border-radius:50%;"
-                  title="Remove this photo">
-                  <i class="fas fa-times"></i>
-                </button>
-              </div>
-            </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required" for="cottageName">Cottage name</label>
+          <input type="text" name="name" id="cottageName" class="form-control"
+            value="<%= old.name || '' %>" placeholder="e.g. Umbrella Cottage" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="cottageStatus">Status</label>
+          <select name="status" id="cottageStatus" class="form-select">
+            <% for (const s of ['available','reserved','occupied','maintenance','unavailable']) { %>
+            <option value="<%= s %>" <%= (old.status || 'available') === s ? 'selected' : '' %>><%= statusLabel(s) %></option>
             <% } %>
-          </div>
-        </div>
-        <% } %>
-
-        <!-- Upload new images -->
-        <div class="mb-3">
-          <label class="form-label small fw-bold">
-            <%= cottage && cottage.imagesList && cottage.imagesList.length > 0 ? 'Add More Photos' : 'Upload Photos' %>
-            <span class="text-muted fw-normal">(up to 5, max 5MB each — jpg, png, webp)</span>
-          </label>
-
-          <!-- Drop zone -->
-          <div class="upload-dropzone" id="dropZone">
-            <i class="fas fa-cloud-upload-alt fa-2x mb-2 text-muted"></i>
-            <div class="small text-muted">Drag &amp; drop photos here or</div>
-            <label for="imageInput" class="btn btn-sm btn-outline-primary mt-2" style="cursor:pointer;">
-              <i class="fas fa-folder-open me-1"></i>Browse Files
-            </label>
-            <input type="file" id="imageInput" name="images" form="cottageForm"
-              multiple accept="image/*" class="d-none" />
-          </div>
-
-          <!-- New image previews -->
-          <div class="row g-2 mt-2" id="newImagesPreview"></div>
-        </div>
-
-        <div class="alert alert-light py-2 small mb-0">
-          <i class="fas fa-info-circle me-1 text-info"></i>
-          First photo will be used as the main cover image.
+          </select>
         </div>
       </div>
     </div>
   </div>
-</div>
 
-<style>
-.upload-dropzone {
-  border: 2px dashed #d1d5db;
-  border-radius: .75rem;
-  padding: 1.5rem;
-  text-align: center;
-  background: #f9fafb;
-  transition: border-color .2s, background .2s;
-  cursor: pointer;
-}
-.upload-dropzone.dragover {
-  border-color: #4f46e5;
-  background: #ede9fe;
-}
-.preview-thumb {
-  position: relative;
-  height: 100px;
-  border-radius: .5rem;
-  overflow: hidden;
-  border: 2px solid #e5e7eb;
-}
-.preview-thumb img { width:100%; height:100%; object-fit:cover; }
-.preview-thumb .remove-preview {
-  position: absolute; top: 3px; right: 3px;
-  background: rgba(239,68,68,.85); color: #fff;
-  border: none; border-radius: 50%;
-  width: 20px; height: 20px; font-size: .65rem;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; line-height: 1;
-}
-</style>
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Guests and rate</h2>
+      <p>Cottages are a flat rate per booking: a ₱300 cottage costs ₱300 in total, however many hours the guests stay.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="cottageCapacity">Up to (guests)</label>
+          <input type="number" name="capacity" id="cottageCapacity" class="form-control"
+            value="<%= old.capacity || 8 %>" min="1" required />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="cottagePrice">Rate per booking</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" name="price" id="cottagePrice" class="form-control"
+              value="<%= old.price || '' %>" min="0" step="0.01" placeholder="0.00" required aria-describedby="cottagePriceHelp" />
+          </div>
+          <div class="form-text" id="cottagePriceHelp">The booking total and downpayment are worked out from this rate.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Description</h2>
+      <p>Only list amenities the cottage really has — guests rely on them when choosing.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="mb-3">
+        <label class="form-label" for="cottageAmenities">Amenities</label>
+        <input type="text" name="amenities" id="cottageAmenities" class="form-control"
+          value="<%= old.amenitiesStr || '' %>"
+          placeholder="e.g. Table, Chairs, Electric fan" aria-describedby="cottageAmenitiesHelp" />
+        <div class="form-text" id="cottageAmenitiesHelp">Separate each amenity with a comma.</div>
+      </div>
+      <div>
+        <label class="form-label" for="cottageDescription">Description</label>
+        <textarea name="description" id="cottageDescription" class="form-control" rows="4"
+          placeholder="Where it is and what it suits"><%= old.description || '' %></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Photos</h2>
+      <p>Up to 5 photos, 5 MB each (JPG, PNG or WEBP). The first photo is the cover shown in listings.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (hasPhotos) { %>
+      <div class="cat-photo-block">
+        <h3>Current photos</h3>
+        <div class="ap-thumb-grid" id="existingImagesGrid">
+          <% for (let i = 0; i < cottage.imagesList.length; i++) { const img = cottage.imagesList[i]; %>
+          <div class="ap-thumb-item existing-img-item" data-img="<%= img %>">
+            <div class="ap-thumb">
+              <img src="<%= img %>" alt="Cottage photo <%= i + 1 %>" data-missing="Photo unavailable — file missing" />
+              <% if (i === 0) { %><span class="cat-thumb-tag">Cover</span><% } %>
+            </div>
+            <!-- Hidden input preserves this image path on submit -->
+            <input type="hidden" name="keep_images" value="<%= img %>" class="keep-img-input" form="cottageForm" />
+            <button type="button" class="ap-act is-danger remove-img-btn" aria-pressed="false">Remove</button>
+          </div>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <div class="cat-photo-block">
+        <h3><%= hasPhotos ? 'Add more photos' : 'Upload photos' %></h3>
+        <!-- Drop zone -->
+        <div class="upload-dropzone cat-dropzone" id="dropZone">
+          <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+          <span>Drag photos here, or</span>
+          <label for="imageInput" class="btn btn-secondary-quiet btn-sm mb-0">Choose files</label>
+          <input type="file" id="imageInput" name="images" form="cottageForm"
+            multiple accept="image/*" class="d-none" />
+        </div>
+        <!-- New image previews -->
+        <div class="ap-thumb-grid mt-3" id="newImagesPreview" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
+    <a href="/cottages<%= cottage ? '/' + cottage.id : '' %>" class="btn btn-secondary-quiet">Cancel</a>
+    <button type="submit" class="btn btn-primary"><%= cottage ? 'Save changes' : 'Create cottage' %></button>
+  </div>
+</form>
+
+</div>
 
 <script>
 (function () {
-  // ── Remove existing image ─────────────────────────────────────────────────
+  // ── Remove / undo an existing image ───────────────────────────────────────
+  // A removed photo's keep_images input is disabled so it won't be submitted.
   document.querySelectorAll('.remove-img-btn').forEach(btn => {
     btn.addEventListener('click', function () {
       const wrapper = this.closest('.existing-img-item');
-      // Disable the hidden keep_images input so it won't be submitted
-      const inp = wrapper.querySelector('.keep-img-input');
-      if (inp) inp.disabled = true;
-      wrapper.style.opacity = '0.35';
-      wrapper.style.pointerEvents = 'none';
-      this.innerHTML = '<i class="fas fa-undo"></i>';
-      this.classList.replace('btn-danger', 'btn-success');
-      this.title = 'Undo remove';
-      // Undo
-      this.addEventListener('click', function () {
-        if (inp) inp.disabled = false;
-        wrapper.style.opacity = '';
-        wrapper.style.pointerEvents = '';
-        this.innerHTML = '<i class="fas fa-times"></i>';
-        this.classList.replace('btn-success', 'btn-danger');
-        this.title = 'Remove this photo';
-      }, { once: true });
+      const inp     = wrapper.querySelector('.keep-img-input');
+      const removed = !wrapper.classList.contains('is-removed');
+      if (inp) inp.disabled = removed;
+      wrapper.classList.toggle('is-removed', removed);
+      this.textContent = removed ? 'Undo' : 'Remove';
+      this.classList.toggle('is-danger', !removed);
+      this.setAttribute('aria-pressed', removed ? 'true' : 'false');
     });
   });
 
@@ -219,28 +176,30 @@
   function renderPreviews() {
     preview.innerHTML = '';
     Array.from(dtFiles.files).forEach((file, idx) => {
-      const reader = new FileReader();
-      reader.onload = e => {
-        const col = document.createElement('div');
-        col.className = 'col-6 col-md-4';
-        col.innerHTML = `
-          <div class="preview-thumb">
-            <img src="${e.target.result}" alt="${file.name}" />
-            <button type="button" class="remove-preview" data-idx="${idx}" title="Remove">✕</button>
-            ${idx === 0 ? '<span class="badge bg-primary position-absolute bottom-0 start-0 m-1" style="font-size:.65rem;">Cover</span>' : ''}
-          </div>
-        `;
-        col.querySelector('.remove-preview').addEventListener('click', function () {
-          const i = parseInt(this.dataset.idx);
-          const newDt = new DataTransfer();
-          Array.from(dtFiles.files).forEach((f, fi) => { if (fi !== i) newDt.items.add(f); });
-          dtFiles = newDt;
-          input.files = dtFiles.files;
-          renderPreviews();
-        });
-        preview.appendChild(col);
-      };
-      reader.readAsDataURL(file);
+      const item  = document.createElement('div');
+      item.className = 'ap-thumb-item';
+      const thumb = document.createElement('div');
+      thumb.className = 'ap-thumb';
+      const img = document.createElement('img');
+      img.alt = file.name;
+      img.src = URL.createObjectURL(file);
+      thumb.appendChild(img);
+      const name = document.createElement('span');
+      name.className = 'ap-thumb-caption';
+      name.textContent = (idx === 0 && !document.querySelector('.keep-img-input') ? 'Cover · ' : 'New · ') + file.name;
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'ap-act is-danger';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', () => {
+        const newDt = new DataTransfer();
+        Array.from(dtFiles.files).forEach((f, fi) => { if (fi !== idx) newDt.items.add(f); });
+        dtFiles = newDt;
+        input.files = dtFiles.files;
+        renderPreviews();
+      });
+      item.append(thumb, name, remove);
+      preview.appendChild(item);
     });
   }
 

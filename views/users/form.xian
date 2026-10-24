@@ -1,91 +1,105 @@
 <% layout('layouts/main') %>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/users">Users</a></li><li class="breadcrumb-item active"><%= user ? 'Edit User' : 'Add Staff User' %></li></ol></nav>
-    <h3 class="mb-0"><%= user ? 'Edit ' + user.first_name + ' ' + user.last_name : 'Add Staff User' %></h3>
-  </div>
-</div>
+<!--page-head-->
+<a href="/users" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Users</a>
+<h1 class="ph-title"><%= user ? 'Edit ' + user.first_name + ' ' + user.last_name : 'Add staff user' %></h1>
+<!--/page-head-->
+<div class="page-meta"><%= user ? 'Update contact details or change what this person can access.' : 'Create a back-office account for a member of staff. They sign in with this email and password.' %></div>
 
 <% if (errors && errors.length > 0) { %>
-<div class="alert alert-danger">
-  <% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
 </div>
 <% } %>
 
-<div class="row justify-content-center">
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-body">
-        <form action="<%= user ? '/users/' + user.id + '/edit' : '/users' %>" method="POST">
+<form data-guard="this account" action="<%= user ? '/users/' + user.id + '/edit' : '/users' %>" method="POST" class="ap-form">
 
-          <h6 class="form-section-title">Personal Information</h6>
-          <div class="row g-3 mb-4">
-            <div class="col-md-6">
-              <label class="form-label required">First Name</label>
-              <input type="text" name="first_name" class="form-control" value="<%= old.first_name || '' %>" required autofocus />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Last Name</label>
-              <input type="text" name="last_name" class="form-control" value="<%= old.last_name || '' %>" required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Email Address</label>
-              <input type="email" name="email" class="form-control" value="<%= old.email || '' %>" required autocomplete="off" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Phone Number</label>
-              <input type="text" name="phone" class="form-control" value="<%= old.phone || '' %>" placeholder="09XX-XXX-XXXX" />
-            </div>
-          </div>
-
-          <h6 class="form-section-title">Role & Access</h6>
-          <div class="row g-3 mb-4">
-            <div class="col-md-8">
-              <label class="form-label required">System Role</label>
-              <select name="role_id" class="form-select" required>
-                <option value="">— Select a role —</option>
-                <% for (const r of roles) { %>
-                <option value="<%= r.id %>" <%= String(old.role_id) === String(r.id) ? 'selected' : '' %>><%= r.label %></option>
-                <% } %>
-              </select>
-              <div class="form-text">This determines which modules and data the user can access.</div>
-            </div>
-          </div>
-
-          <% if (!user) { %>
-          <%# New user — password is required %>
-          <h6 class="form-section-title">Set Password</h6>
-          <div class="row g-3 mb-4">
-            <div class="col-md-6">
-              <label class="form-label required">Password</label>
-              <div class="input-group">
-                <input type="password" name="password" id="passwordField" class="form-control"
-                  required minlength="8"
-                  placeholder="Minimum 8 characters"
-                  autocomplete="new-password" />
-                <button type="button" class="input-group-text btn-toggle-pass" data-target="passwordField">
-                  <i class="fas fa-eye"></i>
-                </button>
-              </div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Confirm Password</label>
-              <input type="password" name="password_confirm" class="form-control"
-                placeholder="Re-enter password"
-                autocomplete="new-password" />
-            </div>
-          </div>
-          <% } %>
-
-          <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save me-1"></i><%= user ? 'Update User' : 'Create User' %>
-            </button>
-            <a href="/users" class="btn btn-outline-secondary">Cancel</a>
-          </div>
-        </form>
+  <section class="ap-section" aria-labelledby="userPersonalHeading">
+    <div class="ap-section-intro">
+      <h2 id="userPersonalHeading">Personal details</h2>
+      <p>Shown to other staff in the back office and in the audit log.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="userFirst">First name</label>
+          <input type="text" name="first_name" id="userFirst" class="form-control" value="<%= old.first_name || '' %>" required autofocus autocomplete="given-name" />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="userLast">Last name</label>
+          <input type="text" name="last_name" id="userLast" class="form-control" value="<%= old.last_name || '' %>" required autocomplete="family-name" />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="userEmail">Email address</label>
+          <input type="email" name="email" id="userEmail" class="form-control" value="<%= old.email || '' %>" required autocomplete="off" aria-describedby="userEmailHelp" />
+          <div class="form-text" id="userEmailHelp">Used to sign in.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="userPhone">Phone number</label>
+          <input type="text" name="phone" id="userPhone" class="form-control" value="<%= old.phone || '' %>" placeholder="09XX-XXX-XXXX" inputmode="tel" />
+        </div>
       </div>
     </div>
+  </section>
+
+  <section class="ap-section" aria-labelledby="userRoleHeading">
+    <div class="ap-section-intro">
+      <h2 id="userRoleHeading">Role and access</h2>
+      <p>The role decides which pages and records this person can open.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required" for="userRoleSelect">Role</label>
+          <select name="role_id" id="userRoleSelect" class="form-select" required>
+            <option value="">— Select a role —</option>
+            <% for (const r of roles) { %>
+            <option value="<%= r.id %>" <%= String(old.role_id) === String(r.id) ? 'selected' : '' %>><%= r.label %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <% if (!user) { %>
+  <%# New user — password is required %>
+  <section class="ap-section" aria-labelledby="userPassHeading">
+    <div class="ap-section-intro">
+      <h2 id="userPassHeading">Password</h2>
+      <p>Share it with the staff member privately. They can change it later under My Profile.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="passwordField">Password</label>
+          <div class="input-group">
+            <input type="password" name="password" id="passwordField" class="form-control"
+              required minlength="8"
+              autocomplete="new-password" aria-describedby="passwordHelp" />
+            <button type="button" class="btn btn-outline-secondary btn-toggle-pass" data-target="passwordField" aria-label="Show or hide password">
+              <i class="fas fa-eye" aria-hidden="true"></i>
+            </button>
+          </div>
+          <div class="form-text" id="passwordHelp">At least 8 characters.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="passwordConfirmField">Confirm password</label>
+          <input type="password" name="password_confirm" id="passwordConfirmField" class="form-control"
+            autocomplete="new-password" />
+        </div>
+      </div>
+    </div>
+  </section>
+  <% } %>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
+    <a href="/users" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i><%= user ? 'Save changes' : 'Create user' %></button>
   </div>
+</form>
+
 </div>

@@ -14,14 +14,12 @@ function validateCottageTimeRange(startTime, endTime) {
   return startMinutes !== null && endMinutes !== null && endMinutes > startMinutes;
 }
 
-function calculateCottageTotal(hourlyRate, startTime, endTime, wholeDayRate = false) {
-  const rate = Number(hourlyRate);
+// A cottage booking is charged its rate once; the selected time in/out is
+// stored for scheduling only and never multiplies the price.
+function calculateCottageTotal(cottageRate) {
+  const rate = Number(cottageRate);
   if (!Number.isFinite(rate) || rate < 0) return 0;
-  if (wholeDayRate) return rate;
-  if (!validateCottageTimeRange(startTime, endTime)) return 0;
-
-  const durationMinutes = timeToMinutes(endTime) - timeToMinutes(startTime);
-  return Number((rate * (durationMinutes / 60)).toFixed(2));
+  return Number(rate.toFixed(2));
 }
 
 module.exports = {

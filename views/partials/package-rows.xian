@@ -1,0 +1,67 @@
+<%#
+  Event packages as comparison rows (landing page, hall detail page, portal venues page) — V3 §5.5.
+  Include with Object.assign({}, __locals, { pkgRows: { list, dp, venueId, date, h, idPrefix, book } }).
+    book: true also shows "Book this package" (portal); the main action is always the package detail page.
+  Each package row needs p.includedItems and p.addonItems (see the landing/stay route handlers),
+  or p.inclusionsList, from which they are derived here.
+%>
+<%
+  const _o = pkgRows || {};
+  const _list = Array.isArray(_o.list) ? _o.list : [];
+  const _H = _o.h || 'h3';
+  const _pre = _o.idPrefix || 'pkg';
+  const _tc = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const _occ = (t) => ({ wedding: 'Wedding', birthday: 'Birthday', debut: 'Debut', corporate: 'Corporate event', meeting: 'Meeting' }[t] || (t && t !== 'other' ? _tc(t) : 'Gathering'));
+  const _norm = (p) => {
+    if (p.includedItems && p.addonItems) return p;
+    const list = (p.inclusionsList || []).map(i => typeof i === 'string' ? { name: i, price: 0, is_default: 1, is_optional: 0 } : i).filter(i => i && i.name);
+    p.includedItems = list.filter(i => Number(i.is_default) === 1 || !Number(i.is_optional));
+    p.addonItems = list.filter(i => Number(i.is_default) !== 1 && Number(i.is_optional) && Number(i.price) > 0);
+    return p;
+  };
+%>
+<ol class="pk-rows" role="list">
+  <% for (const raw of _list) { const p = _norm(raw); %>
+  <%
+    const first = String(p.description || '').split(/\r?\n/).map(s => s.trim()).find(Boolean) || '';
+    const detail = new URLSearchParams();
+    if (_o.date) detail.set('date', _o.date);
+    const detailHref = '/stay/package/' + p.id + (detail.toString() ? '?' + detail.toString() : '');
+    const qs = new URLSearchParams({ type: 'event', package_id: String(p.id) });
+    if (_o.venueId) qs.set('item_id', String(_o.venueId));
+    if (_o.date) qs.set('date', _o.date);
+    const cheapestAddon = p.addonItems.length ? Math.min(...p.addonItems.map(a => Number(a.price))) : 0;
+  %>
+  <li class="pk-row" id="<%= _pre %>-<%= p.id %>" data-occasion="<%= p.event_type || 'other' %>">
+    <div class="pk-main">
+      <p class="pk-occ"><%= _occ(p.event_type) %></p>
+      <<%= _H %> class="pk-name"><a href="<%= detailHref %>"><%= p.name %></a></<%= _H %>>
+      <p class="pk-meta"><% if (p.capacity) { %><span>Up to <%= p.capacity %> guests</span><% } %><span><%= p.includedItems.length ? p.includedItems.length + ' item' + (p.includedItems.length === 1 ? '' : 's') + ' included' : 'Inclusions confirmed with the resort' %></span><% if (p.addonItems.length) { %><span><%= p.addonItems.length %> optional add-on<%= p.addonItems.length === 1 ? '' : 's' %></span><% } %></p>
+      <% if (first) { %><p class="pk-desc"><%= first %></p><% } %>
+      <% if (p.includedItems.length) { %>
+      <div class="pk-incl">
+        <p class="pk-label">Included in the price</p>
+        <ul role="list"><% for (const i of p.includedItems) { %><li><i class="fas fa-check" aria-hidden="true"></i><%= i.name %></li><% } %></ul>
+      </div>
+      <% } %>
+      <% if (p.addonItems.length) { %>
+      <details class="pk-addons">
+        <summary>Add-ons from <%= formatPrice(cheapestAddon) %> each</summary>
+        <ul role="list">
+          <% for (const a of p.addonItems) { %><li><span><%= a.name %></span><span class="num">+<%= formatPrice(a.price) %></span></li><% } %>
+        </ul>
+        <p class="pk-addon-note">Choose add-ons when you book; each one is added to your total and downpayment.</p>
+      </details>
+      <% } %>
+    </div>
+    <div class="pk-side">
+      <p class="pk-price"><strong><%= formatPrice(p.price) %></strong> <span>/ event</span></p>
+      <% if (_o.dp) { %><p class="pk-dp"><%= _o.dp %>% downpayment: <%= formatPeso(Math.ceil(p.price * _o.dp / 100)) %></p><% } %>
+      <div class="pk-actions">
+        <a href="<%= detailHref %>" class="btn btn-outline-primary">See package details<span class="br-sr-only">: <%= p.name %></span></a>
+        <% if (_o.book) { %><a href="/portal/book?<%= qs.toString() %>" class="btn btn-primary pk-book">Book<span class="br-sr-only"> the <%= p.name %></span></a><% } %>
+      </div>
+    </div>
+  </li>
+  <% } %>
+</ol>

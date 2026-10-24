@@ -1,31 +1,114 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/events">Events</a></li><li class="breadcrumb-item active">New Event</li></ol></nav><h3 class="mb-0">Create New Event</h3></div>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/events" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Events</a>
+<h1 class="ph-title">Create New Event</h1>
+<!--/page-head-->
+<p class="page-intro">The venue is checked for clashes with other events at the same time before the event is saved.</p>
+
+<% if (errors && errors.length > 0) { %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
 </div>
-<% if (errors && errors.length > 0) { %><div class="alert alert-danger"><% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %></div><% } %>
-<div class="row"><div class="col-lg-8">
-<div class="card"><div class="card-body">
-<form action="/events" method="POST">
-  <div class="row g-3">
-    <div class="col-md-8"><label class="form-label required">Event Name</label><input type="text" name="event_name" class="form-control" value="<%= old.event_name || '' %>" required /></div>
-    <div class="col-md-4"><label class="form-label required">Event Type</label><select name="event_type" class="form-select" required><option value="">Select...</option><% for (const t of eventTypes) { %><option value="<%= t %>" <%= old.event_type === t ? 'selected' : '' %>><%= t.replace(/_/g,' ') %></option><% } %></select></div>
-    <div class="col-md-6"><label class="form-label required">Customer</label><select name="customer_id" class="form-select" required><option value="">Select...</option><% for (const c of customers) { %><option value="<%= c.id %>" <%= String(old.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.first_name %> <%= c.last_name %></option><% } %></select></div>
-    <div class="col-md-6"><label class="form-label">Venue</label><select name="venue_id" class="form-select"><option value="">No venue</option><% for (const v of venues) { %><option value="<%= v.id %>" data-price="<%= v.price %>" <%= String(old.venue_id) === String(v.id) ? 'selected' : '' %>><%= v.name %> (Cap: <%= v.capacity %>)</option><% } %></select></div>
-    <div class="col-md-4"><label class="form-label required">Event Date</label><input type="date" name="event_date" class="form-control" value="<%= old.event_date || '' %>" required /></div>
-    <div class="col-md-4"><label class="form-label required">Start Time</label><input type="time" name="start_time" class="form-control" value="<%= old.start_time || '' %>" required /></div>
-    <div class="col-md-4"><label class="form-label required">End Time</label><input type="time" name="end_time" class="form-control" value="<%= old.end_time || '' %>" required /></div>
-    <div class="col-md-6"><label class="form-label required">Number of Attendees</label><input type="number" name="num_attendees" class="form-control" value="<%= old.num_attendees || 1 %>" min="1" required /></div>
-    <div class="col-md-6"><label class="form-label">Event Package</label><select name="event_package_id" class="form-select" id="packageSel"><option value="">No package</option><% for (const p of packages) { %><option value="<%= p.id %>" data-price="<%= p.price %>" <%= String(old.event_package_id) === String(p.id) ? 'selected' : '' %>><%= p.name %> – <%= formatPeso(p.price) %></option><% } %></select></div>
-    <div class="col-md-6"><label class="form-label required">Total Cost (₱)</label><div class="input-group"><span class="input-group-text">₱</span><input type="number" name="total_cost" id="totalCost" class="form-control" value="<%= old.total_cost || '' %>" min="0" step="0.01" required /></div></div>
-    <div class="col-12"><label class="form-label">Special Requests</label><textarea name="special_requests" class="form-control" rows="3" placeholder="Any special setup or requests..."><%= old.special_requests || '' %></textarea></div>
+<% } %>
+
+<form data-guard="this event" action="/events" method="POST" class="ap-form">
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Event</h2>
+      <p>What is being celebrated and who booked it.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required" for="eventName">Event name</label>
+          <input type="text" name="event_name" id="eventName" class="form-control" value="<%= old.event_name || '' %>" placeholder="e.g. Santos–Reyes Wedding" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required" for="eventType">Event type</label>
+          <select name="event_type" id="eventType" class="form-select" required><option value="">Select…</option><% for (const t of eventTypes) { %><option value="<%= t %>" <%= old.event_type === t ? 'selected' : '' %>><%= statusLabel(t) %></option><% } %></select>
+        </div>
+        <div class="col-12">
+          <label class="form-label required" for="eventCustomer">Customer</label>
+          <select name="customer_id" id="eventCustomer" class="form-select" required aria-describedby="eventCustomerHelp"><option value="">Select…</option><% for (const c of customers) { %><option value="<%= c.id %>" <%= String(old.customer_id) === String(c.id) ? 'selected' : '' %>><%= c.first_name %> <%= c.last_name %></option><% } %></select>
+          <div class="form-text" id="eventCustomerHelp">Not listed? <a href="/crm/customers/new">Add the customer</a> first.</div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="d-flex gap-2 mt-4">
-    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Create Event</button>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Date and time</h2>
+      <p>Times are Philippine time.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label required" for="eventDate">Event date</label>
+          <input type="date" name="event_date" id="eventDate" class="form-control" value="<%= old.event_date || '' %>" required />
+        </div>
+        <div class="col-6 col-md-4">
+          <label class="form-label required" for="eventStart">Start time</label>
+          <input type="time" name="start_time" id="eventStart" class="form-control" value="<%= old.start_time || '' %>" required />
+        </div>
+        <div class="col-6 col-md-4">
+          <label class="form-label required" for="eventEnd">End time</label>
+          <input type="time" name="end_time" id="eventEnd" class="form-control" value="<%= old.end_time || '' %>" required />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Venue, package and guests</h2>
+      <p>Choosing a package fills in its price as the total cost; you can still change it.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="eventVenue">Venue</label>
+          <select name="venue_id" id="eventVenue" class="form-select"><option value="">No venue</option><% for (const v of venues) { %><option value="<%= v.id %>" data-price="<%= v.price %>" <%= String(old.venue_id) === String(v.id) ? 'selected' : '' %>><%= v.name %> (up to <%= v.capacity %>)</option><% } %></select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="eventAttendees">Number of guests</label>
+          <input type="number" name="num_attendees" id="eventAttendees" class="form-control" value="<%= old.num_attendees || 1 %>" min="1" required />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="packageSel">Event package</label>
+          <select name="event_package_id" class="form-select" id="packageSel"><option value="">No package</option><% for (const p of packages) { %><option value="<%= p.id %>" data-price="<%= p.price %>" <%= String(old.event_package_id) === String(p.id) ? 'selected' : '' %>><%= p.name %> – <%= formatPeso(p.price) %></option><% } %></select>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="totalCost">Total cost</label>
+          <div class="input-group"><span class="input-group-text">₱</span><input type="number" name="total_cost" id="totalCost" class="form-control" value="<%= old.total_cost || '' %>" min="0" step="0.01" required /></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Special requests</h2>
+      <p>Set-up, decoration or catering notes from the customer.</p>
+    </div>
+    <div class="ap-section-body">
+      <label class="form-label" for="eventRequests">Special requests</label>
+      <textarea name="special_requests" id="eventRequests" class="form-control" rows="3" placeholder="e.g. Round tables, stage on the beach side"><%= old.special_requests || '' %></textarea>
+    </div>
+  </div>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
     <a href="/events" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary">Create event</button>
   </div>
 </form>
-</div></div>
-</div></div>
+
+</div>
 <script>
 document.getElementById('packageSel').addEventListener('change', function() {
   const price = this.options[this.selectedIndex].dataset.price;

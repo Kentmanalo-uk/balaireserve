@@ -8,7 +8,8 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { generateTicketNumber } = require('../../../utils/bookingRef');
-const { notifyAllAdmins } = require('../../../utils/notifications');
+const { notifyAllAdmins, notifyUser } = require('../../../utils/notifications');
+const { publicSettings } = require('../../../utils/publicSettings');
 
 const router = express.Router();
 
@@ -35,7 +36,7 @@ router.get('/', requireAuth, async (req, res) => {
 
   const statuses   = ['open','in_progress','escalated','resolved','closed'];
   const categories = ['general','room','venue','event','pricing','complaint','other'];
-  const staffList  = await db.prepare(`SELECT id, first_name || ' ' || last_name AS name FROM users WHERE is_active=1`).all();
+  const staffList  = await db.prepare(`SELECT u.id, u.first_name || ' ' || u.last_name AS name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.is_active=1 AND r.name IN ('admin','staff') ORDER BY u.first_name`).all();
 
   // Count per status for the summary strip
   const statusCountRows = await db.prepare(`SELECT status, COUNT(*) AS cnt FROM inquiries GROUP BY status`).all();
@@ -62,7 +63,7 @@ router.get('/:id', requireAuth, async (req, res) => {
   `).get(req.params.id);
   if (!inquiry) { req.session.flash = { error: 'Inquiry not found.' }; return res.redirect('/inquiries'); }
 
-  const staffList = await db.prepare(`SELECT id, first_name || ' ' || last_name AS name FROM users WHERE is_active=1`).all();
+  const staffList = await db.prepare(`SELECT u.id, u.first_name || ' ' || u.last_name AS name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.is_active=1 AND r.name IN ('admin','staff') ORDER BY u.first_name`).all();
   const ticket    = await db.prepare(`SELECT * FROM support_tickets WHERE inquiry_id=? LIMIT 1`).get(inquiry.id);
 
   res.render('inquiries/show', { title: `Inquiry #${inquiry.id}`, layout: 'layouts/main', inquiry, staffList, ticket });
@@ -81,6 +82,18 @@ router.post('/:id/resolve', requireAuth, requireRole('admin','staff'), async (re
   const { resolution } = req.body;
   // Auto-assign to the staff member who resolves — no manual selection needed
   await db.prepare(`UPDATE inquiries SET status='resolved', resolution=?, assigned_to=?, resolved_at=NOW(), updated_at=NOW() WHERE id=?`).run(resolution || '', req.session.user.id, req.params.id);
+  // Let the guest know we replied (linked customer account first, else a user with the same email).
+  const recipient = await db.prepare(`
+    SELECT COALESCE(c.user_id, u.id) AS user_id, i.subject
+    FROM inquiries i
+    LEFT JOIN customers c ON c.id = i.customer_id
+    LEFT JOIN users u ON i.email <> '' AND u.email = i.email
+    WHERE i.id = ?
+  `).get(req.params.id);
+  if (recipient?.user_id) {
+    await notifyUser(recipient.user_id, 'inquiry', 'We replied to your inquiry',
+      'Our team responded to "' + recipient.subject + '".', '/portal/my-inquiries');
+  }
   req.session.flash = { success: 'Inquiry marked as resolved.' };
   res.redirect(`/inquiries/${req.params.id}`);
 });
@@ -166,9 +179,24 @@ async function autoAnswer(message) {
 
   // Room prices
   if (msg.includes('room') && (msg.includes('price') || msg.includes('rate') || msg.includes('cost'))) {
-    const types = await db.prepare(`SELECT name, base_price FROM room_types ORDER BY base_price`).all();
-    const list  = types.map(t => `${t.name}: ₱${t.base_price.toLocaleString()}/night`).join(', ');
-    return `Our room rates start from: ${list}. Prices may vary per specific room. Contact us for detailed pricing.`;
+    // Quote the bookable rooms' own prices (what the portal charges), not room_types.base_price.
+    const rooms = await db.prepare(`SELECT name, MIN(price) AS price FROM rooms WHERE is_active=1 GROUP BY name ORDER BY price`).all();
+    const list  = rooms.map(r => `${r.name}: ₱${r.price.toLocaleString()}/night`).join(', ');
+    return `Our room rates are: ${list}. Contact us for detailed pricing.`;
+  }
+
+  // Cottage prices (one flat rate per booking)
+  if (msg.includes('cottage') && (msg.includes('price') || msg.includes('rate') || msg.includes('cost') || msg.includes('how much'))) {
+    const cottages = await db.prepare(`SELECT name, MIN(price) AS price FROM cottages WHERE is_active=1 GROUP BY name ORDER BY price`).all();
+    const list     = cottages.map(c => `${c.name}: ₱${c.price.toLocaleString()}`).join(', ');
+    return `Our cottage rates are: ${list}. The rate is charged once per booking.`;
+  }
+
+  // Venue prices
+  if (msg.includes('venue') && (msg.includes('price') || msg.includes('rate') || msg.includes('cost') || msg.includes('how much'))) {
+    const venues = await db.prepare(`SELECT name, MIN(price) AS price FROM venues WHERE is_active=1 GROUP BY name ORDER BY price`).all();
+    const list   = venues.map(v => `${v.name}: ₱${v.price.toLocaleString()}/event`).join(', ');
+    return `Our venue rates are: ${list}. Event packages are priced separately.`;
   }
 
   // Venue availability
@@ -205,20 +233,34 @@ async function autoAnswer(message) {
 
   // Contact information
   if (msg.includes('contact') || msg.includes('phone') || msg.includes('email') || msg.includes('address')) {
-    const phone   = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_phone'`).get())?.value   || '';
-    const email   = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_email'`).get())?.value   || '';
+    // Seed placeholders are not real contact details, so they are never quoted.
+    const contact = publicSettings({
+      resort_phone: (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_phone'`).get())?.value || '',
+      resort_email: (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_email'`).get())?.value || '',
+    });
     const address = (await db.prepare(`SELECT value FROM settings WHERE \`key\`='resort_address'`).get())?.value || '';
-    return `You can reach us at: Phone: ${phone}, Email: ${email}, Address: ${address}. Our team is available during office hours.`;
+    const parts = [
+      contact.resort_phone ? `Phone: ${contact.resort_phone}` : '',
+      contact.resort_email ? `Email: ${contact.resort_email}` : '',
+      address ? `Address: ${address}` : '',
+    ].filter(Boolean);
+    return parts.length
+      ? `You can reach us at — ${parts.join(', ')}. You can also send an inquiry from the Contact page.`
+      : 'Please send us an inquiry from the Contact page and our team will reply in your account.';
   }
 
   // How to book
   if (msg.includes('how to book') || msg.includes('reservation process') || msg.includes('how do i reserve')) {
-    return 'To make a reservation: (1) Browse our available rooms or venues, (2) Select your preferred dates, (3) Fill in your details and submit, (4) Pay the downpayment to confirm. You will receive a booking reference and QR code by email.';
+    return 'To make a reservation: (1) choose a room, cottage, the function hall or an event package and your dates, (2) submit the booking — it is not confirmed yet, (3) pay the downpayment by GCash, Maya or bank transfer and upload a screenshot on your booking page, (4) our staff verify it and confirm your booking. Your booking reference and check-in QR code appear on your booking page.';
   }
 
-  // Amenities
+  // Amenities — only what the resort has listed (Settings → Landing Page)
   if (msg.includes('ameniti') || msg.includes('facilities') || msg.includes('pool') || msg.includes('wifi')) {
-    return 'Our resort offers various amenities including swimming pool, WiFi, air-conditioned rooms, function halls, garden areas, and more. Specific amenities vary by room and venue type.';
+    const listed = ((await db.prepare(`SELECT value FROM settings WHERE \`key\`='landing_amenities'`).get())?.value || '')
+      .split(/\r?\n/).map(l => l.replace(/^[-*•\s]+/, '').trim()).filter(Boolean);
+    return listed.length
+      ? `At the resort: ${listed.join(', ')}. Room and cottage pages list what each one includes.`
+      : 'Each room, cottage and the function hall page lists what it includes. For anything specific, send us an inquiry and our team will confirm.';
   }
 
   // Default — escalate to staff

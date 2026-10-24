@@ -1,24 +1,34 @@
+<%
+  // Success/info are announced politely (role=status); errors/warnings
+  // interrupt (role=alert). The class always starts with "alert" so the
+  // acceptance checks keep working. Only success/info carry .flash-alert,
+  // which main.js auto-dismisses; errors and warnings stay until closed.
+%>
 <% if (flash && flash.success) { %>
-<div class="alert alert-success alert-dismissible fade show flash-alert" role="alert">
-  <i class="fas fa-check-circle me-2"></i><%= flash.success %>
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-success alert-dismissible fade show flash-msg flash-alert" role="status">
+  <i class="fas fa-check-circle flash-icon" aria-hidden="true"></i>
+  <div class="flex-grow-1"><%= flash.success %></div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Dismiss message"></button>
 </div>
 <% } %>
 <% if (flash && flash.error) { %>
-<div class="alert alert-danger alert-dismissible fade show flash-alert" role="alert">
-  <i class="fas fa-exclamation-circle me-2"></i><%= flash.error %>
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-danger alert-dismissible fade show flash-msg" role="alert">
+  <i class="fas fa-exclamation-circle flash-icon" aria-hidden="true"></i>
+  <div class="flex-grow-1"><%= flash.error %></div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Dismiss message"></button>
 </div>
 <% } %>
 <% if (flash && flash.warning) { %>
-<div class="alert alert-warning alert-dismissible fade show flash-alert" role="alert">
-  <i class="fas fa-exclamation-triangle me-2"></i><%= flash.warning %>
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-warning alert-dismissible fade show flash-msg" role="alert">
+  <i class="fas fa-exclamation-triangle flash-icon" aria-hidden="true"></i>
+  <div class="flex-grow-1"><%= flash.warning %></div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Dismiss message"></button>
 </div>
 <% } %>
 <% if (flash && flash.info) { %>
-<div class="alert alert-info alert-dismissible fade show flash-alert" role="alert">
-  <i class="fas fa-info-circle me-2"></i><%= flash.info %>
-  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+<div class="alert alert-info alert-dismissible fade show flash-msg flash-alert" role="status">
+  <i class="fas fa-info-circle flash-icon" aria-hidden="true"></i>
+  <div class="flex-grow-1"><%= flash.info %></div>
+  <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Dismiss message"></button>
 </div>
 <% } %>

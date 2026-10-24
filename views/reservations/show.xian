@@ -1,473 +1,767 @@
 <% layout('layouts/main') %>
+<%
+  const isStaff = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const titleCase = s => String(s || '—').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const methodLabel = m => ({ cash:'Cash', gcash:'GCash', maya:'Maya', bank_transfer:'Bank transfer', credit_card:'Credit card', check:'Check' })[m] || titleCase(m);
+  const typeLabel = t => ({ room:'Room', cottage:'Cottage', venue:'Venue', event:'Event', event_package:'Event package' })[t] || titleCase(t);
+  const payTypeLabel = t => ({ downpayment:'Downpayment', full_payment:'Full payment', balance:'Balance', refund:'Refund payout' })[t] || titleCase(t);
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
-      <li class="breadcrumb-item"><a href="/reservations">Reservations</a></li>
-      <li class="breadcrumb-item active"><%= reservation.booking_ref %></li>
-    </ol></nav>
-    <h3 class="mb-0">Reservation <code><%= reservation.booking_ref %></code></h3>
-  </div>
-  <div class="page-header-actions">
-    <%- statusBadge(reservation.status) %>
-    <%- statusBadge(reservation.payment_status) %>
-  </div>
+  // A reservation is finished once it is completed, or the guest has already
+  // checked out (checkout auto-completes the reservation). In that case we
+  // show a read-only status instead of the manual dropdown.
+  const isFinished = reservation.status === 'completed'
+    || (guest && guest.status === 'checked_out')
+    || !!checkOut;
+  const isClosed = ['cancelled', 'rejected', 'no_show'].includes(reservation.status);
+
+  const customerProofs  = payments.filter(p => p.submitted_by === 'customer');
+  const unverifiedCount = customerProofs.filter(p => p.status === 'received').length;
+  const phDate = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  // Staff can open the QR check-in page directly (same page a phone scan opens; it asks to confirm).
+  const canCheckIn = isStaff && qrCode && !qrCode.used && !isFinished && !isClosed
+    && !['on_hold', 'checked_in'].includes(reservation.status) && !(guest && guest.status === 'checked_in');
+  const checkInHref = canCheckIn ? '/checkin/' + qrCode.token : null;
+
+  const startDate = reservation.check_in_date || reservation.event_date;
+  const endDate   = reservation.check_out_date || reservation.event_date;
+  const stayText  = (startDate ? formatDate(startDate, 'ddd, MMM D, YYYY') : '—')
+    + (endDate && String(endDate) !== String(startDate) ? ' – ' + formatDate(endDate, 'ddd, MMM D, YYYY') : '');
+  const timeText  = [reservation.start_time, reservation.end_time].filter(Boolean).join(' – ');
+
+  // The one thing staff most likely need to do next on this booking.
+  let next = null;
+  if (isStaff) {
+    if (isFinished) {
+      next = { text: 'This booking is closed. The guest has checked out or the stay is complete; no further status changes are needed.' };
+    } else if (refundRequest && refundRequest.status === 'pending') {
+      next = { text: 'The guest asked for a refund of ' + formatPeso(refundRequest.amount) + '.', label: 'Review refund request', href: '#refundPanel' };
+    } else if (unverifiedCount > 0) {
+      next = { text: unverifiedCount + ' payment proof' + (unverifiedCount === 1 ? ' is' : 's are') + ' waiting for verification.', label: 'Check payment proof', href: '#proofs' };
+    } else if (reservation.status === 'on_hold') {
+      next = { text: 'On hold. Its dates stay blocked until the booking is resumed.', label: 'Resume booking', href: '#statusPanel' };
+    } else if (isClosed) {
+      next = { text: 'This booking is ' + statusLabel(reservation.status).toLowerCase() + '. Its dates are no longer blocked.' };
+    } else if ((reservation.status === 'checked_in' || (guest && guest.status === 'checked_in')) && balance > 0) {
+      next = { text: 'Guest is checked in with ' + formatPeso(balance) + ' still due. Collect it before check-out.', label: 'Collect balance', href: '#balancePanel' };
+    } else if (guest && guest.status === 'checked_in') {
+      next = { text: 'Guest is checked in and fully paid.', label: 'Check out guest', href: '#guestPanel' };
+    } else if (reservation.status === 'checked_in') {
+      next = { text: 'Guest is checked in and fully paid.' };
+    } else if (reservation.status === 'pending') {
+      next = { text: 'New booking waiting for review. Confirm it, mark it as a pencil booking, or reject it.', label: 'Update status', href: '#statusPanel' };
+    } else if (reservation.status === 'pencil') {
+      next = { text: 'Tentative pencil booking. Its dates are held until you confirm or release it.', label: 'Update status', href: '#statusPanel' };
+    } else if (balance > 0) {
+      next = { text: formatPeso(balance) + ' is still due on this booking.', label: 'Record payment', modal: '#paymentModal' };
+    } else {
+      next = { text: 'Paid in full. On arrival, scan the guest’s booking QR code or open the check-in page here.', label: canCheckIn ? 'Check in guest' : null, href: checkInHref || '#qrPanel' };
+    }
+  }
+%>
+
+<!--page-head-->
+<a href="/reservations" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Reservations</a>
+<h1 class="ph-title"><%= reservation.booking_ref %></h1>
+<div class="ph-actions">
+  <% if (isStaff && balance > 0 && !isClosed && !isFinished) { %>
+  <button type="button" class="btn btn-secondary-quiet" data-bs-toggle="modal" data-bs-target="#paymentModal"><i class="fas fa-plus" aria-hidden="true"></i>Record payment</button>
+  <% } %>
+  <% if (next && next.label && next.modal) { %>
+  <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="<%= next.modal %>"><%= next.label %></button>
+  <% } else if (next && next.label) { %>
+  <a href="<%= next.href %>" class="btn btn-primary"><%= next.label %></a>
+  <% } %>
 </div>
+<!--/page-head-->
 
-<div class="row g-3">
+<!-- (1) Where the booking stands: states, who/when, and the next step -->
+<section class="ws-head" aria-label="Booking summary">
+  <div class="ws-head-main">
+    <div class="ws-states">
+      <span class="ws-state"><span class="ws-state-label">Booking</span><%- statusBadge(reservation.status) %></span>
+      <span class="ws-state"><span class="ws-state-label">Payment</span><%- statusBadge(reservation.payment_status) %></span>
+      <span class="ws-state ws-state-plain"><%= typeLabel(reservation.reservation_type) %> · <%= reservation.source === 'walk_in' ? 'Walk-in' : titleCase(reservation.source) %></span>
+    </div>
+    <p class="ws-summary"><strong><%= reservation.customer_name %></strong> · <%= stayText %><% if (timeText) { %> · <%= timeText %><% } %></p>
+  </div>
+  <% if (next) { %>
+  <div class="ws-next" role="note">
+    <span class="ws-next-label">Next step</span>
+    <p class="ws-next-text"><%= next.text %></p>
+  </div>
+  <% } %>
+</section>
 
-  <%# ── Left column ─────────────────────────────────────────────── %>
-  <div class="col-lg-8">
+<div class="ws-grid">
+<div class="ws-main">
 
-    <%# Reservation Info %>
-    <div class="card mb-3">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-info-circle me-2"></i>Reservation Details</h6></div>
-      <div class="card-body">
-        <div class="row g-3">
-          <div class="col-md-6">
-            <table class="table table-sm table-borderless mb-0">
-              <tr><th>Customer</th><td><a href="/crm/customers/<%= reservation.customer_id %>"><%= reservation.customer_name %></a></td></tr>
-              <tr><th>Phone</th><td><%= reservation.customer_phone || '—' %></td></tr>
-              <tr><th>Email</th><td><%= reservation.customer_email || '—' %></td></tr>
-              <tr><th>Type</th><td><span class="badge bg-light text-dark"><%= reservation.reservation_type %></span></td></tr>
-              <tr><th>Guests</th><td><%= reservation.num_guests %></td></tr>
-              <tr><th>Source</th><td><%= reservation.source %></td></tr>
-            </table>
-          </div>
-          <div class="col-md-6">
-            <table class="table table-sm table-borderless mb-0">
-              <% if (reservation.check_in_date) { %>
-              <tr><th>Check-in</th><td><%= formatDate(reservation.check_in_date) %></td></tr>
-              <tr><th>Check-out</th><td><%= formatDate(reservation.check_out_date) %></td></tr>
-              <% } %>
-              <% if (reservation.event_date) { %>
-              <tr><th>Event Date</th><td><%= formatDate(reservation.event_date) %></td></tr>
-              <tr><th>Time</th><td><%= reservation.start_time %> – <%= reservation.end_time %></td></tr>
-              <% } %>
-              <tr><th>Total Amount</th><td class="fw-bold text-primary"><%= formatPeso(reservation.total_amount) %></td></tr>
-              <tr><th>Downpayment Req.</th><td class="fw-bold" style="color:#d97706;"><%= formatPeso(reservation.downpayment_req) %></td></tr>
-              <tr><th>Amount Paid</th><td class="fw-bold text-success"><%= formatPeso(amountPaid) %></td></tr>
-              <tr><th>Balance</th><td class="fw-bold <%= balance > 0 ? 'text-danger' : 'text-success' %>"><%= formatPeso(balance) %></td></tr>
-            </table>
-          </div>
-          <% if (reservation.special_requests) { %>
-          <div class="col-12">
-            <div class="alert alert-info mb-0 py-2 small"><i class="fas fa-sticky-note me-1"></i><strong>Special Requests:</strong> <%= reservation.special_requests %></div>
-          </div>
+  <!-- (2) Booking facts -->
+  <section class="ws-section" aria-labelledby="stayTitle">
+    <header><h2 id="stayTitle">Booking facts</h2></header>
+    <div class="ws-body">
+      <dl class="facts">
+        <% if (reservation.check_in_date) { %>
+        <div><dt>Check-in</dt><dd><%= formatDate(reservation.check_in_date, 'ddd, MMM D, YYYY') %><% if (reservation.start_time) { %><span class="cell-sub"><%= reservation.start_time %></span><% } %></dd></div>
+        <div><dt>Check-out</dt><dd><%= reservation.check_out_date ? formatDate(reservation.check_out_date, 'ddd, MMM D, YYYY') : 'Same day' %><% if (reservation.end_time) { %><span class="cell-sub"><%= reservation.end_time %></span><% } %></dd></div>
+        <% } else if (reservation.event_date) { %>
+        <div><dt>Event date</dt><dd><%= formatDate(reservation.event_date, 'ddd, MMM D, YYYY') %></dd></div>
+        <div><dt>Time</dt><dd><%= reservation.start_time || '—' %> – <%= reservation.end_time || '—' %></dd></div>
+        <% } %>
+        <div><dt>Type</dt><dd><%= typeLabel(reservation.reservation_type) %></dd></div>
+        <div><dt>Guests</dt><dd><%= reservation.num_guests %></dd></div>
+        <div><dt>Source</dt><dd><%= reservation.source === 'walk_in' ? 'Walk-in' : titleCase(reservation.source) %></dd></div>
+        <div><dt>Payment method</dt><dd><%= reservation.payment_method ? methodLabel(reservation.payment_method) : '—' %></dd></div>
+        <div><dt>Booked on</dt><dd><%= formatDateTime(reservation.created_at) %></dd></div>
+      </dl>
+    </div>
+    <div class="table-responsive">
+      <table class="table table-br table-stack mb-0">
+        <caption class="visually-hidden">Booked items</caption>
+        <thead><tr><th>Booked item</th><th>Type</th><th class="num">Qty</th><th class="num">Unit price</th><th class="num">Total</th></tr></thead>
+        <tbody>
+          <% if (!items || items.length === 0) { %>
+          <tr><td colspan="5" class="empty-cell text-center text-secondary py-3">No items recorded.</td></tr>
+          <% } else { %>
+            <% for (const item of items) { %>
+            <tr>
+              <td data-cell="primary" class="fw-medium"><%= item.item_name || '—' %></td>
+              <td data-cell="main" class="cell-meta"><%= typeLabel(item.item_type) %></td>
+              <td data-cell="hide-sm" class="num"><%= item.quantity %></td>
+              <td data-cell="side" class="num cell-meta"><span class="d-md-none"><%= item.quantity %> × </span><%= formatPeso(item.unit_price) %></td>
+              <td data-cell="status" class="num fw-semibold"><%= formatPeso(item.total_price) %></td>
+            </tr>
+            <% } %>
           <% } %>
+        </tbody>
+      </table>
+    </div>
+    <div class="ws-body">
+      <div class="note-label">Special requests <span class="note-scope">from the guest</span></div>
+      <div class="note-guest"><%= reservation.special_requests || 'None' %></div>
+    </div>
+  </section>
+
+  <!-- (3) Guest -->
+  <section class="ws-section" aria-labelledby="guestInfoTitle">
+    <header>
+      <h2 id="guestInfoTitle">Guest</h2>
+      <a href="/crm/customers/<%= reservation.customer_id %>" class="row-action">Customer profile <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </header>
+    <div class="ws-body">
+      <dl class="facts facts-guest">
+        <div><dt>Name</dt><dd class="fw-semibold"><a href="/crm/customers/<%= reservation.customer_id %>"><%= reservation.customer_name %></a></dd></div>
+        <div><dt>Mobile</dt><dd><% if (reservation.customer_phone) { %><a href="tel:<%= reservation.customer_phone %>" class="tnum"><%= reservation.customer_phone %></a><% } else { %>—<% } %></dd></div>
+        <div><dt>Email</dt><dd><% if (reservation.customer_email) { %><a href="mailto:<%= reservation.customer_email %>"><%= reservation.customer_email %></a><% } else { %>—<% } %></dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <!-- (4) Payment ledger: amounts, guest proofs, every payment -->
+  <section class="ws-section" id="proofs" aria-labelledby="payTitle">
+    <header>
+      <h2 id="payTitle">Payment ledger</h2>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <% if (unverifiedCount > 0) { %><span class="status-chip st-amber"><%= unverifiedCount %> proof<%= unverifiedCount === 1 ? '' : 's' %> to verify</span><% } %>
+        <% if (isStaff && balance > 0 && !isClosed) { %>
+        <button type="button" class="btn btn-sm btn-secondary-quiet" data-bs-toggle="modal" data-bs-target="#paymentModal"><i class="fas fa-plus" aria-hidden="true"></i> Record payment</button>
+        <% } %>
+      </div>
+    </header>
+    <div class="money">
+      <div><div class="m-label">Total</div><div class="m-value"><%= formatPeso(reservation.total_amount) %></div></div>
+      <div><div class="m-label">Required downpayment</div><div class="m-value"><%= formatPeso(reservation.downpayment_req) %></div></div>
+      <div class="<%= amountPaid > 0 ? 'is-clear' : '' %>"><div class="m-label">Paid</div><div class="m-value"><%= formatPeso(amountPaid) %></div><div class="m-sub">Received + verified</div></div>
+      <div class="<%= balance > 0 ? (isClosed ? '' : 'is-due') : 'is-clear' %>"><div class="m-label">Balance</div><div class="m-value"><%= formatPeso(balance) %></div><div class="m-sub"><%= balance > 0 ? (isClosed ? 'Not collected — booking ' + statusLabel(reservation.status).toLowerCase() : 'Due before check-out') : 'Nothing due' %></div></div>
+    </div>
+
+    <% if (customerProofs.length > 0) { %>
+    <div aria-label="Guest-submitted payment proofs">
+      <% for (const p of customerProofs) { %>
+      <div class="proof<%= p.status === 'received' ? ' is-pending' : '' %>">
+        <div style="min-width:0">
+          <div class="d-flex flex-wrap align-items-center gap-2 mb-1">
+            <span class="proof-amount"><%= formatPeso(p.amount) %></span>
+            <%- statusBadge(p.status) %><% if (p.status === 'received') { %><span class="small fw-semibold" style="color:var(--br-warning)">Waiting for verification</span><% } %>
+          </div>
+          <div class="proof-meta">
+            <%= methodLabel(p.payment_method) %> · <%= payTypeLabel(p.payment_type) %> · submitted by the guest <%= formatDateTime(p.created_at) %>
+          </div>
+          <div class="proof-meta">Reference no. <strong class="tnum text-body"><%= p.reference_number || '—' %></strong></div>
+          <% const mism = /NOTE:\s*(screenshot amount[^.?]*)/i.exec(p.notes || ''); %>
+          <% if (mism) { %>
+          <div class="ocr-warn" role="note"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span><strong>Check the amount:</strong> the <%= mism[1].replace(/^screenshot amount/i, 'amount read from the screenshot') %>. Automatic reading can be wrong — compare with the screenshot before deciding.</span></div>
+          <% } %>
+          <% if (p.notes) { %><div class="proof-note"><span class="proof-note-label">System and staff notes</span><%= p.notes %></div><% } %>
+          <% if (p.verified_at) { %><div class="proof-meta mt-1"><i class="fas fa-check-circle text-success me-1" aria-hidden="true"></i><%= p.status === 'rejected' ? 'Reviewed' : 'Verified' %> <%= formatDateTime(p.verified_at) %></div><% } %>
         </div>
-      </div>
-    </div>
 
-    <%# Booked Items %>
-    <div class="card mb-3">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-list me-2"></i>Booked Items</h6></div>
-      <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Item</th><th>Type</th><th>Qty</th><th>Unit Price</th><th>Total</th></tr></thead>
-          <tbody>
-            <% if (!items || items.length === 0) { %>
-            <tr><td colspan="5" class="text-center text-muted py-3">No items recorded.</td></tr>
-            <% } else { %>
-              <% for (const item of items) { %>
-              <tr>
-                <td><%= item.item_name || '—' %></td>
-                <td><span class="badge bg-light text-dark small"><%= item.item_type %></span></td>
-                <td><%= item.quantity %></td>
-                <td><%= formatPeso(item.unit_price) %></td>
-                <td class="fw-medium"><%= formatPeso(item.total_price) %></td>
-              </tr>
-              <% } %>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-    </div>
+        <% if (p.proof_image) { %>
+        <a href="/portal/payment-proof/<%= p.id %>" class="proof-thumb"
+           data-lightbox="/portal/payment-proof/<%= p.id %>"
+           data-lightbox-title="Payment Proof — <%= reservation.booking_ref %>">
+          <img src="/portal/payment-proof/<%= p.id %>" alt="Payment screenshot for <%= formatPeso(p.amount) %>" loading="lazy" />
+          <span><i class="fas fa-search-plus me-1" aria-hidden="true"></i>View screenshot</span>
+        </a>
+        <% } else { %>
+        <div class="proof-thumb"><i class="fas fa-image d-block mb-1" style="opacity:.4" aria-hidden="true"></i>No screenshot</div>
+        <% } %>
 
-    <%# ── FIX 7: Customer Payment Proof Verification Panel ──────── %>
-    <% const customerProofs = payments.filter(p => p.submitted_by === 'customer'); %>
-    <% if (customerProofs && customerProofs.length > 0) { %>
-    <div class="card mb-3 border-warning">
-      <div class="card-header bg-warning bg-opacity-10">
-        <h6 class="card-title mb-0 text-warning">
-          <i class="fas fa-user-shield me-2"></i>Customer-Submitted Payment Proofs
-          <% const unverifiedCount = customerProofs.filter(p => p.status === 'received').length; %>
-          <% if (unverifiedCount > 0) { %>
-          <span class="badge bg-warning text-dark ms-2"><%= unverifiedCount %> pending verification</span>
-          <% } %>
-        </h6>
-      </div>
-      <div class="card-body p-0">
-        <% for (const p of customerProofs) { %>
-        <div class="p-3 border-bottom">
-          <div class="row g-2 align-items-start">
-            <div class="col">
-              <div class="d-flex flex-wrap gap-2 align-items-center mb-1">
-                <strong class="small">₱<%= p.amount.toLocaleString('en-PH', {minimumFractionDigits:2}) %></strong>
-                <span class="badge bg-light text-dark small"><%= p.payment_method.replace(/_/g,' ') %></span>
-                <span class="badge bg-light text-dark small"><%= p.payment_type.replace(/_/g,' ') %></span>
-                <% if (p.status === 'received') { %>
-                  <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Pending Verification</span>
-                <% } else if (p.status === 'verified') { %>
-                  <span class="badge bg-success"><i class="fas fa-check me-1"></i>Verified</span>
-                <% } else { %>
-                  <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Rejected</span>
-                <% } %>
-              </div>
-              <div class="text-muted small">
-                Submitted: <%= formatDateTime(p.created_at) %> &nbsp;&middot;&nbsp;
-                Ref: <code class="small"><%= p.reference_number %></code>
-              </div>
-              <% if (p.notes) { %>
-              <div class="text-muted small fst-italic mt-1"><%= p.notes %></div>
-              <% } %>
-              <% if (p.verified_at) { %>
-              <div class="text-success small mt-1"><i class="fas fa-check-circle me-1"></i>Verified: <%= formatDateTime(p.verified_at) %></div>
-              <% } %>
-            </div>
-
-            <%# Proof image %>
-            <% if (p.proof_image) { %>
-            <div class="col-auto">
-              <a href="/portal/payment-proof/<%= p.id %>"
-                 data-lightbox="/portal/payment-proof/<%= p.id %>"
-                 data-lightbox-title="Payment Proof — <%= reservation.booking_ref %>"
-                 style="cursor:zoom-in;text-decoration:none;">
-                <img src="/portal/payment-proof/<%= p.id %>" alt="Payment Proof"
-                  style="height:70px;width:90px;object-fit:cover;border-radius:.375rem;border:2px solid #e5e7eb;" />
-                <div class="text-muted text-center" style="font-size:.68rem;"><i class="fas fa-search-plus me-1"></i>View Proof</div>
-              </a>
-            </div>
-            <% } else { %>
-            <div class="col-auto text-center text-muted small">
-              <i class="fas fa-image fa-2x d-block mb-1" style="opacity:.25;"></i>No screenshot
-            </div>
-            <% } %>
-
-            <%# Verify / Reject buttons (only for pending) %>
-            <% if (p.status === 'received' && currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-            <div class="col-auto d-flex flex-column gap-1">
-              <form action="/reservations/<%= reservation.id %>/verify-payment/<%= p.id %>" method="POST">
-                <input type="hidden" name="action" value="verify" />
-                <button type="submit" class="btn btn-sm btn-success w-100"
-                  data-confirm="Verify this ₱<%= p.amount.toLocaleString() %> payment and update the booking status?"
-                  data-confirm-title="Verify Payment"
-                  data-confirm-ok="Verify Payment">
-                  <i class="fas fa-check me-1"></i>Verify
-                </button>
-              </form>
-              <form action="/reservations/<%= reservation.id %>/verify-payment/<%= p.id %>" method="POST">
-                <input type="hidden" name="action" value="reject" />
-                <button type="submit" class="btn btn-sm btn-outline-danger w-100"
-                  data-confirm="Reject this payment proof? The customer will need to resubmit."
-                  data-confirm-title="Reject Payment"
-                  data-confirm-type="danger"
-                  data-confirm-ok="Reject">
-                  <i class="fas fa-times me-1"></i>Reject
-                </button>
-              </form>
-            </div>
-            <% } %>
-          </div>
+        <%# Verify / Reject buttons (only for pending) %>
+        <% if (p.status === 'received' && isStaff) { %>
+        <div class="proof-actions">
+          <form action="/reservations/<%= reservation.id %>/verify-payment/<%= p.id %>" method="POST">
+            <input type="hidden" name="action" value="verify" />
+            <button type="submit" class="btn btn-primary"
+              data-confirm="Verify <%= formatPeso(p.amount) %> (ref <%= p.reference_number || "none" %>)? Only verify after matching the screenshot and reference with the GCash, Maya or bank record. The balance and booking status update and the guest is notified."
+              data-confirm-title="Verify Payment"
+              data-confirm-ok="Verify Payment">
+              <i class="fas fa-check me-1" aria-hidden="true"></i>Verify payment
+            </button>
+          </form>
+          <details class="proof-reject">
+            <summary class="btn btn-outline-danger"><i class="fas fa-times me-1" aria-hidden="true"></i>Reject…</summary>
+            <form action="/reservations/<%= reservation.id %>/verify-payment/<%= p.id %>" method="POST" class="proof-reject-form">
+              <input type="hidden" name="action" value="reject" />
+              <label class="form-label" for="rejectReason<%= p.id %>">Reason for the guest <span class="text-muted fw-normal">(optional)</span></label>
+              <textarea name="reason" id="rejectReason<%= p.id %>" class="form-control" rows="2" maxlength="300" aria-describedby="rejectReasonHelp<%= p.id %>"></textarea>
+              <div class="form-text" id="rejectReasonHelp<%= p.id %>">Shown to the guest, e.g. the amount doesn't match or the screenshot is unreadable. Up to 300 characters.</div>
+              <button type="submit" class="btn btn-danger mt-2"
+                data-confirm="Reject this <%= formatPeso(p.amount) %> payment proof? It no longer counts toward the balance, and the guest is asked to submit a new one."
+                data-confirm-title="Reject payment proof"
+                data-confirm-type="danger"
+                data-confirm-ok="Reject proof">
+                <i class="fas fa-times me-1" aria-hidden="true"></i>Reject proof
+              </button>
+            </form>
+          </details>
         </div>
         <% } %>
       </div>
+      <% } %>
     </div>
     <% } %>
 
-    <%# Payments (all) %>
-    <div class="card mb-3">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-money-bill-wave me-2"></i>All Payments</h6>
-        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff') && balance > 0) { %>
-        <button class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#paymentModal">
-          <i class="fas fa-plus me-1"></i>Record Payment
-        </button>
-        <% } %>
-      </div>
-      <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Ref #</th><th>Amount</th><th>Method</th><th>Date</th><th>Type</th><th>Source</th><th>Status</th></tr></thead>
-          <tbody>
-            <% if (!payments || payments.length === 0) { %>
-            <tr><td colspan="7" class="text-center text-muted py-3">No payments recorded yet.</td></tr>
-            <% } else { %>
-              <% for (const p of payments) { %>
-              <tr class="<%= p.status === 'refunded' ? 'opacity-50' : '' %>">
-                <td><code class="small"><%= p.reference_number %></code></td>
-                <td class="fw-medium <%= p.status === 'refunded' ? 'text-muted' : 'text-success' %>">
-                  <%= p.status === 'refunded' ? '—' : formatPeso(p.amount) %>
-                </td>
-                <td class="small"><%= p.payment_method.replace(/_/g,' ') %></td>
-                <td class="small"><%= formatDate(p.payment_date) %></td>
-                <td><span class="badge bg-light text-dark small"><%= p.payment_type.replace(/_/g,' ') %></span></td>
-                <td>
-                  <% if (p.submitted_by === 'customer') { %>
-                  <span class="badge" style="background:#7c3aed;color:#fff;font-size:.65rem;">Customer</span>
-                  <% } else { %>
-                  <span class="badge bg-light text-dark" style="font-size:.65rem;">Staff</span>
-                  <% } %>
-                </td>
-                <td><%- statusBadge(p.status) %></td>
-              </tr>
-              <% } %>
+    <div class="table-responsive<%= customerProofs.length ? ' border-top' : '' %>">
+      <table class="table table-br table-stack mb-0">
+        <caption class="visually-hidden">All payments on this booking</caption>
+        <thead><tr><th>Reference</th><th>Payment</th><th>Recorded by</th><th>Status</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          <% if (!payments || payments.length === 0) { %>
+          <tr><td colspan="5" class="empty-cell text-center text-secondary py-3">No payments recorded yet.</td></tr>
+          <% } else { %>
+            <% for (const p of payments) { const counted = p.status === 'received' || p.status === 'verified'; %>
+            <tr class="<%= counted ? '' : 'muted-row' %>">
+              <td data-cell="primary" class="tnum ledger-ref"><%= p.reference_number || '—' %></td>
+              <td data-cell="main" class="cell-meta"><%= formatDate(p.payment_date) %><span class="cell-sub"><%= methodLabel(p.payment_method) %> · <%= payTypeLabel(p.payment_type) %></span></td>
+              <td data-cell="main" class="cell-meta"><%= p.submitted_by === 'customer' ? 'Guest (online)' : (p.received_by_name || 'Staff') %></td>
+              <td data-cell="status"><%- statusBadge(p.status) %></td>
+              <td data-cell="amount" class="num fw-semibold"><%= formatPeso(p.amount) %><% if (!counted) { %><span class="cell-sub">not counted</span><% } %></td>
+            </tr>
             <% } %>
-          </tbody>
-          <tfoot class="table-light">
-            <tr><td colspan="6" class="text-end fw-bold">Total Paid:</td><td class="fw-bold text-success"><%= formatPeso(amountPaid) %></td></tr>
-          </tfoot>
-        </table>
-      </div>
+          <% } %>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="4" class="text-end fw-semibold">Total paid (received + verified)</td><td class="num fw-bold"><%= formatPeso(amountPaid) %></td></tr>
+        </tfoot>
+      </table>
     </div>
+  </section>
 
-    <%# Status History %>
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-history me-2"></i>Status History</h6></div>
-      <div class="card-body">
-        <div class="timeline">
-          <% for (const sh of statusHistory) { %>
-          <div class="timeline-item">
-            <div class="timeline-dot"></div>
-            <div class="timeline-content">
-              <div class="d-flex align-items-center gap-2">
-                <% if (sh.from_status) { %><%- statusBadge(sh.from_status) %><i class="fas fa-arrow-right text-muted small"></i><% } %>
-                <%- statusBadge(sh.to_status) %>
-              </div>
-              <div class="small text-muted mt-1"><%= sh.changed_by_name || 'System' %> &mdash; <%= formatDateTime(sh.created_at) %></div>
-              <% if (sh.notes) { %><div class="small text-muted fst-italic"><%= sh.notes %></div><% } %>
+  <!-- (5) Internal notes -->
+  <section class="ws-section note-internal" aria-labelledby="notesTitle">
+    <header><h2 id="notesTitle"><i class="fas fa-lock" aria-hidden="true"></i>Internal notes</h2><span class="note-scope">Staff only — never shown to the guest</span></header>
+    <div class="ws-body">
+      <% if (isStaff) { %>
+      <form action="/reservations/<%= reservation.id %>/notes" method="POST">
+        <label class="visually-hidden" for="internalNotes">Internal notes</label>
+        <textarea name="notes" id="internalNotes" class="form-control mb-2" rows="5" maxlength="<%= notesMaxLength %>" placeholder="Add notes for the team…" aria-describedby="notesHelp"><%= reservation.notes || '' %></textarea>
+        <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+          <span class="text-secondary small" id="notesHelp"><span id="notesCount"><%= (reservation.notes || '').length %></span> / <%= notesMaxLength %> characters</span>
+          <button type="submit" class="btn btn-secondary-quiet"><i class="fas fa-floppy-disk" aria-hidden="true"></i> Save notes</button>
+        </div>
+      </form>
+      <% } else { %>
+      <div class="note-guest"><%= reservation.notes || 'None' %></div>
+      <% } %>
+    </div>
+  </section>
+
+  <!-- (6) Status history: the audit trail of every status change -->
+  <section class="ws-section" aria-labelledby="historyTitle">
+    <header><h2 id="historyTitle">Status history</h2><span class="note-scope"><%= statusHistory.length %> change<%= statusHistory.length === 1 ? '' : 's' %> · who, when and why</span></header>
+    <div class="ws-body">
+      <% if (!statusHistory.length) { %>
+      <p class="text-secondary small mb-0">No status changes recorded yet.</p>
+      <% } else { %>
+      <ol class="timeline">
+        <% for (const sh of [...statusHistory].reverse()) { %>
+        <li class="timeline-item">
+          <div class="timeline-dot" aria-hidden="true"></div>
+          <div class="timeline-content">
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <% if (sh.from_status && sh.from_status !== sh.to_status) { %><%- statusBadge(sh.from_status) %><i class="fas fa-arrow-right text-secondary small" aria-hidden="true"></i><span class="visually-hidden">to</span><% } %>
+              <%- statusBadge(sh.to_status) %>
             </div>
+            <div class="timeline-when mt-1"><%= sh.changed_by_name || 'System' %> · <%= formatDateTime(sh.created_at) %></div>
+            <% if (sh.notes) { %><div class="timeline-note"><%= sh.notes %></div><% } %>
           </div>
+        </li>
+        <% } %>
+      </ol>
+      <% } %>
+    </div>
+  </section>
+
+</div><!-- /.ws-main -->
+
+<!-- (6) Secondary actions -->
+<aside class="ws-side" aria-label="Booking actions">
+
+  <% if (isStaff) { %>
+  <section class="ws-section" id="statusPanel" aria-labelledby="statusTitle">
+    <header><h2 id="statusTitle">Booking status</h2></header>
+    <% if (isFinished) { %>
+      <%# Read-only: the booking is completed — no manual status change needed %>
+      <div class="action-block">
+        <div class="mb-2"><%- statusBadge(reservation.status) %></div>
+        <p class="mb-0">Closed. <%= (guest && guest.status === 'checked_out') || checkOut ? 'The guest has checked out' : 'The stay is complete' %>, so the status can no longer be changed here.</p>
+      </div>
+    <% } else if (reservation.status === 'on_hold') { %>
+      <%# On hold: show why, and let staff resume the booking to a chosen status %>
+      <div class="action-block">
+        <div class="hold-callout">
+          <strong><i class="fas fa-pause-circle me-1" aria-hidden="true"></i>On Hold.</strong> The dates stay blocked until the booking is resumed.
+          <% if (holdEntry && holdEntry.notes) { %>
+          <div class="mt-1"><strong>Reason:</strong> <%= holdEntry.notes %></div>
+          <div class="small opacity-75"><%= holdEntry.changed_by_name || 'System' %> · <%= formatDateTime(holdEntry.created_at) %></div>
           <% } %>
         </div>
-      </div>
-    </div>
-
-  </div>
-
-  <%# ── Right column ────────────────────────────────────────────── %>
-  <div class="col-lg-4">
-
-    <%# Status Update %>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <%
-      // A reservation is finished once it is completed, or the guest has already
-      // checked out (checkout auto-completes the reservation). In that case we
-      // show a read-only status instead of the manual dropdown.
-      const isFinished = reservation.status === 'completed'
-        || (guest && guest.status === 'checked_out')
-        || !!checkOut;
-    %>
-    <div class="card mb-3">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-exchange-alt me-2"></i>Booking Status</h6></div>
-      <div class="card-body">
-        <% if (isFinished) { %>
-          <%# Read-only: the booking is completed — no manual status change needed %>
-          <div class="text-center py-2">
-            <div style="font-size:2rem;color:#10b981;"><i class="fas fa-check-circle"></i></div>
-            <div class="fw-bold mt-1">Completed</div>
-            <div class="text-muted small">The guest has checked out and this booking is complete.</div>
-          </div>
-        <% } else { %>
         <form action="/reservations/<%= reservation.id %>/status" method="POST">
-          <div class="mb-2">
-            <select name="status" class="form-select form-select-sm">
-              <%#
-                'completed' is intentionally omitted here — checkout happens via the
-                "Check Out" button on the Guest card, which auto-completes the booking.
-              %>
-              <% for (const s of ['pending','awaiting_payment','confirmed','checked_in','cancelled','rejected','no_show']) { %>
-              <option value="<%= s %>" <%= reservation.status === s ? 'selected' : '' %>>
-                <%= s.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) %>
-              </option>
-              <% } %>
-            </select>
-          </div>
-          <% if (balance > 0) { %>
-          <div class="alert alert-warning py-2 small mb-2">
-            <i class="fas fa-exclamation-triangle me-1"></i>
-            Balance of <strong><%= formatPeso(balance) %></strong> must be collected before checkout.
-          </div>
-          <% } %>
-          <div class="mb-2">
-            <textarea name="notes" class="form-control form-control-sm" rows="2" placeholder="Notes (optional)..."></textarea>
-          </div>
-          <button type="submit" class="btn btn-sm btn-primary w-100">Update Status</button>
+          <label class="form-label" for="resumeStatus">Resume booking as</label>
+          <select name="status" id="resumeStatus" class="form-select mb-2" required>
+            <% for (const s of manualStatuses.filter(s => s !== 'on_hold')) { %>
+            <option value="<%= s %>" <%= (holdEntry && holdEntry.from_status === s) ? 'selected' : '' %>><%= statusLabel(s) %></option>
+            <% } %>
+          </select>
+          <label class="form-label" for="resumeNotes">Note <span class="text-muted fw-normal">(optional)</span></label>
+          <textarea name="notes" id="resumeNotes" class="form-control mb-2" rows="2" placeholder="Notes (optional)…">Resumed from hold</textarea>
+          <button type="submit" class="btn btn-primary w-100"><i class="fas fa-play me-1" aria-hidden="true"></i>Resume booking</button>
         </form>
+      </div>
+    <% } else { %>
+      <div class="action-block">
+        <form action="/reservations/<%= reservation.id %>/status" method="POST" id="statusForm" data-no-autosubmit-lock>
+          <label class="form-label" for="statusSelect">Change status</label>
+          <select name="status" class="form-select mb-2" id="statusSelect">
+            <%#
+              'completed' is intentionally omitted here — checkout happens via the
+              "Check Out" button on the Guest card, which auto-completes the booking.
+            %>
+            <% for (const s of manualStatuses) { %>
+            <option value="<%= s %>" <%= reservation.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option>
+            <% } %>
+          </select>
+          <label class="form-label" for="statusNotes">Note <span class="text-muted fw-normal" id="statusNotesHint">(optional)</span></label>
+          <textarea name="notes" id="statusNotes" class="form-control mb-2" rows="2" placeholder="Notes (optional)…"></textarea>
+          <button type="submit" class="btn btn-primary w-100">Update status</button>
+        </form>
+      </div>
+      <div class="action-block">
+        <h3>Put on hold</h3>
+        <p>Keeps the dates blocked and stops auto-completion while you sort something out with the guest.</p>
+        <button type="button" class="btn btn-secondary-quiet w-100" data-bs-toggle="modal" data-bs-target="#holdModal">
+          <i class="fas fa-pause-circle me-1" aria-hidden="true"></i>Put on hold…
+        </button>
+      </div>
 
-        <%# ── Collect Remaining Balance (one click records the outstanding balance) ── %>
-        <% if (balance > 0) { %>
-        <form action="/reservations/<%= reservation.id %>/collect-balance" method="POST" class="mt-2">
-          <label class="form-label small mb-1">Collect Remaining Balance</label>
-          <div class="input-group input-group-sm mb-2">
-            <span class="input-group-text">Method</span>
-            <select name="payment_method" class="form-select">
-              <% for (const m of ['cash','gcash','bank_transfer','maya','credit_card','check']) { %>
-              <option value="<%= m %>"><%= m.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) %></option>
-              <% } %>
-            </select>
-          </div>
-          <button type="submit" class="btn btn-sm btn-success w-100"
+      <%# ── Collect Remaining Balance (one click records the outstanding balance) ── %>
+      <% if (balance > 0) { %>
+      <div class="action-block" id="balancePanel">
+        <h3>Collect remaining balance</h3>
+        <div class="due-callout mb-2"><strong><%= formatPeso(balance) %></strong> must be collected before check-out.</div>
+        <form action="/reservations/<%= reservation.id %>/collect-balance" method="POST">
+          <label class="form-label" for="collectMethod">Paid with</label>
+          <select name="payment_method" id="collectMethod" class="form-select mb-2">
+            <% for (const m of ['cash','gcash','bank_transfer','maya','credit_card','check']) { %>
+            <option value="<%= m %>"><%= m.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) %></option>
+            <% } %>
+          </select>
+          <button type="submit" class="btn btn-primary w-100"
             data-confirm="Record the full remaining balance of <%= formatPeso(balance) %> as paid? This marks the booking fully paid."
             data-confirm-title="Collect Remaining Balance"
             data-confirm-ok="Mark as Paid">
-            <i class="fas fa-cash-register me-1"></i>Collect <%= formatPeso(balance) %> &amp; Mark Paid
+            <i class="fas fa-cash-register me-1" aria-hidden="true"></i>Collect <%= formatPeso(balance) %> &amp; mark paid
           </button>
         </form>
-        <% } %>
-        <% } %>
       </div>
-    </div>
+      <% } %>
     <% } %>
+  </section>
 
-    <%# ── Refund Request Review (admin/staff) ──────────────────────── %>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff') && refundRequest) { %>
-    <div class="card mb-3 border-warning">
-      <div class="card-header bg-warning bg-opacity-10">
-        <h6 class="card-title mb-0 text-warning"><i class="fas fa-hand-holding-usd me-2"></i>Refund Request</h6>
-      </div>
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <div class="fw-bold text-danger"><%= formatPeso(refundRequest.amount) %></div>
-          <% if (refundRequest.status === 'pending') { %><span class="badge bg-warning text-dark">Pending</span>
-          <% } else if (refundRequest.status === 'approved') { %><span class="badge bg-success">Approved</span>
-          <% } else { %><span class="badge bg-danger">Rejected</span><% } %>
-        </div>
-        <% if (refundRequest.reason) { %>
-        <p class="small text-muted mb-2"><strong>Reason:</strong> <%= refundRequest.reason %></p>
-        <% } %>
-        <% if (refundRequest.gcash_number) { %>
-        <p class="small text-muted mb-2"><strong>Refund to GCash:</strong> <code><%= refundRequest.gcash_number %></code></p>
-        <% } %>
-        <% if (refundRequest.status === 'pending') { %>
-        <form action="/payments/refunds/requests/<%= refundRequest.id %>/review" method="POST" class="d-flex flex-column gap-2">
-          <label class="form-label small mb-0">Payout Method</label>
-          <select name="payout_method" class="form-select form-select-sm">
+  <% if (isStaff) { %>
+  <section class="ws-section" aria-labelledby="changeTitle">
+    <header><h2 id="changeTitle">Change this booking</h2></header>
+    <div class="action-block action-list">
+      <p class="mb-1">Each change is checked, recorded in the status history and audit log, and the guest is notified where it affects them.</p>
+      <% if (canReschedule) { %>
+      <button type="button" class="btn btn-secondary-quiet" data-bs-toggle="modal" data-bs-target="#rescheduleModal"><i class="fas fa-calendar-alt" aria-hidden="true"></i>Reschedule dates / times…</button>
+      <% } %>
+      <button type="button" class="btn btn-secondary-quiet" data-bs-toggle="modal" data-bs-target="#amountModal"><i class="fas fa-pen" aria-hidden="true"></i>Edit total or balance…</button>
+    </div>
+  </section>
+  <% } %>
+  <% } %>
+
+  <%# ── Refund Request Review (admin/staff) ──────────────────────── %>
+  <% if (isStaff && refundRequest) { %>
+  <section class="ws-section" id="refundPanel" aria-labelledby="refundTitle">
+    <header><h2 id="refundTitle">Refund request</h2><%- statusBadge(refundRequest.status) %></header>
+    <div class="action-block">
+      <div class="proof-amount mb-1"><%= formatPeso(refundRequest.amount) %></div>
+      <% if (refundRequest.reason) { %><p class="mb-1"><strong class="text-body">Reason:</strong> <%= refundRequest.reason %></p><% } %>
+      <% if (refundRequest.gcash_number) { %><p class="mb-2"><strong class="text-body">Refund to GCash:</strong> <span class="tnum"><%= refundRequest.gcash_number %></span></p><% } %>
+      <% if (refundRequest.status === 'pending') { %>
+      <form action="/payments/refunds/requests/<%= refundRequest.id %>/review" method="POST" class="d-flex flex-column gap-2">
+        <div>
+          <label class="form-label" for="payoutMethod">Payout method</label>
+          <select name="payout_method" id="payoutMethod" class="form-select">
             <option value="gcash">GCash</option>
             <option value="cash">Cash</option>
             <option value="bank">Bank Transfer</option>
           </select>
-          <input type="text" name="payout_ref" class="form-control form-control-sm" placeholder="Payout transaction reference (required for GCash/bank)" />
-          <input type="text" name="admin_note" class="form-control form-control-sm" placeholder="Note / reason (required to reject)" />
-          <div class="d-flex gap-2">
-            <button type="submit" name="action" value="approve" class="btn btn-sm btn-success flex-fill"
-              data-confirm="Approve this refund of <%= formatPeso(refundRequest.amount) %>? Make sure you have already sent the payout and entered its reference. This marks the booking refunded."
-              data-confirm-title="Approve Refund" data-confirm-ok="Approve">
-              <i class="fas fa-check me-1"></i>Approve
-            </button>
-            <button type="submit" name="action" value="reject" class="btn btn-sm btn-outline-danger flex-fill">
-              <i class="fas fa-times me-1"></i>Reject
-            </button>
-          </div>
-        </form>
-        <a href="/payments/refunds/requests" class="d-block text-center small mt-2">View all refund requests</a>
-        <% } else { %>
-        <div class="small text-muted">
-          <%= refundRequest.status === 'approved' ? 'Refund paid out.' : 'Request declined.' %>
-          <% if (refundRequest.payout_method) { %><br />Method: <strong><%= refundRequest.payout_method.toUpperCase() %></strong><% } %>
-          <% if (refundRequest.payout_ref) { %><br />Ref: <code><%= refundRequest.payout_ref %></code><% } %>
-          <% if (refundRequest.admin_note) { %><br />Note: <%= refundRequest.admin_note %><% } %>
         </div>
-        <% } %>
-      </div>
-    </div>
-    <% } %>
-
-    <%# Guest Info %>
-    <% if (guest) { %>
-    <div class="card mb-3">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-user me-2"></i>Guest</h6></div>
-      <div class="card-body">
-        <div class="fw-medium"><%= guest.first_name %> <%= guest.last_name %></div>
-        <div class="text-muted small"><%= guest.email || '' %></div>
-        <div class="text-muted small"><%= guest.phone || '' %></div>
-        <div class="mt-2"><%- statusBadge(guest.status) %></div>
-        <% if (guest.status === 'checked_in') { %>
-        <form action="/guests/<%= guest.id %>/checkout" method="POST" class="mt-2">
-          <button type="submit" class="btn btn-sm btn-warning w-100"
-            data-confirm="Confirm check-out for <%= guest.first_name %> <%= guest.last_name %>?"
-            data-confirm-title="Guest Check-out"
-            data-confirm-ok="Check Out">
-            <i class="fas fa-sign-out-alt me-1"></i>Check Out
+        <div>
+          <label class="form-label" for="payoutRef">Payout reference</label>
+          <input type="text" name="payout_ref" id="payoutRef" class="form-control" placeholder="Required for GCash / bank" />
+        </div>
+        <div>
+          <label class="form-label" for="adminNote">Note</label>
+          <input type="text" name="admin_note" id="adminNote" class="form-control" placeholder="Required to reject" />
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" name="action" value="approve" class="btn btn-primary flex-fill"
+            data-confirm="Approve this refund of <%= formatPeso(refundRequest.amount) %>? Make sure you have already sent the payout and entered its reference. This marks the booking refunded."
+            data-confirm-title="Approve Refund" data-confirm-ok="Approve">
+            <i class="fas fa-check me-1" aria-hidden="true"></i>Approve
           </button>
-        </form>
-        <% } %>
-      </div>
+          <button type="submit" name="action" value="reject" class="btn btn-outline-danger flex-fill"
+            data-confirm="Decline this refund request? The guest will be notified." data-confirm-title="Decline Refund"
+            data-confirm-type="danger" data-confirm-ok="Decline">
+            <i class="fas fa-times me-1" aria-hidden="true"></i>Decline
+          </button>
+        </div>
+      </form>
+      <a href="/payments/refunds/requests" class="d-block small mt-2">All refund requests</a>
+      <% } else { %>
+      <p class="mb-0">
+        <%= refundRequest.status === 'approved' ? 'Refund paid out.' : 'Request declined.' %>
+        <% if (refundRequest.payout_method) { %><br />Method: <strong class="text-body"><%= refundRequest.payout_method.toUpperCase() %></strong><% } %>
+        <% if (refundRequest.payout_ref) { %><br />Ref: <span class="tnum text-body"><%= refundRequest.payout_ref %></span><% } %>
+        <% if (refundRequest.admin_note) { %><br />Note: <%= refundRequest.admin_note %><% } %>
+      </p>
+      <% } %>
     </div>
-    <% } %>
+  </section>
+  <% } %>
 
-    <%# QR Code %>
-    <% if (qrCode) { %>
-    <div class="card mb-3">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-qrcode me-2"></i>Check-in QR Code</h6></div>
-      <div class="card-body text-center">
-        <% if (qrCode.used) { %>
-          <div class="alert alert-secondary py-2 small">This QR code has already been used.</div>
-        <% } else { %>
-          <img src="<%= qrCode.qr_path %>" alt="QR Code" class="img-fluid qr-img mb-2" />
-          <div class="text-muted small">Guest can use this QR to check in</div>
-        <% } %>
+  <%# Guest record: check-in state and check-out %>
+  <% if (guest) { %>
+  <section class="ws-section" id="guestPanel" aria-labelledby="guestTitle">
+    <header><h2 id="guestTitle">Check-in / check-out</h2><%- statusBadge(guest.status) %></header>
+    <div class="action-block">
+      <div class="fw-semibold"><%= guest.first_name %> <%= guest.last_name %></div>
+      <div class="small text-muted"><%= [guest.phone, guest.email].filter(Boolean).join(' · ') %></div>
+      <% if (checkIn) { %><div class="small mt-2">Checked in <%= formatDateTime(checkIn.checked_in_at) %><%= checkIn.method ? ' · ' + (checkIn.method === 'qr' ? 'QR scan' : checkIn.method) : '' %></div><% } %>
+      <% if (checkOut) { %><div class="small">Checked out <%= formatDateTime(checkOut.checked_out_at) %></div><% } %>
+      <% if (canCheckIn) { %>
+      <div class="action-primary mt-3">
+        <a href="<%= checkInHref %>" class="btn btn-primary"><i class="fas fa-door-open" aria-hidden="true"></i>Check in guest</a>
       </div>
+      <p class="small text-muted mt-2 mb-0">Opens the check-in page for this booking; you confirm there. The QR code works once.</p>
+      <% } %>
+      <% if (guest.status === 'checked_in') { %>
+      <form action="/guests/<%= guest.id %>/checkout" method="POST" class="mt-3">
+        <button type="submit" class="btn btn-primary w-100"<%- balance > 0 ? ' disabled aria-describedby="checkoutBlocked"' : '' %>
+          data-confirm="Check out <%= guest.first_name %> <%= guest.last_name %> now? The booking is marked completed and its room, cottage or venue is released."
+          data-confirm-title="Check out guest"
+          data-confirm-ok="Check out">
+          <i class="fas fa-right-from-bracket" aria-hidden="true"></i> Check out guest
+        </button>
+      </form>
+      <% if (balance > 0) { %><p class="small mt-2 mb-0 text-danger" id="checkoutBlocked">Check-out unlocks once the <%= formatPeso(balance) %> balance is collected. <a href="#balancePanel">Collect balance</a></p><% } %>
+      <% } %>
     </div>
-    <% } %>
+  </section>
+  <% } %>
 
-  </div>
-</div>
+  <%# QR Code %>
+  <% if (qrCode) { %>
+  <section class="ws-section" id="qrPanel" aria-labelledby="qrTitle">
+    <header><h2 id="qrTitle">Check-in QR code</h2></header>
+    <div class="action-block text-center">
+      <% if (qrCode.used) { %>
+        <p class="mb-0">This QR code has already been used.</p>
+      <% } else { %>
+        <img src="<%= qrCode.qr_path %>" alt="Check-in QR code for <%= reservation.booking_ref %>" class="img-fluid qr-img mb-2" />
+        <p class="mb-0">The guest shows this code at arrival; staff scan it to check them in. It works once.</p>
+        <% if (!guest) { %><% if (canCheckIn) { %>
+      <div class="action-primary mt-3 text-start">
+        <a href="<%= checkInHref %>" class="btn btn-primary"><i class="fas fa-door-open" aria-hidden="true"></i>Check in guest</a>
+      </div>
+      <p class="small text-muted mt-2 mb-0">Opens the check-in page for this booking; you confirm there. The QR code works once.</p>
+      <% } %><% } %>
+      <% } %>
+    </div>
+  </section>
+  <% } %>
+
+</aside>
+</div><!-- /.ws-grid -->
 
 <%# ── Record Payment Modal ──────────────────────────────────────── %>
-<div class="modal fade" id="paymentModal" tabindex="-1">
+<div class="modal fade" id="paymentModal" tabindex="-1" aria-labelledby="paymentModalTitle" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title">Record Payment</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        <h2 class="modal-title" id="paymentModalTitle">Record payment</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <form action="/reservations/<%= reservation.id %>/payment" method="POST">
         <div class="modal-body">
-          <div class="mb-3 p-3 bg-light rounded small">
-            <strong>Total:</strong> <%= formatPeso(reservation.total_amount) %>
-            &nbsp; <strong>Paid:</strong> <%= formatPeso(amountPaid) %>
-            &nbsp; <strong>Balance:</strong> <span class="text-danger fw-bold"><%= formatPeso(balance) %></span>
+          <div class="modal-summary">
+            <span>Total <strong><%= formatPeso(reservation.total_amount) %></strong></span>
+            <span>Paid <strong><%= formatPeso(amountPaid) %></strong></span>
+            <span>Balance <strong class="text-danger"><%= formatPeso(balance) %></strong></span>
           </div>
           <div class="mb-3">
-            <label class="form-label required">Amount (₱)</label>
-            <input type="number" name="amount" class="form-control"
+            <label class="form-label required" for="payAmount">Amount (₱)</label>
+            <input type="number" name="amount" id="payAmount" class="form-control"
               value="<%= Math.max(balance, reservation.downpayment_req || 0) %>"
               min="0.01" step="0.01" required />
           </div>
-          <div class="mb-3">
-            <label class="form-label required">Payment Method</label>
-            <select name="payment_method" class="form-select">
-              <% for (const m of ['cash','gcash','bank_transfer','maya','credit_card','check']) { %>
-              <option value="<%= m %>"><%= m.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) %></option>
-              <% } %>
-            </select>
+          <div class="row g-3 mb-3">
+            <div class="col-sm-6">
+              <label class="form-label required" for="payMethod">Payment method</label>
+              <select name="payment_method" id="payMethod" class="form-select">
+                <% for (const m of ['cash','gcash','bank_transfer','maya','credit_card','check']) { %>
+                <option value="<%= m %>"><%= m.replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase()) %></option>
+                <% } %>
+              </select>
+            </div>
+            <div class="col-sm-6">
+              <label class="form-label required" for="payDate">Payment date</label>
+              <input type="date" name="payment_date" id="payDate" class="form-control" value="<%= phDate %>" required />
+            </div>
           </div>
           <div class="mb-3">
-            <label class="form-label required">Payment Date</label>
-            <input type="date" name="payment_date" class="form-control"
-              value="<%= new Date().toISOString().slice(0,10) %>" required />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Payment Type</label>
-            <select name="payment_type" class="form-select">
+            <label class="form-label" for="payType">Payment type</label>
+            <select name="payment_type" id="payType" class="form-select">
               <option value="downpayment">Downpayment</option>
               <option value="balance" selected>Balance Payment</option>
               <option value="full_payment">Full Payment</option>
             </select>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Notes / Reference</label>
-            <input type="text" name="notes" class="form-control"
-              placeholder="GCash ref, bank transaction ID, receipt #..." />
+          <div class="mb-0">
+            <label class="form-label" for="payNotes">Notes / reference</label>
+            <input type="text" name="notes" id="payNotes" class="form-control" placeholder="GCash ref, bank transaction ID, receipt #…" />
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-success">
-            <i class="fas fa-save me-1"></i>Record Payment
-          </button>
+          <button type="button" class="btn btn-secondary-quiet" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-floppy-disk me-1" aria-hidden="true"></i>Record payment</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
+<% if (isStaff) { %>
+<%# ── Put On Hold Modal ─────────────────────────────────────────── %>
+<div class="modal fade" id="holdModal" tabindex="-1" aria-labelledby="holdModalTitle" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="holdModalTitle">Put <%= reservation.booking_ref %> on hold</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/reservations/<%= reservation.id %>/status" method="POST">
+        <input type="hidden" name="status" value="on_hold" />
+        <div class="modal-body">
+          <p class="small text-muted">Status changes from <strong><%= statusLabel(reservation.status) %></strong> to <strong>On Hold</strong>. The booking keeps its dates blocked and is not auto-completed while on hold. You can resume it to any status later.</p>
+          <label class="form-label required" for="holdReason">Reason</label>
+          <textarea name="notes" id="holdReason" class="form-control" rows="3" maxlength="1000" required placeholder="Why is this booking on hold?"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary-quiet" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-pause me-1" aria-hidden="true"></i>Put on hold</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%# ── Reschedule Modal ──────────────────────────────────────────── %>
+<% if (canReschedule) { %>
+<div class="modal fade" id="rescheduleModal" tabindex="-1" aria-labelledby="rescheduleModalTitle" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="rescheduleModalTitle">Reschedule <%= reservation.booking_ref %></h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/reservations/<%= reservation.id %>/reschedule" method="POST">
+        <div class="modal-body">
+          <div class="modal-summary"><span>Now: <strong><%= stayText %><%= timeText ? ' · ' + timeText : '' %></strong></span></div>
+          <div class="row g-3">
+            <div class="col-6">
+              <label class="form-label required" for="rsIn">Check-in date</label>
+              <input type="date" name="check_in_date" id="rsIn" class="form-control" value="<%= reservation.check_in_date || reservation.event_date || '' %>" required />
+            </div>
+            <div class="col-6">
+              <label class="form-label required" for="rsOut">Check-out date</label>
+              <input type="date" name="check_out_date" id="rsOut" class="form-control" value="<%= reservation.check_out_date || reservation.check_in_date || reservation.event_date || '' %>" required />
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="rsStart">Time-in</label>
+              <input type="time" name="start_time" id="rsStart" class="form-control" value="<%= reservation.start_time || '' %>" />
+            </div>
+            <div class="col-6">
+              <label class="form-label" for="rsEnd">Time-out</label>
+              <input type="time" name="end_time" id="rsEnd" class="form-control" value="<%= reservation.end_time || '' %>" />
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="rsReason">Reason <span class="text-muted fw-normal">(optional)</span></label>
+              <input type="text" name="reason" id="rsReason" class="form-control" maxlength="500" placeholder="e.g. Guest requested a later date" />
+            </div>
+          </div>
+          <div class="form-text mt-2">The new schedule is checked against other bookings, and the guest is notified of the change.</div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary-quiet" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1" aria-hidden="true"></i>Reschedule</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+<% } %>
+
+<%# ── Edit Amount / Balance Modal ───────────────────────────────── %>
+<div class="modal fade" id="amountModal" tabindex="-1" aria-labelledby="amountModalTitle" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 class="modal-title" id="amountModalTitle">Edit total / balance</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form action="/reservations/<%= reservation.id %>/amount" method="POST" id="amountForm">
+        <div class="modal-body">
+          <div class="modal-summary">
+            <span>Total <strong><%= formatPeso(reservation.total_amount) %></strong></span>
+            <span>Paid <strong><%= formatPeso(amountPaid) %></strong></span>
+            <span>Balance <strong class="<%= balance > 0 ? 'text-danger' : 'text-success' %>"><%= formatPeso(balance) %></strong></span>
+          </div>
+          <fieldset class="mb-3">
+            <legend class="form-label mb-2" style="font-size:var(--br-fs-small)">What do you want to set?</legend>
+            <div class="btn-group w-100" role="group">
+              <input type="radio" class="btn-check" name="mode" id="modeTotal" value="total" checked />
+              <label class="btn btn-outline-primary" for="modeTotal">Total amount</label>
+              <input type="radio" class="btn-check" name="mode" id="modeBalance" value="balance" />
+              <label class="btn btn-outline-primary" for="modeBalance">Remaining balance</label>
+            </div>
+          </fieldset>
+          <div class="mb-3" id="totalGroup">
+            <label class="form-label" for="amtTotal">New total amount (₱)</label>
+            <input type="number" name="total_amount" id="amtTotal" class="form-control" value="<%= reservation.total_amount %>" min="<%= amountPaid %>" step="0.01" />
+            <div class="form-text">Cannot be less than the amount already paid (<%= formatPeso(amountPaid) %>).</div>
+          </div>
+          <div class="mb-3 d-none" id="balanceGroup">
+            <label class="form-label" for="amtBalance">New balance (₱)</label>
+            <input type="number" name="balance" id="amtBalance" class="form-control" value="<%= Math.max(balance, 0).toFixed(2) %>" min="0" step="0.01" />
+            <div class="form-text">The total becomes <%= formatPeso(amountPaid) %> paid + this balance.</div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="amtDown">Required downpayment (₱)</label>
+            <input type="number" name="downpayment_req" id="amtDown" class="form-control" value="<%= reservation.downpayment_req %>" min="0" step="0.01" />
+          </div>
+          <div class="mb-0">
+            <label class="form-label" for="amtReason">Reason <span class="text-muted fw-normal">(optional)</span></label>
+            <input type="text" name="reason" id="amtReason" class="form-control" maxlength="500" placeholder="e.g. Discount approved by manager" />
+          </div>
+          <p class="form-text mt-3 mb-0" id="amountPreview" aria-live="polite"></p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary-quiet" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1" aria-hidden="true"></i>Save amount</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var PAID = <%- JSON.stringify(Number(amountPaid) || 0) %>;
+  var peso = function (v) { return '₱' + Number(v || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+
+  // Live character count for the internal notes.
+  var notes = document.getElementById('internalNotes');
+  var count = document.getElementById('notesCount');
+  if (notes && count) notes.addEventListener('input', function () { count.textContent = notes.value.length; });
+
+  // A reason is required when choosing "On Hold" from the status dropdown.
+  var statusSelect = document.getElementById('statusSelect');
+  var statusNotes  = document.getElementById('statusNotes');
+  var statusHint   = document.getElementById('statusNotesHint');
+  if (statusSelect && statusNotes) {
+    var syncHold = function () {
+      var hold = statusSelect.value === 'on_hold';
+      statusNotes.required = hold;
+      statusNotes.placeholder = hold ? 'Reason for putting on hold (required)...' : 'Notes (optional)...';
+      if (statusHint) statusHint.textContent = hold ? '(required for On Hold)' : '(optional)';
+    };
+    statusSelect.addEventListener('change', syncHold);
+    syncHold();
+  }
+
+  // Ending a booking (cancel / reject / no show) asks first and says what changes.
+  var statusForm = document.getElementById('statusForm');
+  if (statusForm && statusSelect) {
+    var ENDING = { cancelled: 'Cancelled', rejected: 'Rejected', no_show: 'No Show' };
+    var current = <%- JSON.stringify(statusLabel(reservation.status)) %>;
+    var ok = false;
+    statusForm.addEventListener('submit', function (e) {
+      var btn = statusForm.querySelector('[type="submit"]');
+      var label = ENDING[statusSelect.value];
+      if (label && !ok && window.confirmModal) {
+        e.preventDefault();
+        window.confirmModal({
+          title: 'Mark as ' + label + '?',
+          message: 'Status changes from ' + current + ' to ' + label + '. The booking stops blocking its dates and the guest is notified.',
+          type: 'danger', okText: 'Yes, mark ' + label
+        }).then(function (yes) { if (yes) { ok = true; btn.disabled = true; statusForm.submit(); } });
+        return;
+      }
+      btn.disabled = true;
+    });
+  }
+
+  // Amount modal: switch between "set total" and "set balance", and preview the result.
+  var form = document.getElementById('amountForm');
+  if (form) {
+    var preview = document.getElementById('amountPreview');
+    var sync = function () {
+      var balanceMode = document.getElementById('modeBalance').checked;
+      document.getElementById('totalGroup').classList.toggle('d-none', balanceMode);
+      document.getElementById('balanceGroup').classList.toggle('d-none', !balanceMode);
+      var total = balanceMode ? PAID + Number(form.balance.value || 0) : Number(form.total_amount.value || 0);
+      if (preview) preview.textContent = 'After saving: total ' + peso(total) + ', paid ' + peso(PAID) + ', balance ' + peso(Math.max(total - PAID, 0)) + '.';
+    };
+    form.querySelectorAll('[name="mode"]').forEach(function (r) { r.addEventListener('change', sync); });
+    form.total_amount.addEventListener('input', sync);
+    form.balance.addEventListener('input', sync);
+    sync();
+  }
+})();
+</script>
+<% } %>

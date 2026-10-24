@@ -1,0 +1,114 @@
+<%#
+  Booking summary for a /stay detail page (V3 §06): price + unit, dates (rooms) or date + time
+  range (cottage, hall, event package), guests, package add-ons with per-item prices, live total,
+  downpayment from Settings and balance. "Reserve" opens /portal/book with the selections filled in
+  (sign-in happens there; the server recalculates the total). Desktop: sticky side panel.
+  Phones/tablets: opened as a focused sheet from the bottom bar (public/js/listing.js); the sheet
+  also shows the availability calendar (public/js/br-datepicker.js).
+%>
+<%
+  const _isRoom = kind === 'room';
+  const _isPkg  = kind === 'package';
+  const _dpRaw  = Number.parseFloat(site.downpayment_percent);
+  const _dp     = Number.isFinite(_dpRaw) && _dpRaw > 0 && _dpRaw <= 100 ? _dpRaw : 50;
+  const _unit   = _isRoom ? '/ night' : (_isPkg ? '/ event' : '/ booking');
+  const _noun   = _isRoom ? 'room' : (kind === 'cottage' ? 'cottage' : (_isPkg ? 'package' : 'hall'));
+  const _timed  = kind === 'venue' || _isPkg;
+  const _addons = _isPkg ? (item.addonItems || []) : [];
+  const _flat   = Number(item.price) || 0;
+  const _down   = Math.ceil(_flat * _dp / 100);
+%>
+<div class="bp" id="book" role="region" aria-label="Dates and price for the <%= item.name %>" data-sheet>
+  <div class="bp-sheet-head">
+    <p class="bp-sheet-title"><%= item.name %></p>
+    <button type="button" class="bp-close" data-sheet-close aria-label="Close booking summary"><i class="fas fa-times" aria-hidden="true"></i></button>
+  </div>
+
+  <p class="bp-price" id="bpTitle"><strong><%= formatPrice(item.price) %></strong> <span><%= _unit %></span></p>
+  <p class="bp-rate-note"><%= _isRoom ? 'Priced per night: your total is the nightly rate × nights.' : (_isPkg ? 'One price for the event, including the items listed. Add-ons are extra.' : 'One flat rate for the booking, whatever hours you choose.') %></p>
+
+  <% if (!bookable) { %>
+  <div class="bp-closed" role="status">
+    <p><strong>Not taking online bookings right now.</strong></p>
+    <p>The <%= item.name %> is temporarily unavailable. <a href="/portal/inquire">Send an inquiry</a> and the resort will reply with open dates.</p>
+  </div>
+  <% } else { %>
+  <form class="bp-form" action="/portal/book" method="GET" novalidate
+    data-booking-panel
+    data-kind="<%= _isPkg ? 'event' : kind %>"
+    data-price="<%= item.price %>"
+    data-dp="<%= _dp %>"
+    data-cap="<%= item.capacity || 0 %>"
+    data-name="<%= item.name %>"
+    data-today="<%= today %>"
+    data-blocked="<%= JSON.stringify(blocked) %>">
+    <% if (_isPkg) { %>
+    <input type="hidden" name="type" value="event" />
+    <input type="hidden" name="package_id" value="<%= item.id %>" />
+    <% } else { %>
+    <input type="hidden" name="type" value="<%= kind %>" />
+    <input type="hidden" name="item_id" value="<%= item.id %>" />
+    <% } %>
+
+    <fieldset class="bp-fields">
+      <legend class="br-sr-only"><%= _isRoom ? 'Stay dates' : 'Date and time' %></legend>
+      <% if (_isRoom) { %>
+      <div class="bp-field">
+        <label for="bpCheckin">Check-in</label>
+        <input type="date" id="bpCheckin" name="checkin" class="form-control" value="<%= prefill.checkin %>" min="<%= today %>" required aria-describedby="bpDatesHelp" />
+      </div>
+      <div class="bp-field">
+        <label for="bpCheckout">Check-out</label>
+        <input type="date" id="bpCheckout" name="checkout" class="form-control" value="<%= prefill.checkout %>" min="<%= today %>" required aria-describedby="bpDatesHelp" />
+      </div>
+      <% } else { %>
+      <div class="bp-field bp-field--full">
+        <label for="bpDate"><%= _isPkg ? 'Event date' : 'Date' %></label>
+        <input type="date" id="bpDate" name="date" class="form-control" value="<%= prefill.date %>" min="<%= today %>" required aria-describedby="bpDatesHelp" />
+      </div>
+      <div class="bp-field">
+        <label for="bpStart"><%= _timed ? 'Start time' : 'Time in' %></label>
+        <input type="time" id="bpStart" name="start_time" class="form-control" value="<%= prefill.start_time || '14:00' %>" step="900" />
+      </div>
+      <div class="bp-field">
+        <label for="bpEnd"><%= _timed ? 'End time' : 'Time out' %></label>
+        <input type="time" id="bpEnd" name="end_time" class="form-control" value="<%= prefill.end_time || '22:00' %>" step="900" />
+      </div>
+      <% } %>
+      <div class="bp-field bp-field--full">
+        <label for="bpGuests">Guests</label>
+        <input type="number" id="bpGuests" name="guests" class="form-control" inputmode="numeric" min="1" <% if (item.capacity) { %>max="<%= item.capacity %>" placeholder="Up to <%= item.capacity %>"<% } else { %>placeholder="How many?"<% } %> value="<%= prefill.guests %>" aria-describedby="bpGuestsHelp" />
+        <p class="bp-help" id="bpGuestsHelp"><%= item.capacity ? 'The ' + item.name + ' fits up to ' + item.capacity + ' guests.' : 'Tell us how many are coming.' %></p>
+      </div>
+    </fieldset>
+    <p class="bp-help" id="bpDatesHelp"><% if (_isRoom) { %>Check-in <%= fmtTime(site.check_in_time || '14:00') %> · check-out <%= fmtTime(site.check_out_time || '12:00') %>.<% } else if (_isPkg) { %>Choose the hours of your event; the package price stays the same.<% } else { %>Pick the hours you need; the rate stays the same.<% } %></p>
+
+    <div class="bp-cal" data-datepicker data-dp-start="<%= _isRoom ? '#bpCheckin' : '#bpDate' %>" <% if (_isRoom) { %>data-dp-end="#bpCheckout" data-dp-nightly<% } %> data-dp-months="1"></div>
+
+    <% if (_addons.length) { %>
+    <fieldset class="bp-addons">
+      <legend>Add-ons <span class="fw-normal">(optional, added to the total)</span></legend>
+      <% for (const a of _addons) { %>
+      <label class="bp-addon"><input type="checkbox" name="addon" value="<%= a.name %>" data-addon-price="<%= a.price %>" /><span><%= a.name %></span><span class="num">+<%= formatPrice(a.price) %></span></label>
+      <% } %>
+    </fieldset>
+    <% } %>
+
+    <p class="bp-error" id="bpError" role="alert" hidden></p>
+
+    <dl class="bp-sum" aria-live="polite" aria-atomic="true">
+      <div class="bp-sum-line"><dt id="bpLineLabel"><%= _isRoom ? 'Add your dates to see the total' : (_isPkg ? 'Package price' : 'Flat rate') %></dt><dd id="bpLine"><%= _isRoom ? '' : formatPeso(_flat) %></dd></div>
+      <div id="bpAddonRow" hidden><dt id="bpAddonLabel">Add-ons</dt><dd id="bpAddon"></dd></div>
+      <div class="bp-sum-total"><dt>Total</dt><dd id="bpTotal"><%= _isRoom ? '—' : formatPeso(_flat) %></dd></div>
+      <div class="bp-sum-dp"><dt>Downpayment due online (<%= _dp %>%)</dt><dd id="bpDown"><%= _isRoom ? '—' : formatPeso(_down) %></dd></div>
+      <div><dt>Balance at the resort</dt><dd id="bpBalance"><%= _isRoom ? '—' : formatPeso(_flat - _down) %></dd></div>
+    </dl>
+
+    <button type="submit" class="btn btn-primary btn-lg bp-submit">Reserve this <%= _noun %></button>
+    <p class="bp-note">
+      You won’t pay on this page. Next you sign in, add your mobile number and choose GCash, Maya or bank transfer.
+      Your booking shows as <strong>Awaiting payment</strong> until staff verify your downpayment.
+    </p>
+  </form>
+  <% } %>
+</div>

@@ -1,38 +1,49 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Notifications</h3><p class="text-muted mb-0">All system notifications</p></div>
-  <div class="page-header-actions">
-    <form action="/notifications/clear" method="POST"><button type="submit" class="btn btn-sm btn-outline-secondary">Clear Read</button></form>
+<%
+  const NOTIF = {
+    reservation: ['fa-calendar-check', 'Booking'],
+    payment:     ['fa-money-bill-wave', 'Payment'],
+    inventory:   ['fa-boxes', 'Inventory'],
+    inquiry:     ['fa-comment-dots', 'Inquiry'],
+  };
+  const unreadCount = (notifications || []).filter(n => !n.is_read).length;
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Notifications</h1>
+<div class="ph-actions">
+    <form action="/notifications/clear" method="POST"><button type="submit" class="btn btn-outline-secondary">Clear read</button></form>
   </div>
-</div>
-<div class="card">
-  <div class="card-body p-0">
-    <% if (!notifications || notifications.length === 0) { %>
-    <div class="empty-state py-5"><i class="fas fa-bell-slash fa-2x text-muted"></i><p class="mt-2 text-muted">No notifications.</p></div>
-    <% } else { %>
-    <div class="notif-full-list">
-      <% for (const n of notifications) { %>
-      <div class="notif-full-item <%= n.is_read ? 'read' : 'unread' %>">
-        <div class="notif-full-icon notif-<%= n.type %>">
-          <% if (n.type === 'reservation') { %><i class="fas fa-calendar-check"></i>
-          <% } else if (n.type === 'payment') { %><i class="fas fa-money-bill-wave"></i>
-          <% } else if (n.type === 'inventory') { %><i class="fas fa-exclamation-triangle"></i>
-          <% } else if (n.type === 'inquiry') { %><i class="fas fa-question-circle"></i>
-          <% } else { %><i class="fas fa-bell"></i><% } %>
+<!--/page-head-->
+<p class="page-intro">Updates about bookings, payments, inquiries and stock. Opening this page marks them all as read.</p>
+
+<section class="ap-panel" aria-labelledby="ntfHeading">
+  <div class="ap-panel-head">
+    <h2 id="ntfHeading">All notifications <span class="ap-meta"><%= pagination.total %></span></h2>
+    <% if (unreadCount > 0) { %><span class="ap-meta"><span class="ntf-dot" aria-hidden="true"></span><%= unreadCount %> new since your last visit</span><% } %>
+  </div>
+  <% if (!notifications || notifications.length === 0) { %>
+  <div class="ap-empty"><strong>You’re all caught up</strong>New bookings, payments and inquiries will show up here.</div>
+  <% } else { %>
+  <ul class="ntf-list">
+    <% for (const n of notifications) { const meta = NOTIF[n.type] || ['fa-bell', 'System']; %>
+    <li class="ntf-item <%= n.is_read ? '' : 'is-unread' %>">
+      <i class="fas <%= meta[0] %> ntf-icon" aria-hidden="true"></i>
+      <div class="ntf-text">
+        <div class="ntf-title">
+          <% if (!n.is_read) { %><span class="ntf-dot" aria-hidden="true"></span><span class="br-sr-only">New: </span><% } %>
+          <%= n.title %>
         </div>
-        <div class="notif-full-text">
-          <div class="notif-full-title"><%= n.title %></div>
-          <div class="notif-full-msg"><%= n.message %></div>
-          <div class="notif-full-meta text-muted small"><%= formatDateTime(n.created_at) %></div>
-        </div>
-        <div class="notif-full-actions">
-          <% if (!n.is_read) { %><span class="unread-dot"></span><% } %>
-          <% if (n.link) { %><a href="<%= n.link %>" class="btn btn-xs btn-outline-primary">View</a><% } %>
-        </div>
+        <p class="ntf-msg"><%= n.message %></p>
+        <div class="ntf-meta"><%= meta[1] %> · <time><%= formatDateTime(n.created_at) %></time></div>
       </div>
-      <% } %>
-    </div>
+      <% if (n.link) { %><a href="<%= n.link %>" class="ap-act ntf-open">Open<span class="br-sr-only">: <%= n.title %></span></a><% } %>
+    </li>
     <% } %>
-  </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
+  </ul>
+  <% } %>
+  <% if (pagination && pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+</section>
+
 </div>

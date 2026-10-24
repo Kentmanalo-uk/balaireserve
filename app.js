@@ -22,6 +22,8 @@ const rateLimit   = require('express-rate-limit');
 const xianfire = require('./src/xianfire/engine');
 const { xianHelpersMiddleware } = require('./src/xianfire/helpers');
 const { reconcileExpiredReservations } = require('./src/utils/reservationAvailability');
+const { withExistingPhotos, photosFirst } = require('./src/utils/catalog');
+const { publicSettings } = require('./src/utils/publicSettings');
 
 // ΓöÇΓöÇ Middleware ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const { attachAudit } = require('./src/middleware/auth');
@@ -187,40 +189,37 @@ app.get('/favicon.ico', async (req, res) => res.redirect('/favicon.svg'));
 
 // ΓöÇΓöÇ Root: show public landing page to everyone (auth status changes nav only) ΓöÇΓöÇΓöÇΓöÇ
 app.get('/', async (req, res) => {
-  const totalRooms    = (await db.prepare("SELECT COUNT(*) AS c FROM rooms    WHERE is_active=1").get()).c;
-  const totalVenues   = (await db.prepare("SELECT COUNT(*) AS c FROM venues   WHERE is_active=1").get()).c;
-  const totalCottages = (await db.prepare("SELECT COUNT(*) AS c FROM cottages WHERE is_active=1").get()).c;
-  const totalPackages = (await db.prepare("SELECT COUNT(*) AS c FROM event_packages WHERE is_active=1").get()).c;
-  const avgRatingRow  = await db.prepare("SELECT ROUND(AVG(rating),1) AS a FROM feedback").get();
+  // Every list is the live catalogue (active items only), so prices, counts
+  // and photos on the landing page always match what guests can book.
+  // Only photos whose files exist are shown; listings with real photos lead.
+  const featuredRooms = photosFirst(withExistingPhotos(await db.prepare(
+    "SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.is_active=1 ORDER BY r.price LIMIT 12"
+  ).all()));
+  const featuredVenues   = photosFirst(withExistingPhotos(await db.prepare("SELECT * FROM venues   WHERE is_active=1 ORDER BY price LIMIT 3").all()));
+  const featuredCottages = photosFirst(withExistingPhotos(await db.prepare("SELECT * FROM cottages WHERE is_active=1 ORDER BY price LIMIT 6").all()));
 
-  const featuredRooms = await db.prepare(
-    "SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.is_active=1 ORDER BY r.price LIMIT 4"
-  ).all();
-  for (const r of featuredRooms) {
-    try { r.imagesList = JSON.parse(r.images || '[]'); } catch { r.imagesList = []; }
-  }
-
-  const featuredVenues = await db.prepare("SELECT * FROM venues WHERE is_active=1 ORDER BY price LIMIT 3").all();
-  for (const v of featuredVenues) {
-    try { v.imagesList = JSON.parse(v.images || '[]'); } catch { v.imagesList = []; }
-  }
-
-  const featuredCottages = await db.prepare("SELECT * FROM cottages WHERE is_active=1 ORDER BY price LIMIT 3").all();
-  for (const c of featuredCottages) {
-    try { c.imagesList = JSON.parse(c.images || '[]'); } catch { c.imagesList = []; }
-  }
-
+  // Inclusions are stored as {name, price, is_default, is_optional}; very old
+  // rows may still be plain strings, which count as included items.
   const eventPackages = await db.prepare("SELECT * FROM event_packages WHERE is_active=1 ORDER BY price").all();
   for (const p of eventPackages) {
-    try { p.inclusionsList = JSON.parse(p.inclusions || '[]'); } catch { p.inclusionsList = []; }
+    let list = [];
+    try { list = JSON.parse(p.inclusions || '[]'); } catch { list = []; }
+    if (!Array.isArray(list)) list = [];
+    list = list
+      .map(i => (typeof i === 'string' ? { name: i, price: 0, is_default: 1, is_optional: 0 } : i))
+      .filter(i => i && typeof i.name === 'string' && i.name.trim());
+    p.inclusionsList = list;
+    p.includedItems  = list.filter(i => Number(i.is_default) === 1 || !Number(i.is_optional));
+    p.addonItems     = list.filter(i => Number(i.is_default) !== 1 && Number(i.is_optional) && Number(i.price) > 0);
   }
 
+  // Only real, public, well-rated feedback with a comment is shown.
   const reviews = await db.prepare(`
     SELECT f.rating, f.comments, f.created_at,
            cu.first_name || ' ' || SUBSTR(cu.last_name,1,1) || '.' AS customer_name
     FROM feedback f
     JOIN customers cu ON cu.id = f.customer_id
-    WHERE f.is_public = 1 AND f.rating >= 4
+    WHERE f.is_public = 1 AND f.rating >= 4 AND TRIM(COALESCE(f.comments, '')) <> ''
     ORDER BY f.rating DESC, f.created_at DESC
     LIMIT 6
   `).all();
@@ -229,13 +228,25 @@ app.get('/', async (req, res) => {
   const siteSettings = {};
   settingsRows.forEach(s => { siteSettings[s.key] = s.value; });
 
+  // Gallery: the admin's landing photos (Settings > Landing Page); until there are any,
+  // the real catalogue photos, each captioned with the place it shows.
+  let landingGallery = [];
+  try { landingGallery = JSON.parse(siteSettings.landing_gallery || '[]'); } catch { landingGallery = []; }
+  if (!Array.isArray(landingGallery)) landingGallery = [];
+  landingGallery = landingGallery.filter(g => g && typeof g.path === 'string' && g.path.startsWith('/uploads/settings/landing/'));
+  const catalogPhotos = [];
+  for (const row of [...featuredRooms, ...featuredCottages, ...featuredVenues]) {
+    for (const src of (row.imagesList || [])) catalogPhotos.push({ path: src, caption: row.name });
+  }
+
   res.render('landing/index', {
     title:  'Balai-Reserve — Your Home Away From Home',
     layout: 'layouts/landing',
-    stats: { totalRooms, totalVenues, totalCottages, totalPackages, avgRating: avgRatingRow?.a || '4.5' },
     featuredRooms, featuredVenues, featuredCottages,
-    eventPackages, reviews,
-    site: siteSettings,
+    eventPackages, reviews, landingGallery, catalogPhotos,
+    hasEvents: eventPackages.length > 0,
+    hasGallery: landingGallery.length > 0 || catalogPhotos.length > 0,
+    site: publicSettings(siteSettings),
   });
 });
 
@@ -249,19 +260,28 @@ app.use(async (req, res, next) => {
 });
 
 // ΓöÇΓöÇ Authentication ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// Back-office modules are staff-only: customers are sent to their portal.
+// (Public chatbot endpoints under /inquiries stay open.)
+const PUBLIC_STAFF_PATHS = new Set(['/inquiries/submit', '/inquiries/chat']);
+const staffArea = (req, res, next) => {
+  if (req.session?.user?.role !== 'customer' || PUBLIC_STAFF_PATHS.has(req.baseUrl + req.path)) return next();
+  return res.redirect('/portal');
+};
+
 app.use('/auth', authRoutes);
 app.use('/portal', portalRoutes);
+app.use('/stay', require('./src/modules/stay/routes'));   // public listing detail pages (no login)
 app.use('/dashboard',     dashboardRoutes);
-app.use('/rooms',         roomRoutes);
-app.use('/venues',        venueRoutes);
-app.use('/cottages',      cottageRoutes);
-app.use('/reservations',  reservationRoutes);
-app.use('/guests',        guestRoutes);
-app.use('/events',        eventRoutes);
-app.use('/inventory',     inventoryRoutes);
+app.use('/rooms',         staffArea, roomRoutes);
+app.use('/venues',        staffArea, venueRoutes);
+app.use('/cottages',      staffArea, cottageRoutes);
+app.use('/reservations',  staffArea, reservationRoutes);
+app.use('/guests',        staffArea, guestRoutes);
+app.use('/events',        staffArea, eventRoutes);
+app.use('/inventory',     staffArea, inventoryRoutes);
 app.use('/payments',      paymentRoutes);
-app.use('/inquiries',     inquiryRoutes);
-app.use('/crm',           crmRoutes);
+app.use('/inquiries',     staffArea, inquiryRoutes);
+app.use('/crm',           staffArea, crmRoutes);
 app.use('/feedback',      feedbackRoutes);
 app.use('/reports',       reportRoutes);
 app.use('/analytics',     analyticsRoutes);
@@ -271,42 +291,79 @@ app.use('/profile',       profileRoutes);
 app.use('/settings',      settingsRoutes);
 
 // ΓöÇΓöÇ QR Check-in (public — no auth required) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-const { validateQRToken, consumeQRToken } = require('./src/utils/qrGenerator');
+const { validateQRToken, consumeQRToken, renderQRPng } = require('./src/utils/qrGenerator');
+const { requireAuth, requireRole } = require('./src/middleware/auth');
+const { notifyReservationCustomer } = require('./src/utils/notifications');
 
+const renderInvalidQR = (res, reason) => res.render('guests/checkin-invalid', {
+  title:  'Invalid QR Code',
+  layout: 'layouts/minimal',
+  reason,
+});
+
+// QR image is rendered on demand so it always encodes the current public address.
+app.get('/checkin/:token/qr.png', async (req, res) => {
+  const qr = await db.prepare('SELECT id FROM qr_codes WHERE token = ?').get(req.params.token);
+  if (!qr) return res.status(404).end();
+  res.type('png').set('Cache-Control', 'no-store').send(await renderQRPng(req.params.token));
+});
+
+// Anyone can open the scanned link; only staff can confirm the check-in.
 app.get('/checkin/:token', async (req, res) => {
   const result = await validateQRToken(req.params.token);
-  if (!result.valid) {
-    return res.render('guests/checkin-invalid', {
-      title:  'Invalid QR Code',
-      layout: 'layouts/minimal',
-      reason: result.reason,
-    });
-  }
+  if (!result.valid) return renderInvalidQR(res, result.reason);
+
   const reservation = await db.prepare(`
     SELECT r.*, c.first_name, c.last_name, c.phone, c.email
     FROM reservations r JOIN customers c ON c.id = r.customer_id
     WHERE r.id = ?
   `).get(result.qr.reservation_id);
 
+  const role = req.session?.user?.role;
   res.render('guests/checkin-scan', {
     title:       'QR Check-in',
     layout:      'layouts/minimal',
     reservation,
     token:       req.params.token,
+    isStaff:     role === 'admin' || role === 'staff',
+    isLoggedIn:  !!role,
   });
 });
 
-app.post('/checkin/:token', async (req, res) => {
+// Staff who scan while logged out sign in here and come back to the check-in page.
+app.get('/checkin/:token/staff', requireAuth, (req, res) => res.redirect(`/checkin/${req.params.token}`));
+
+app.post('/checkin/:token', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
   const result = await validateQRToken(req.params.token);
-  if (!result.valid) return res.redirect('/auth/login');
+  if (!result.valid) return renderInvalidQR(res, result.reason);
 
   const resId = result.qr.reservation_id;
-  await consumeQRToken(req.params.token);
-  await db.prepare(`UPDATE reservations SET status='checked_in', updated_at=NOW() WHERE id=?`).run(resId);
-  await db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_at) VALUES (?,'qr',NOW())`).run(resId);
-  await db.prepare(`UPDATE guests SET status='checked_in' WHERE reservation_id=?`).run(resId);
+  const checkedIn = await db.transaction(async () => {
+    if (!(await consumeQRToken(req.params.token))) return false;
+    await db.prepare(`UPDATE reservations SET status='checked_in', updated_at=NOW() WHERE id=?`).run(resId);
+    await db.prepare(`
+      INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes)
+      VALUES (?, ?, 'checked_in', ?, 'Checked in via QR scan')
+    `).run(resId, result.qr.status, req.session.user.id);
+    const items = await db.prepare(`SELECT item_type, item_id FROM reservation_items WHERE reservation_id = ?`).all(resId);
+    for (const item of items) {
+      if (item.item_type === 'room')    await db.prepare(`UPDATE rooms SET status='occupied' WHERE id=?`).run(item.item_id);
+      if (item.item_type === 'venue')   await db.prepare(`UPDATE venues SET status='occupied' WHERE id=?`).run(item.item_id);
+      if (item.item_type === 'cottage') await db.prepare(`UPDATE cottages SET status='occupied' WHERE id=?`).run(item.item_id);
+    }
+    await db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_by) VALUES (?, 'qr', ?)`).run(resId, req.session.user.id);
+    await db.prepare(`UPDATE guests SET status='checked_in' WHERE reservation_id=?`).run(resId);
+    return true;
+  });
+  if (!checkedIn) return renderInvalidQR(res, 'This QR code has already been used or is no longer valid.');
 
-  res.render('guests/checkin-success', { title: 'Check-in Successful', layout: 'layouts/minimal' });
+  await notifyReservationCustomer(resId, 'reservation', 'Checked In',
+    `You are checked in for booking ${result.qr.booking_ref}. Enjoy your stay!`, `/portal/my-reservations/${resId}`);
+  await req.audit('qr_checkin', 'reservations', resId, null, { token: req.params.token });
+
+  res.render('guests/checkin-success', {
+    title: 'Check-in Successful', layout: 'layouts/minimal', reservationId: resId, bookingRef: result.qr.booking_ref,
+  });
 });
 
 // ΓöÇΓöÇ 404 ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ

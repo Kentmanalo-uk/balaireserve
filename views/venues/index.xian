@@ -1,55 +1,114 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Venues</h3><p class="text-muted mb-0">Manage event venues and spaces</p></div>
-  <div class="page-header-actions">
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/venues/new" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Add Venue</a>
-    <% } %>
+<%
+  const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const filtered  = !!(filters.search || filters.type || filters.status);
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Venues</h1>
+<% if (canManage) { %>
+  <div class="ph-actions">
+    <a href="/venues/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>Add venue</a>
   </div>
-</div>
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/venues" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4"><input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Search venues..." /></div>
-      <div class="col-6 col-md-2"><select name="type" class="form-select form-select-sm"><option value="">All Types</option><% for (const t of venueTypes) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t.replace(/_/g,' ') %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><select name="status" class="form-select form-select-sm"><option value="">All Statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-      <div class="col-6 col-md-2"><a href="/venues" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-    </form>
-  </div>
-</div>
-<div class="row g-3">
-  <% if (!venues || venues.length === 0) { %>
-  <div class="col-12"><div class="empty-state card"><i class="fas fa-map-marker-alt"></i><p>No venues found.</p></div></div>
-  <% } else { %>
-    <% for (const v of venues) { %>
-    <div class="col-12 col-sm-6 col-lg-4">
-      <div class="card h-100">
-        <% if (v.imagesList && v.imagesList.length > 0) { %>
-        <img src="<%= v.imagesList[0] %>" alt="<%= v.name %>" class="card-img-top"
-          style="height:180px;object-fit:cover;" />
-        <% } %>
-        <div class="card-body">
-          <div class="d-flex justify-content-between mb-2">
-            <span class="badge bg-primary text-white small"><%= v.venue_type.replace(/_/g,' ') %></span>
-            <%- statusBadge(v.status) %>
-          </div>
-          <h6 class="fw-bold"><a href="/venues/<%= v.id %>"><%= v.name %></a></h6>
-          <div class="text-muted small mb-2"><%= v.location || '' %></div>
-          <div class="d-flex justify-content-between small">
-            <span><i class="fas fa-users me-1 text-muted"></i><%= v.capacity %> capacity</span>
-            <span class="fw-bold text-primary"><%= formatPeso(v.price) %></span>
-          </div>
-        </div>
-        <div class="card-footer d-flex gap-2">
-          <a href="/venues/<%= v.id %>" class="btn btn-sm btn-outline-primary flex-fill">View</a>
-          <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-          <a href="/venues/<%= v.id %>/edit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit"></i></a>
-          <% } %>
-        </div>
-      </div>
-    </div>
-    <% } %>
   <% } %>
+<!--/page-head-->
+
+<form method="GET" action="/venues" class="ap-toolbar" role="search" aria-label="Filter venues">
+  <div class="ap-field ap-field-search">
+    <label for="venueSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="venueSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Venue name or description" /></div>
+  </div>
+  <div class="ap-field">
+    <label for="venueTypeFilter">Type</label>
+    <select id="venueTypeFilter" name="type" class="form-select">
+      <option value="">All types</option>
+      <% for (const t of venueTypes) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= statusLabel(t) %></option><% } %>
+    </select>
+  </div>
+  <div class="ap-field">
+    <label for="venueStatusFilter">Status</label>
+    <select id="venueStatusFilter" name="status" class="form-select">
+      <option value="">All statuses</option>
+      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
+    </select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/venues" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<section class="ap-panel" aria-labelledby="venuesHeading">
+  <div class="ap-panel-head">
+    <h2 id="venuesHeading">All venues <span class="ap-meta"><%= pagination.total %> venue<%= pagination.total === 1 ? '' : 's' %><%= filtered ? ' match' : '' %></span></h2>
+  </div>
+  <% if (!venues || venues.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No venues match these filters' : 'No venues yet' %></strong>
+    <%= filtered ? 'Try a different search or clear the filters.' : 'Add the function spaces guests can book for events.' %>
+    <% if (filtered) { %><div><a href="/venues" class="btn btn-outline-secondary btn-sm">Clear filters</a></div><% } else if (canManage) { %><div><a href="/venues/new" class="btn btn-primary btn-sm">Add venue</a></div><% } %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Venue</th>
+          <th scope="col" class="cat-col-opt">Type</th>
+          <th scope="col" class="num">Capacity</th>
+          <th scope="col" class="num">Rate / event</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const v of venues) { %>
+        <tr>
+          <td class="ap-cell-title">
+            <div class="cat-item">
+              <div class="cat-thumb">
+                <% if (v.imagesList && v.imagesList.length > 0) { %>
+                <img src="<%= v.imagesList[0] %>" alt="" loading="lazy" />
+                <% } else { %>
+                <div class="photo-pending"><span>Photos coming soon</span></div>
+                <% } %>
+              </div>
+              <div class="cat-item-text">
+                <a href="/venues/<%= v.id %>" class="ap-name"><%= v.name %></a>
+                <% if (v.location) { %><span class="ap-line2"><%= v.location %></span><% } %>
+              </div>
+            </div>
+          </td>
+          <td class="cat-col-opt" data-label="Type"><%= statusLabel(v.venue_type) %></td>
+          <td class="num" data-label="Capacity"><%= v.capacity %> guests</td>
+          <td class="num" data-label="Rate / event"><strong><%= formatPeso(v.price) %></strong></td>
+          <td class="ap-cell-status"><%- statusBadge(v.status) %></td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <a href="/venues/<%= v.id %>" class="ap-act">View</a>
+              <% if (canManage) { %><a href="/venues/<%= v.id %>/edit" class="ap-act">Edit</a><% } %>
+            </div>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% if (pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+  <% } %>
+</section>
+
 </div>
-<%include('partials/pagination')%>
+<script>
+// A thumbnail whose file is missing shows the honest empty state instead of a broken image.
+document.querySelectorAll('.cat-thumb > img').forEach(function (img) {
+  function swap() {
+    var box = document.createElement('div');
+    box.className = 'photo-pending';
+    box.textContent = 'Photo unavailable';
+    img.replaceWith(box);
+  }
+  if (img.complete && img.naturalWidth === 0) swap(); else img.addEventListener('error', swap);
+});
+</script>

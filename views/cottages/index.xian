@@ -1,113 +1,118 @@
 <% layout('layouts/main') %>
+<%
+  const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const filtered  = !!(filters.search || filters.status);
+%>
+<div class="ap-page">
 
-<div class="page-header">
-  <div><h3 class="mb-1">Cottages</h3><p class="text-muted mb-0">Manage cottage availability and reservations</p></div>
-  <div class="page-header-actions">
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/cottages/new" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>Add Cottage</a>
-    <% } %>
-  </div>
-</div>
-
-<!-- Status Quick Stats -->
-<div class="row g-3 mb-3">
-  <div class="col-6 col-md-3 col-lg-2">
-    <a href="/cottages?status=available" class="stat-card stat-success text-decoration-none d-block py-2 px-3">
-      <div class="stat-value" style="font-size:1.25rem;"><%= counts.available %></div>
-      <div class="stat-label">Available</div>
-    </a>
-  </div>
-  <div class="col-6 col-md-3 col-lg-2">
-    <a href="/cottages?status=reserved" class="stat-card stat-warning text-decoration-none d-block py-2 px-3">
-      <div class="stat-value" style="font-size:1.25rem;"><%= counts.reserved %></div>
-      <div class="stat-label">Reserved</div>
-    </a>
-  </div>
-  <div class="col-6 col-md-3 col-lg-2">
-    <a href="/cottages?status=occupied" class="stat-card stat-primary text-decoration-none d-block py-2 px-3">
-      <div class="stat-value" style="font-size:1.25rem;"><%= counts.occupied %></div>
-      <div class="stat-label">Occupied</div>
-    </a>
-  </div>
-  <div class="col-6 col-md-3 col-lg-2">
-    <a href="/cottages?status=maintenance" class="stat-card stat-secondary text-decoration-none d-block py-2 px-3">
-      <div class="stat-value" style="font-size:1.25rem;"><%= counts.maintenance %></div>
-      <div class="stat-label">Maintenance</div>
-    </a>
-  </div>
-</div>
-
-<!-- Filters -->
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/cottages" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4">
-        <input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Search cottage name…" />
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="status" class="form-select form-select-sm">
-          <option value="">All Statuses</option>
-          <% for (const s of statuses) { %>
-          <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
-          <% } %>
-        </select>
-      </div>
-      <div class="col-3 col-md-1"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-      <div class="col-3 col-md-1"><a href="/cottages" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-    </form>
-  </div>
-</div>
-
-<!-- Cottage Cards Grid -->
-<% if (!cottages || cottages.length === 0) { %>
-<div class="empty-state card">
-  <i class="fas fa-home"></i>
-  <p>No cottages found. <a href="/cottages/new">Add the first cottage.</a></p>
-</div>
-<% } else { %>
-<div class="row g-3">
-  <% for (const c of cottages) { %>
-  <div class="col-12 col-sm-6 col-lg-4">
-    <div class="card h-100" style="transition:transform .2s,box-shadow .2s;">
-      <!-- Cottage image: real photo or placeholder -->
-      <% if (c.imagesList && c.imagesList.length > 0) { %>
-      <div class="rounded-top overflow-hidden" style="height:140px;">
-        <img src="<%= c.imagesList[0] %>" alt="<%= c.name %>"
-          style="width:100%;height:140px;object-fit:cover;" />
-      </div>
-      <% } else { %>
-      <div class="d-flex align-items-center justify-content-center rounded-top" style="height:140px;background:linear-gradient(135deg,#1e1b4b,#4f46e5);color:rgba(255,255,255,.35);font-size:3rem;">
-        <i class="fas fa-home"></i>
-      </div>
-      <% } %>
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start mb-2">
-          <h6 class="fw-bold mb-0"><%= c.name %></h6>
-          <%- statusBadge(c.status) %>
-        </div>
-        <% if (c.description) { %>
-        <p class="text-muted small mb-2"><%= c.description.slice(0, 80) %><%= c.description.length > 80 ? '…' : '' %></p>
-        <% } %>
-        <div class="d-flex justify-content-between align-items-center small mb-2">
-          <span class="text-muted"><i class="fas fa-users me-1"></i>Up to <%= c.capacity %> guests</span>
-          <span class="fw-bold text-primary"><%= formatPeso(c.price) %></span>
-        </div>
-        <% try { const ams = JSON.parse(c.amenities || '[]'); if (ams.length > 0) { %>
-        <div>
-          <% for (const a of ams.slice(0, 3)) { %><span class="badge bg-light text-dark me-1 mb-1" style="font-size:.68rem;"><%= a %></span><% } %>
-          <% if (ams.length > 3) { %><span class="text-muted small">+<%= ams.length - 3 %> more</span><% } %>
-        </div>
-        <% } } catch {} %>
-      </div>
-      <div class="card-footer d-flex gap-2">
-        <a href="/cottages/<%= c.id %>" class="btn btn-sm btn-outline-primary flex-fill">View</a>
-        <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-        <a href="/cottages/<%= c.id %>/edit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit"></i></a>
-        <% } %>
-      </div>
-    </div>
+<!--page-head-->
+<h1 class="ph-title">Cottages</h1>
+<% if (canManage) { %>
+  <div class="ph-actions">
+    <a href="/cottages/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>Add cottage</a>
   </div>
   <% } %>
+<!--/page-head-->
+<p class="page-intro">Day-use cottages with a flat rate per booking — a ₱300 cottage costs ₱300 however long the guests stay.</p>
+
+<nav class="ap-kpis" aria-label="Cottages by status">
+  <% for (const s of ['available', 'reserved', 'occupied', 'maintenance']) { %>
+  <a href="/cottages?status=<%= s %>" class="ap-kpi<%= filters.status === s ? ' is-current' : '' %>"<%- filters.status === s ? ' aria-current="true"' : '' %>>
+    <span class="ap-kpi-label"><%= statusLabel(s) %></span>
+    <span class="ap-kpi-value"><%= counts[s] %></span>
+  </a>
+  <% } %>
+</nav>
+
+<form method="GET" action="/cottages" class="ap-toolbar" role="search" aria-label="Filter cottages">
+  <div class="ap-field ap-field-search">
+    <label for="cottageSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="cottageSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Cottage name or description" /></div>
+  </div>
+  <div class="ap-field">
+    <label for="cottageStatus">Status</label>
+    <select id="cottageStatus" name="status" class="form-select">
+      <option value="">All statuses</option>
+      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
+    </select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/cottages" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<section class="ap-panel" aria-labelledby="cottagesHeading">
+  <div class="ap-panel-head">
+    <h2 id="cottagesHeading">All cottages <span class="ap-meta"><%= pagination.total %> cottage<%= pagination.total === 1 ? '' : 's' %><%= filtered ? ' match' : '' %></span></h2>
+  </div>
+  <% if (!cottages || cottages.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No cottages match these filters' : 'No cottages yet' %></strong>
+    <%= filtered ? 'Try a different search or clear the filters.' : 'Add the cottages guests can book for the day.' %>
+    <% if (filtered) { %><div><a href="/cottages" class="btn btn-outline-secondary btn-sm">Clear filters</a></div><% } else if (canManage) { %><div><a href="/cottages/new" class="btn btn-primary btn-sm">Add cottage</a></div><% } %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Cottage</th>
+          <th scope="col" class="cat-col-opt">Amenities</th>
+          <th scope="col" class="num">Up to</th>
+          <th scope="col" class="num">Rate / booking</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const c of cottages) {
+             let ams = []; try { ams = JSON.parse(c.amenities || '[]'); } catch {} %>
+        <tr>
+          <td class="ap-cell-title">
+            <div class="cat-item">
+              <div class="cat-thumb">
+                <% if (c.imagesList && c.imagesList.length > 0) { %>
+                <img src="<%= c.imagesList[0] %>" alt="" loading="lazy" />
+                <% } else { %>
+                <div class="photo-pending"><span>Photos coming soon</span></div>
+                <% } %>
+              </div>
+              <div class="cat-item-text">
+                <a href="/cottages/<%= c.id %>" class="ap-name"><%= c.name %></a>
+                <% if (c.description) { %><span class="ap-line2 cat-desc"><%= c.description.slice(0, 80) %><%= c.description.length > 80 ? '…' : '' %></span><% } %>
+              </div>
+            </div>
+          </td>
+          <td class="ap-wide cat-col-opt" data-label="Amenities"><%= ams.length ? ams.slice(0, 3).join(', ') + (ams.length > 3 ? ' +' + (ams.length - 3) + ' more' : '') : '—' %></td>
+          <td class="num" data-label="Up to"><%= c.capacity %> guests</td>
+          <td class="num" data-label="Rate / booking"><strong><%= formatPeso(c.price) %></strong></td>
+          <td class="ap-cell-status"><%- statusBadge(c.status) %></td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <a href="/cottages/<%= c.id %>" class="ap-act">View</a>
+              <% if (canManage) { %><a href="/cottages/<%= c.id %>/edit" class="ap-act">Edit</a><% } %>
+            </div>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% if (pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+  <% } %>
+</section>
+
 </div>
-<%include('partials/pagination')%>
-<% } %>
+<script>
+// A thumbnail whose file is missing shows the honest empty state instead of a broken image.
+document.querySelectorAll('.cat-thumb > img').forEach(function (img) {
+  function swap() {
+    var box = document.createElement('div');
+    box.className = 'photo-pending';
+    box.textContent = 'Photo unavailable';
+    img.replaceWith(box);
+  }
+  if (img.complete && img.naturalWidth === 0) swap(); else img.addEventListener('error', swap);
+});
+</script>

@@ -10,6 +10,13 @@ const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { formatExcelValue, getColumnWidth } = require('../xlsxFormatting');
 
 const router = express.Router();
+
+// Local resort dates (Philippines, UTC+8) as 'YYYY-MM-DD'.
+const PH_OFFSET_MS = 8 * 3600000;
+const phNow        = () => new Date(Date.now() + PH_OFFSET_MS);
+const phToday      = () => phNow().toISOString().slice(0, 10);
+const phYearStart  = () => phNow().toISOString().slice(0, 4) + '-01-01';
+const phMonthStart = () => phNow().toISOString().slice(0, 7) + '-01';
 const REPORT_BRAND = {
   name: 'Balai Miciano/ Maple Heaven',
   address: 'San Antonio, Gloria, Oriental Mindoro',
@@ -48,8 +55,8 @@ router.get('/', requireAuth, requireRole('admin','staff'), async (req, res) => {
 // GET /reports/sales
 router.get('/sales', requireAuth, requireRole('admin'), async (req, res) => {
   const { from = '', to = '', type = 'monthly' } = req.query;
-  const today    = new Date().toISOString().slice(0, 10);
-  const fromDate = from || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const today    = phToday();
+  const fromDate = from || phYearStart();
   const toDate   = to   || today;
 
   let groupBy, labelFormat;
@@ -93,8 +100,8 @@ router.get('/sales', requireAuth, requireRole('admin'), async (req, res) => {
 // GET /reports/reservations
 router.get('/reservations', requireAuth, requireRole('admin','staff'), async (req, res) => {
   const { from='', to='', status='', type='' } = req.query;
-  const today    = new Date().toISOString().slice(0, 10);
-  const fromDate = from || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
+  const today    = phToday();
+  const fromDate = from || phMonthStart();
   const toDate   = to   || today;
 
   let where  = `WHERE r.created_at >= ? AND r.created_at <= ?`;
@@ -134,8 +141,8 @@ router.get('/reservations', requireAuth, requireRole('admin','staff'), async (re
 // GET /reports/events
 router.get('/events', requireAuth, requireRole('admin','staff'), async (req, res) => {
   const { from='', to='' } = req.query;
-  const today    = new Date().toISOString().slice(0, 10);
-  const fromDate = from || new Date(new Date().getFullYear(), 0, 1).toISOString().slice(0, 10);
+  const today    = phToday();
+  const fromDate = from || phYearStart();
   const toDate   = to   || today;
 
   const events = await db.prepare(`
@@ -168,7 +175,7 @@ router.get('/export/:reportType', requireAuth, requireRole('admin'), async (req,
   const { reportType } = req.params;
   const format   = (req.query.format || 'csv').toLowerCase();
   const { from='', to='' } = req.query;
-  const today    = new Date().toISOString().slice(0, 10);
+  const today    = phToday();
   const fromDate = from || '2020-01-01';
   const toDate   = to   || today;
 

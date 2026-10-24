@@ -1,173 +1,160 @@
 <% layout('layouts/main') %>
+<%
+  const showPassword = typeof activeTab !== 'undefined' && activeTab === 'password';
+  const fieldErr = (list, f) => (list || []).filter(e => (e.path || e.param) === f).map(e => e.msg);
+  const fullName = profileUser.first_name + ' ' + profileUser.last_name;
+%>
+<div class="ap-page">
 
-<div class="page-header">
-  <div><h3 class="mb-1">My Profile</h3><p class="text-muted mb-0">Manage your account information and password</p></div>
-</div>
+<!--page-head-->
+<h1 class="ph-title">My profile</h1>
+<!--/page-head-->
+<div class="page-meta">Signed in as <strong><%= fullName %></strong> · <%= profileUser.role_label %>. Update your name and phone, or change your password.</div>
 
-<div class="row g-4">
+<div class="ap-form prof-form">
 
-  <!-- Left: Avatar + Summary -->
-  <div class="col-lg-3">
-    <div class="card text-center mb-3">
-      <div class="card-body py-4">
-        <div class="user-avatar mx-auto mb-3" style="width:72px;height:72px;font-size:1.4rem;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;">
-          <span><%= profileUser.first_name.charAt(0) %><%= profileUser.last_name.charAt(0) %></span>
-        </div>
-        <h6 class="fw-bold mb-0"><%= profileUser.first_name %> <%= profileUser.last_name %></h6>
-        <div class="mt-2">
-          <span class="badge <%= profileUser.role_name === 'admin' ? 'bg-primary' : profileUser.role_name === 'staff' ? 'bg-success' : 'bg-secondary' %>">
-            <%= profileUser.role_label %>
-          </span>
-        </div>
-        <hr />
-        <div class="text-start">
-          <div class="small text-muted mb-1"><i class="fas fa-envelope me-2" style="width:16px;"></i><%= profileUser.email %></div>
-          <div class="small text-muted mb-1"><i class="fas fa-phone me-2" style="width:16px;"></i><%= profileUser.phone || 'Not set' %></div>
-          <div class="small text-muted"><i class="fas fa-calendar me-2" style="width:16px;"></i>Member since <%= formatDate(profileUser.created_at) %></div>
-          <div class="small text-muted mt-1"><i class="fas fa-clock me-2" style="width:16px;"></i>Last login <%= formatDateTime(profileUser.last_login) || 'N/A' %></div>
-        </div>
-      </div>
+  <!-- Profile -->
+  <section class="ap-section" id="tabProfile" aria-labelledby="profDetailsHeading">
+    <div class="ap-section-intro">
+      <h2 id="profDetailsHeading">Your details</h2>
+      <p>Your name appears on bookings you handle and in the audit log.</p>
     </div>
-
-    <!-- Recent Activity -->
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0 small"><i class="fas fa-history me-2"></i>Recent Activity</h6></div>
-      <div class="card-body p-0">
-        <% if (!recentActivity || recentActivity.length === 0) { %>
-        <div class="text-center text-muted small py-3">No recent activity.</div>
-        <% } else { %>
-          <% for (const log of recentActivity) { %>
-          <div class="px-3 py-2 border-bottom">
-            <div class="small fw-medium"><%= log.action.replace(/_/g,' ') %></div>
-            <div class="text-muted" style="font-size:.72rem;"><%= log.module %> &middot; <%= formatDateTime(log.created_at) %></div>
+    <div class="ap-section-body">
+      <% if (errors && errors.length > 0) { %>
+      <div class="alert alert-danger ap-errors" role="alert">
+        <strong>Your details weren't saved:</strong>
+        <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
+      </div>
+      <% } %>
+      <form action="/profile" method="POST">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label required" for="profFirst">First name</label>
+            <input type="text" name="first_name" id="profFirst" class="form-control <%= fieldErr(errors, 'first_name').length ? 'is-invalid' : '' %>"
+              value="<%= old.first_name || profileUser.first_name %>" required autocomplete="given-name" />
+            <% for (const m of fieldErr(errors, 'first_name')) { %><div class="invalid-feedback"><%= m %></div><% } %>
           </div>
-          <% } %>
+          <div class="col-md-6">
+            <label class="form-label required" for="profLast">Last name</label>
+            <input type="text" name="last_name" id="profLast" class="form-control <%= fieldErr(errors, 'last_name').length ? 'is-invalid' : '' %>"
+              value="<%= old.last_name || profileUser.last_name %>" required autocomplete="family-name" />
+            <% for (const m of fieldErr(errors, 'last_name')) { %><div class="invalid-feedback"><%= m %></div><% } %>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="profEmail">Email address</label>
+            <input type="email" id="profEmail" class="form-control" value="<%= profileUser.email %>" disabled aria-describedby="profEmailHelp" />
+            <div class="form-text" id="profEmailHelp">Used to sign in. Only an administrator can change it.</div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label" for="profPhone">Phone number</label>
+            <input type="text" name="phone" id="profPhone" class="form-control <%= fieldErr(errors, 'phone').length ? 'is-invalid' : '' %>"
+              value="<%= old.phone !== undefined ? old.phone : profileUser.phone || '' %>"
+              placeholder="09XX-XXX-XXXX" inputmode="tel" autocomplete="tel" />
+            <% for (const m of fieldErr(errors, 'phone')) { %><div class="invalid-feedback"><%= m %></div><% } %>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end mt-4">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save details</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Password -->
+  <section class="ap-section" id="tabPassword" aria-labelledby="profPassHeading">
+    <div class="ap-section-intro">
+      <h2 id="profPassHeading">Password</h2>
+      <p>Use at least 8 characters. Mixing upper-case letters, numbers and symbols makes it stronger.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (pwErrors && pwErrors.length > 0) { %>
+      <div class="alert alert-danger ap-errors" role="alert">
+        <strong>Your password wasn't changed:</strong>
+        <ul><% for (const e of pwErrors) { %><li><%= e.msg %></li><% } %></ul>
+      </div>
+      <% } %>
+      <form action="/profile/password" method="POST">
+        <div class="row g-3">
+          <div class="col-md-6">
+            <label class="form-label required" for="currentPw">Current password</label>
+            <div class="input-group has-validation">
+              <input type="password" name="current_password" id="currentPw" class="form-control <%= fieldErr(pwErrors, 'current_password').length ? 'is-invalid' : '' %>"
+                required autocomplete="current-password" />
+              <button type="button" class="btn btn-outline-secondary btn-toggle-pass" data-target="currentPw" aria-label="Show or hide current password">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+              </button>
+              <% for (const m of fieldErr(pwErrors, 'current_password')) { %><div class="invalid-feedback"><%= m %></div><% } %>
+            </div>
+          </div>
+          <div class="w-100 d-none d-md-block"></div>
+          <div class="col-md-6">
+            <label class="form-label required" for="newPw">New password</label>
+            <div class="input-group has-validation">
+              <input type="password" name="new_password" id="newPw" class="form-control <%= fieldErr(pwErrors, 'new_password').length ? 'is-invalid' : '' %>"
+                required minlength="8" autocomplete="new-password" aria-describedby="pwStrengthLabel" />
+              <button type="button" class="btn btn-outline-secondary btn-toggle-pass" data-target="newPw" aria-label="Show or hide new password">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+              </button>
+              <% for (const m of fieldErr(pwErrors, 'new_password')) { %><div class="invalid-feedback"><%= m %></div><% } %>
+            </div>
+            <!-- Password strength indicator -->
+            <div id="pwStrengthBar" class="prof-strength" aria-hidden="true">
+              <div id="pwStrengthFill"></div>
+            </div>
+            <div id="pwStrengthLabel" class="form-text" aria-live="polite"></div>
+          </div>
+          <div class="col-md-6">
+            <label class="form-label required" for="confirmPw">Confirm new password</label>
+            <div class="input-group has-validation">
+              <input type="password" name="confirm_password" id="confirmPw" class="form-control <%= fieldErr(pwErrors, 'confirm_password').length ? 'is-invalid' : '' %>"
+                required autocomplete="new-password" aria-describedby="pwMatchMsg" />
+              <button type="button" class="btn btn-outline-secondary btn-toggle-pass" data-target="confirmPw" aria-label="Show or hide password confirmation">
+                <i class="fas fa-eye" aria-hidden="true"></i>
+              </button>
+              <% for (const m of fieldErr(pwErrors, 'confirm_password')) { %><div class="invalid-feedback"><%= m %></div><% } %>
+            </div>
+            <div id="pwMatchMsg" class="form-text" aria-live="polite"></div>
+          </div>
+        </div>
+        <div class="d-flex justify-content-end mt-4">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-lock" aria-hidden="true"></i>Change password</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- Account summary + activity -->
+  <section class="ap-section" aria-labelledby="profAccountHeading">
+    <div class="ap-section-intro">
+      <h2 id="profAccountHeading">Account</h2>
+      <p>Your sign-in history and the latest changes recorded under your name.</p>
+    </div>
+    <div class="ap-section-body prof-account">
+      <dl class="ap-dl">
+        <dt>Role</dt><dd><%= profileUser.role_label %></dd>
+        <dt>Member since</dt><dd><%= formatDate(profileUser.created_at) %></dd>
+        <dt>Last sign-in</dt><dd><%= profileUser.last_login ? formatDateTime(profileUser.last_login) : 'Not recorded' %></dd>
+      </dl>
+      <h3 class="prof-sub">Recent activity</h3>
+      <% if (!recentActivity || recentActivity.length === 0) { %>
+      <p class="ap-meta mb-0">No activity recorded yet.</p>
+      <% } else { %>
+      <ol class="ap-history prof-history">
+        <% for (const log of recentActivity) { %>
+        <li>
+          <time datetime="<%= log.created_at %>"><%= formatDateTime(log.created_at) %></time>
+          <div>
+            <div class="ap-history-title text-capitalize"><%= log.action.replace(/_/g,' ') %></div>
+            <div class="ap-history-by text-capitalize"><%= log.module %></div>
+          </div>
+        </li>
         <% } %>
-      </div>
+      </ol>
+      <% } %>
     </div>
-  </div>
+  </section>
 
-  <!-- Right: Edit forms -->
-  <div class="col-lg-9">
-
-    <!-- Tab Nav -->
-    <ul class="nav nav-tabs mb-3" id="profileTabs">
-      <li class="nav-item">
-        <a class="nav-link <%= activeTab === 'password' ? '' : 'active' %>" data-bs-toggle="tab" href="#tabProfile">
-          <i class="fas fa-user me-1"></i>Edit Profile
-        </a>
-      </li>
-      <li class="nav-item">
-        <a class="nav-link <%= activeTab === 'password' ? 'active' : '' %>" data-bs-toggle="tab" href="#tabPassword">
-          <i class="fas fa-lock me-1"></i>Change Password
-        </a>
-      </li>
-    </ul>
-
-    <div class="tab-content">
-
-      <!-- Profile Tab -->
-      <div class="tab-pane fade <%= activeTab === 'password' ? '' : 'show active' %>" id="tabProfile">
-        <div class="card">
-          <div class="card-body">
-
-            <% if (errors && errors.length > 0) { %>
-            <div class="alert alert-danger">
-              <% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
-            </div>
-            <% } %>
-
-            <form action="/profile" method="POST">
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label class="form-label required">First Name</label>
-                  <input type="text" name="first_name" class="form-control"
-                    value="<%= old.first_name || profileUser.first_name %>" required />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label required">Last Name</label>
-                  <input type="text" name="last_name" class="form-control"
-                    value="<%= old.last_name || profileUser.last_name %>" required />
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Email Address</label>
-                  <input type="email" class="form-control" value="<%= profileUser.email %>" disabled />
-                  <div class="form-text">Email can only be changed by an administrator.</div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label">Phone Number</label>
-                  <input type="text" name="phone" class="form-control"
-                    value="<%= old.phone !== undefined ? old.phone : profileUser.phone || '' %>"
-                    placeholder="09XX-XXX-XXXX" />
-                </div>
-              </div>
-              <div class="mt-4">
-                <button type="submit" class="btn btn-primary">
-                  <i class="fas fa-save me-1"></i>Save Changes
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      <!-- Password Tab -->
-      <div class="tab-pane fade <%= activeTab === 'password' ? 'show active' : '' %>" id="tabPassword">
-        <div class="card">
-          <div class="card-body">
-
-            <% if (pwErrors && pwErrors.length > 0) { %>
-            <div class="alert alert-danger">
-              <% for (const e of pwErrors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
-            </div>
-            <% } %>
-
-            <form action="/profile/password" method="POST">
-              <div class="row g-3">
-                <div class="col-12">
-                  <label class="form-label required">Current Password</label>
-                  <div class="input-group" style="max-width:400px;">
-                    <input type="password" name="current_password" id="currentPw" class="form-control"
-                      placeholder="Enter your current password" required autocomplete="current-password" />
-                    <button type="button" class="input-group-text btn-toggle-pass" data-target="currentPw">
-                      <i class="fas fa-eye"></i>
-                    </button>
-                  </div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label required">New Password</label>
-                  <div class="input-group">
-                    <input type="password" name="new_password" id="newPw" class="form-control"
-                      placeholder="Minimum 8 characters" required minlength="8" autocomplete="new-password" />
-                    <button type="button" class="input-group-text btn-toggle-pass" data-target="newPw">
-                      <i class="fas fa-eye"></i>
-                    </button>
-                  </div>
-                  <!-- Password strength indicator -->
-                  <div id="pwStrengthBar" class="mt-1" style="height:4px;border-radius:2px;background:#e5e7eb;overflow:hidden;">
-                    <div id="pwStrengthFill" style="height:100%;width:0;transition:width .3s,background .3s;"></div>
-                  </div>
-                  <div id="pwStrengthLabel" class="form-text"></div>
-                </div>
-                <div class="col-md-6">
-                  <label class="form-label required">Confirm New Password</label>
-                  <input type="password" name="confirm_password" id="confirmPw" class="form-control"
-                    placeholder="Re-enter new password" required autocomplete="new-password" />
-                  <div id="pwMatchMsg" class="form-text"></div>
-                </div>
-              </div>
-              <div class="mt-4">
-                <button type="submit" class="btn btn-primary">
-                  <i class="fas fa-lock me-1"></i>Change Password
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-    </div>
-  </div>
+</div>
 </div>
 
 <script>
@@ -180,6 +167,7 @@
   const matchMsg = document.getElementById('pwMatchMsg');
 
   if (!newPw) return;
+  <% if (showPassword) { %>document.getElementById('tabPassword').scrollIntoView({ block: 'start' });<% } %>
 
   newPw.addEventListener('input', () => {
     const v = newPw.value;
@@ -190,12 +178,12 @@
     if (/[^A-Za-z0-9]/.test(v))      strength++;
 
     const pct    = strength * 25;
-    const colors = ['#ef4444','#f97316','#f59e0b','#10b981'];
+    const colors = ['#b42318','#a15c07','#8a5a12','#1f7a4d'];
     const labels = ['Weak','Fair','Good','Strong'];
 
     fill.style.width      = pct + '%';
-    fill.style.background = colors[strength - 1] || '#e5e7eb';
-    label.textContent     = v.length === 0 ? '' : labels[strength - 1] || '';
+    fill.style.background = colors[strength - 1] || '#e5e9e7';
+    label.textContent     = v.length === 0 ? '' : 'Strength: ' + (labels[strength - 1] || 'Too short');
     label.style.color     = colors[strength - 1] || '';
   });
 
@@ -203,10 +191,10 @@
     if (confirmPw.value === '') { matchMsg.textContent = ''; return; }
     if (confirmPw.value === newPw.value) {
       matchMsg.textContent = '✓ Passwords match';
-      matchMsg.style.color = '#10b981';
+      matchMsg.style.color = '#1f7a4d';
     } else {
       matchMsg.textContent = '✗ Passwords do not match';
-      matchMsg.style.color = '#ef4444';
+      matchMsg.style.color = '#b42318';
     }
   });
 })();

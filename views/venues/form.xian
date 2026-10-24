@@ -1,67 +1,142 @@
 <% layout('layouts/main') %>
-<div class="page-header"><div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/venues">Venues</a></li><li class="breadcrumb-item active"><%= venue ? 'Edit Venue' : 'Add Venue' %></li></ol></nav><h3 class="mb-0"><%= venue ? 'Edit ' + venue.name : 'Add New Venue' %></h3></div></div>
-<% if (errors && errors.length > 0) { %><div class="alert alert-danger"><% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %></div><% } %>
-<div class="row g-4"><div class="col-lg-7"><div class="card"><div class="card-body">
-<form action="<%= venue ? '/venues/' + venue.id + '/edit' : '/venues' %>" method="POST" enctype="multipart/form-data" id="venueForm">
-  <div class="row g-3">
-    <div class="col-md-8"><label class="form-label required">Venue Name</label><input type="text" name="name" class="form-control" value="<%= old.name || '' %>" required /></div>
-    <div class="col-md-4"><label class="form-label required">Type</label><select name="venue_type" class="form-select" required><option value="">Select...</option><% for (const t of venueTypes) { %><option value="<%= t %>" <%= (old.venue_type || '') === t ? 'selected' : '' %>><%= t.replace(/_/g,' ') %></option><% } %></select></div>
-    <div class="col-md-6"><label class="form-label required">Capacity</label><input type="number" name="capacity" class="form-control" value="<%= old.capacity || 50 %>" min="1" required /></div>
-    <div class="col-md-6"><label class="form-label required">Price (₱)</label><div class="input-group"><span class="input-group-text">₱</span><input type="number" name="price" class="form-control" value="<%= old.price || '' %>" min="0" step="0.01" required /></div></div>
-    <div class="col-md-6"><label class="form-label">Location</label><input type="text" name="location" class="form-control" value="<%= old.location || '' %>" placeholder="e.g. East Wing Garden" /></div>
-    <div class="col-md-6"><label class="form-label">Status</label><select name="status" class="form-select"><% for (const s of ['available','reserved','maintenance','unavailable']) { %><option value="<%= s %>" <%= (old.status || 'available') === s ? 'selected' : '' %>><%= s %></option><% } %></select></div>
-    <div class="col-12"><label class="form-label">Amenities <small class="text-muted">(comma-separated)</small></label><input type="text" name="amenities" class="form-control" value="<%= old.amenitiesStr || '' %>" placeholder="AC, Sound System, Projector..." /></div>
-    <div class="col-12"><label class="form-label">Price Note</label><input type="text" name="price_note" class="form-control" value="<%= old.price_note || '' %>" placeholder="e.g. per event, includes setup" /></div>
-    <div class="col-12"><label class="form-label">Description</label><textarea name="description" class="form-control" rows="3"><%= old.description || '' %></textarea></div>
+<% const hasPhotos = venue && venue.imagesList && venue.imagesList.length > 0; %>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/venues" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Venues</a>
+<h1 class="ph-title"><%= venue ? 'Edit ' + venue.name : 'Add New Venue' %></h1>
+<% if (venue) { %><div class="ph-actions"><a href="/stay/venue/<%= venue.id %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Guest view<span class="visually-hidden"> — opens the public venue page in a new tab</span></a></div><% } %>
+<!--/page-head-->
+<p class="page-intro">Changes to the rate, description and photos show on the public website and guest portal as soon as you save.</p>
+
+<% if (errors && errors.length > 0) { %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
+</div>
+<% } %>
+
+<form data-guard="this venue" action="<%= venue ? '/venues/' + venue.id + '/edit' : '/venues' %>" method="POST" enctype="multipart/form-data" id="venueForm" class="ap-form">
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Venue</h2>
+      <p>What the space is and where guests will find it.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required" for="venueName">Venue name</label>
+          <input type="text" name="name" id="venueName" class="form-control" value="<%= old.name || '' %>" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required" for="venueType">Type</label>
+          <select name="venue_type" id="venueType" class="form-select" required>
+            <option value="">Select…</option>
+            <% for (const t of venueTypes) { %><option value="<%= t %>" <%= (old.venue_type || '') === t ? 'selected' : '' %>><%= statusLabel(t) %></option><% } %>
+          </select>
+        </div>
+        <div class="col-md-8">
+          <label class="form-label" for="venueLocation">Location <span class="ap-meta fw-normal">(optional)</span></label>
+          <input type="text" name="location" id="venueLocation" class="form-control" value="<%= old.location || '' %>" placeholder="e.g. Beside the main pool" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" for="venueStatus">Status</label>
+          <select name="status" id="venueStatus" class="form-select">
+            <% for (const s of ['available','reserved','maintenance','unavailable']) { %><option value="<%= s %>" <%= (old.status || 'available') === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
+          </select>
+        </div>
+      </div>
+    </div>
   </div>
-  <div class="d-flex gap-2 mt-4">
-    <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i><%= venue ? 'Update Venue' : 'Create Venue' %></button>
-    <a href="/venues<%= venue ? '/' + venue.id : '' %>" class="btn btn-outline-secondary">Cancel</a>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Guests and rate</h2>
+      <p>Venues are a flat rate per event booking.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="venueCapacity">Capacity (guests)</label>
+          <input type="number" name="capacity" id="venueCapacity" class="form-control" value="<%= old.capacity || 50 %>" min="1" required />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="venuePrice">Rate per event</label>
+          <div class="input-group"><span class="input-group-text">₱</span><input type="number" name="price" id="venuePrice" class="form-control" value="<%= old.price || '' %>" min="0" step="0.01" required /></div>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="venuePriceNote">Price note <span class="ap-meta fw-normal">(optional)</span></label>
+          <input type="text" name="price_note" id="venuePriceNote" class="form-control" value="<%= old.price_note || '' %>" placeholder="e.g. per event, includes setup" aria-describedby="venuePriceNoteHelp" />
+          <div class="form-text" id="venuePriceNoteHelp">Shown next to the rate, e.g. what the price includes.</div>
+        </div>
+      </div>
+    </div>
   </div>
-</form>
-</div></div></div>
-<div class="col-lg-5">
-  <div class="card">
-    <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-images me-2"></i>Venue Photos</h6></div>
-    <div class="card-body">
-      <% if (venue && venue.imagesList && venue.imagesList.length > 0) { %>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Description</h2>
+      <p>Only list amenities the venue really has — organisers plan around them.</p>
+    </div>
+    <div class="ap-section-body">
       <div class="mb-3">
-        <label class="form-label small fw-bold">Current Photos — click × to remove</label>
-        <div class="row g-2">
-          <% for (const image of venue.imagesList) { %>
-          <div class="col-6 existing-img-item">
-            <div class="position-relative">
-              <img src="<%= image %>" alt="Venue photo" class="img-fluid rounded border"
-                style="height:110px;width:100%;object-fit:cover;" />
-              <input type="hidden" name="keep_images" value="<%= image %>" class="keep-img-input" form="venueForm" />
-              <button type="button" class="btn btn-danger btn-xs position-absolute top-0 end-0 m-1 remove-img-btn"
-                style="width:22px;height:22px;padding:0;border-radius:50%;font-size:.65rem;line-height:1;display:flex;align-items:center;justify-content:center;"
-                title="Remove photo">×</button>
+        <label class="form-label" for="venueAmenities">Amenities</label>
+        <input type="text" name="amenities" id="venueAmenities" class="form-control" value="<%= old.amenitiesStr || '' %>" placeholder="e.g. Sound system, Tables and chairs" aria-describedby="venueAmenitiesHelp" />
+        <div class="form-text" id="venueAmenitiesHelp">Separate each amenity with a comma.</div>
+      </div>
+      <div>
+        <label class="form-label" for="venueDescription">Description</label>
+        <textarea name="description" id="venueDescription" class="form-control" rows="4"><%= old.description || '' %></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Photos</h2>
+      <p>Up to 5 photos in total, 5 MB each (JPG, PNG or WEBP). The first photo is the cover shown in listings.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (hasPhotos) { %>
+      <div class="cat-photo-block">
+        <h3>Current photos</h3>
+        <div class="ap-thumb-grid">
+          <% for (let i = 0; i < venue.imagesList.length; i++) { const image = venue.imagesList[i]; %>
+          <div class="ap-thumb-item existing-img-item">
+            <div class="ap-thumb">
+              <img src="<%= image %>" alt="Venue photo <%= i + 1 %>" data-missing="Photo unavailable — file missing" />
+              <% if (i === 0) { %><span class="cat-thumb-tag">Cover</span><% } %>
             </div>
+            <input type="hidden" name="keep_images" value="<%= image %>" class="keep-img-input" form="venueForm" />
+            <button type="button" class="ap-act is-danger remove-img-btn" aria-pressed="false">Remove</button>
           </div>
           <% } %>
         </div>
       </div>
       <% } %>
-      <label class="form-label small fw-bold">
-        <%= venue && venue.imagesList && venue.imagesList.length > 0 ? 'Add More Photos' : 'Upload Photos' %>
-        <span class="text-muted fw-normal">(up to 5 total, max 5 MB each — jpg, png, webp)</span>
-      </label>
-      <div class="upload-dropzone" id="venueDropZone" style="border:2px dashed #d1d5db;border-radius:.75rem;padding:1.5rem;text-align:center;background:#f9fafb;cursor:pointer;">
-        <i class="fas fa-cloud-upload-alt fa-2x mb-2 text-muted d-block"></i>
-        <div class="small text-muted">Drag &amp; drop photos here or</div>
-        <label for="venueImageInput" class="btn btn-sm btn-outline-primary mt-2" style="cursor:pointer;">
-          <i class="fas fa-folder-open me-1"></i>Browse Files
-        </label>
-        <input type="file" id="venueImageInput" name="images" form="venueForm" multiple accept="image/*" class="d-none" />
-      </div>
-      <div class="row g-2 mt-2" id="venueImagePreview"></div>
-      <div class="alert alert-light py-2 small mb-0 mt-3">
-        <i class="fas fa-info-circle me-1 text-info"></i>First photo becomes the venue cover image.
+
+      <div class="cat-photo-block">
+        <h3><%= hasPhotos ? 'Add more photos' : 'Upload photos' %></h3>
+        <div class="upload-dropzone cat-dropzone" id="venueDropZone">
+          <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+          <span>Drag photos here, or</span>
+          <label for="venueImageInput" class="btn btn-secondary-quiet btn-sm mb-0">Choose files</label>
+          <input type="file" id="venueImageInput" name="images" form="venueForm" multiple accept="image/*" class="d-none" />
+        </div>
+        <div class="ap-thumb-grid mt-3" id="venueImagePreview" aria-live="polite"></div>
       </div>
     </div>
   </div>
-</div></div>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
+    <a href="/venues<%= venue ? '/' + venue.id : '' %>" class="btn btn-secondary-quiet">Cancel</a>
+    <button type="submit" class="btn btn-primary"><%= venue ? 'Save changes' : 'Create venue' %></button>
+  </div>
+</form>
+
+</div>
 
 <script>
 (function () {
@@ -74,33 +149,32 @@
   function renderPreview() {
     preview.innerHTML = '';
     Array.from(fileList.files).forEach(function (file, index) {
-      var reader = new FileReader();
-      reader.onload = function (event) {
-        var cell = document.createElement('div');
-        cell.className = 'col-6';
-        var image = document.createElement('img');
-        image.src = event.target.result;
-        image.alt = file.name;
-        image.className = 'img-fluid rounded border';
-        image.style.cssText = 'height:110px;width:100%;object-fit:cover;';
-        cell.appendChild(image);
-        var remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'btn btn-sm btn-danger mt-1 w-100';
-        remove.textContent = 'Remove';
-        remove.addEventListener('click', function () {
-          var nextFiles = new DataTransfer();
-          Array.from(fileList.files).forEach(function (item, itemIndex) {
-            if (itemIndex !== index) nextFiles.items.add(item);
-          });
-          fileList = nextFiles;
-          input.files = fileList.files;
-          renderPreview();
+      var item = document.createElement('div');
+      item.className = 'ap-thumb-item';
+      var thumb = document.createElement('div');
+      thumb.className = 'ap-thumb';
+      var image = document.createElement('img');
+      image.src = URL.createObjectURL(file);
+      image.alt = file.name;
+      thumb.appendChild(image);
+      var name = document.createElement('span');
+      name.className = 'ap-thumb-caption';
+      name.textContent = 'New · ' + file.name;
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'ap-act is-danger';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', function () {
+        var nextFiles = new DataTransfer();
+        Array.from(fileList.files).forEach(function (item, itemIndex) {
+          if (itemIndex !== index) nextFiles.items.add(item);
         });
-        cell.appendChild(remove);
-        preview.appendChild(cell);
-      };
-      reader.readAsDataURL(file);
+        fileList = nextFiles;
+        input.files = fileList.files;
+        renderPreview();
+      });
+      item.appendChild(thumb); item.appendChild(name); item.appendChild(remove);
+      preview.appendChild(item);
     });
   }
 
@@ -113,32 +187,30 @@
     renderPreview();
   }
 
+  // Remove / undo an existing photo: a removed photo's keep_images input is disabled so it isn't submitted.
   document.querySelectorAll('.remove-img-btn').forEach(function (button) {
     button.addEventListener('click', function () {
       var wrapper = button.closest('.existing-img-item');
       var keepInput = wrapper.querySelector('.keep-img-input');
       keepInput.disabled = !keepInput.disabled;
-      wrapper.style.opacity = keepInput.disabled ? '.35' : '';
-      button.textContent = keepInput.disabled ? 'Undo' : '×';
-      button.classList.toggle('btn-danger', !keepInput.disabled);
-      button.classList.toggle('btn-success', keepInput.disabled);
+      wrapper.classList.toggle('is-removed', keepInput.disabled);
+      button.textContent = keepInput.disabled ? 'Undo' : 'Remove';
+      button.classList.toggle('is-danger', !keepInput.disabled);
+      button.setAttribute('aria-pressed', keepInput.disabled ? 'true' : 'false');
       existingCount = document.querySelectorAll('.keep-img-input:not(:disabled)').length;
     });
   });
   input.addEventListener('change', function () { addFiles(input.files); });
   dropZone.addEventListener('dragover', function (event) {
     event.preventDefault();
-    dropZone.style.borderColor = '#4f46e5';
-    dropZone.style.background = '#ede9fe';
+    dropZone.classList.add('dragover');
   });
   dropZone.addEventListener('dragleave', function () {
-    dropZone.style.borderColor = '#d1d5db';
-    dropZone.style.background = '#f9fafb';
+    dropZone.classList.remove('dragover');
   });
   dropZone.addEventListener('drop', function (event) {
     event.preventDefault();
-    dropZone.style.borderColor = '#d1d5db';
-    dropZone.style.background = '#f9fafb';
+    dropZone.classList.remove('dragover');
     addFiles(event.dataTransfer.files);
   });
   dropZone.addEventListener('click', function (event) {

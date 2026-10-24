@@ -1,235 +1,291 @@
 <% layout('layouts/portal') %>
+<%
+  const pmName = { gcash: 'GCash', maya: 'Maya', bank_transfer: 'bank transfer' };
+  const typeLabel = { room: 'Room', cottage: 'Cottage', venue: 'Venue', event: 'Event package' };
+  const t12 = (v) => { if (!v) return ''; const [h, m] = String(v).split(':'); const n = parseInt(h, 10); return isNaN(n) ? String(v).slice(0, 5) : ((n % 12) || 12) + ':' + (m || '00') + ' ' + (n < 12 ? 'AM' : 'PM'); };
+  const rc = (typeof resortContact !== 'undefined' && resortContact) || {};
 
-<style>
-/* ── Featured Cards ──────────────────────────── */
-.feat-card { background:#fff;border-radius:1rem;overflow:hidden;border:1px solid #e5e7eb;transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column; }
-.feat-card:hover { transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,.12); }
-.feat-img { position:relative;overflow:hidden;height:200px; }
-.feat-img img { width:100%;height:100%;object-fit:cover;transition:transform .3s; }
-.feat-card:hover .feat-img img { transform:scale(1.05); }
-.feat-img-placeholder { height:200px;display:flex;align-items:center;justify-content:center;font-size:3.5rem;color:rgba(255,255,255,.3); }
-.feat-badge { position:absolute;top:.6rem;right:.6rem;background:rgba(0,0,0,.5);color:#fff;font-size:.68rem;font-weight:600;padding:2px 8px;border-radius:999px;backdrop-filter:blur(4px); }
-.feat-body { padding:1rem;flex:1;display:flex;flex-direction:column; }
-.feat-type { font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.2rem; }
-.feat-name { font-weight:700;margin-bottom:.2rem;color:#111827; }
-.feat-meta { font-size:.78rem;color:#6b7280;margin-bottom:.5rem; }
-.feat-price { font-size:1.1rem;font-weight:700;color:#4f46e5; }
-.feat-price small { font-size:.72rem;color:#9ca3af;font-weight:400; }
-.feat-footer { display:flex;justify-content:space-between;align-items:center;padding-top:.75rem;border-top:1px solid #f3f4f6;margin-top:auto; }
+  // Philippine local time (UTC+8): today's date and a time-of-day greeting.
+  const phNow = new Date(Date.now() + 8 * 3600e3);
+  const todayPH = phNow.toISOString().slice(0, 10);
+  const hr = phNow.getUTCHours();
+  const greet = hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  const dayDiff = (a, b) => Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 864e5);
+  const startOf = (b) => String(b.check_in_date || b.event_date || '').slice(0, 10);
+  const endOf = (b) => String(b.check_out_date || b.check_in_date || b.event_date || '').slice(0, 10);
 
-/* Section label style */
-.section-label { display:flex;align-items:center;justify-content:space-between;margin-bottom:1.25rem; }
-.section-label h4 { font-weight:700;margin:0; }
-</style>
+  // What the guest has to do (or know) next for a booking. Same rules as the reservation tile.
+  const bkState = (b) => {
+    const total = Number(b.total_amount) || 0, paid = Number(b.amount_paid) || 0;
+    const balance = Math.max(total - paid, 0);
+    const due = Number(b.downpayment_req) > 0 ? Number(b.downpayment_req) : Math.ceil(total * downpaymentPercent / 100);
+    const inReview = Number(b.proofs_pending) > 0;
+    const rejected = !inReview && Number(b.last_proof_rejected) === 1;
+    const href = '/portal/my-reservations/' + b.id;
+    const st = b.status;
+    if (st === 'pending' || st === 'awaiting_payment') {
+      if (inReview) return { tone: 'quiet', icon: 'fa-hourglass-half', title: 'Payment proof under review', text: 'Staff are checking your proof against the resort’s account. The booking is confirmed only after they verify it — you’ll get a notification.', cta: 'View booking', href };
+      if (rejected) return { tone: 'danger', icon: 'fa-rotate-right', title: 'Your payment proof wasn’t accepted', text: 'See the reason on your booking, check the amount and reference on your receipt, then upload a clear screenshot again.', cta: 'Upload proof again', href: href + '#pay', primary: true };
+      if (paid <= 0) return { tone: 'warn', icon: 'fa-wallet', title: 'Pay the ' + formatPeso(due) + ' downpayment, then upload your proof', text: 'Send it by ' + (pmName[b.payment_method] || 'your chosen method') + ' and upload a screenshot. The booking stays Awaiting payment until staff verify it.', cta: 'Pay and upload proof', href: href + '#pay', primary: true };
+      return { tone: 'quiet', icon: 'fa-check', title: 'Downpayment verified', text: 'The remaining ' + formatPeso(balance) + ' is paid at the resort. Show your check-in QR at the front desk.', cta: 'Show check-in QR', href: href + '#qr' };
+    }
+    if (st === 'confirmed') return { tone: 'ok', icon: 'fa-qrcode', title: 'Confirmed — show your QR at check-in', text: balance > 0 ? 'Balance due at the resort: ' + formatPeso(balance) + '. Only resort staff can confirm your check-in.' : 'Fully paid. Only resort staff can confirm your check-in.', cta: 'Show check-in QR', href: href + '#qr', primary: true };
+    if (st === 'checked_in') return { tone: 'ok', icon: 'fa-umbrella-beach', title: 'You’re checked in', text: 'Enjoy your stay.' + (balance > 0 ? ' Balance due before check-out: ' + formatPeso(balance) + '.' : ''), cta: 'View booking', href };
+    if (st === 'pencil') return { tone: 'quiet', icon: 'fa-pencil', title: 'Tentative booking (pencil booking)', text: 'Your dates are held while the resort finalises the booking with you.', cta: 'View booking', href };
+    if (st === 'on_hold') return { tone: 'quiet', icon: 'fa-pause', title: 'Booking on hold', text: 'Your dates stay reserved. The resort will contact you about next steps.', cta: 'View booking', href };
+    return { tone: 'quiet', icon: 'fa-circle-info', title: statusLabel(st), text: 'No action needed.', cta: 'View booking', href };
+  };
 
-<%# Hero %>
-<div class="portal-hero">
-  <div class="container-lg px-4">
-    <h1 class="mb-2"><i class="fas fa-home me-2"></i>Balai-Reserve</h1>
-    <p class="mb-4" style="font-size:1.1rem;opacity:.9;">Your Home Away From Home — Browse rooms, venues, and cottages, then book in minutes.</p>
-    <div class="d-flex gap-3 justify-content-center flex-wrap">
-      <a href="/portal/rooms"    class="btn btn-light btn-lg px-4"><i class="fas fa-bed me-2"></i>Rooms</a>
-      <a href="/portal/venues"   class="btn btn-light btn-lg px-4"><i class="fas fa-map-marker-alt me-2"></i>Venues</a>
-      <a href="/portal/cottages" class="btn btn-light btn-lg px-4"><i class="fas fa-home me-2"></i>Cottages</a>
+  const bookings = activeBookings || [];
+  // Lead with what needs the guest most: a stay in progress, then anything waiting on a payment, then the soonest date.
+  const rank = (b) => b.status === 'checked_in' ? 0 : (['pending', 'awaiting_payment'].includes(b.status) && !(Number(b.proofs_pending) > 0) && (Number(b.amount_paid) || 0) <= 0) ? 1 : 2;
+  const ordered = bookings.slice().sort((a, b) => rank(a) - rank(b));
+  const next = ordered[0] || null;
+  const others = ordered.slice(1);
+  const past = pastBookings || [];
+  const inquiries = recentInquiries || [];
+  const unread = unreadNotifCount || 0;
+
+  // Countdown chip from the real booking date (PH time). No chip when the date has passed without a check-in.
+  const countdown = (b) => {
+    if (b.status === 'checked_in') return 'You’re here';
+    const s = startOf(b), e = endOf(b);
+    if (!s) return '';
+    const d = dayDiff(s, todayPH);
+    if (d > 1) return 'In ' + d + ' days';
+    if (d === 1) return 'Tomorrow';
+    if (d === 0) return 'Today';
+    if (e && e >= todayPH) return 'Happening now';
+    return '';
+  };
+
+  // Real catalogue recommendations (photos first, live prices).
+  const recs = [];
+  for (const r of (featuredRooms || [])) recs.push({ k: 'room', row: r, photo: (r.imagesList || [])[0] });
+  for (const c of (featuredCottages || [])) recs.push({ k: 'cottage', row: c, photo: (c.imagesList || [])[0] });
+  for (const v of (featuredVenues || [])) recs.push({ k: 'venue', row: v, photo: (v.imagesList || [])[0] });
+  recs.sort((a, b) => (b.photo ? 1 : 0) - (a.photo ? 1 : 0));
+  const pkgs = packages || [];
+  const heroPhoto = (recs.find(r => r.photo) || {}).photo;
+  const hasAnyBooking = bookings.length + past.length > 0;
+%>
+
+<div class="pt-page hm">
+
+  <%# ── Welcome + the one primary action ──────────────────────────── %>
+  <header class="hm-hello">
+    <div class="hm-hello-text">
       <% if (currentUser) { %>
-      <a href="/portal/book" class="btn btn-warning btn-lg px-4"><i class="fas fa-calendar-plus me-2"></i>Book Now</a>
+      <h1 class="pt-title hm-title"><%= greet %>, <%= currentUser.firstName %></h1>
+      <p class="pt-lede">
+        <% if (next && countdown(next) && /^In \d/.test(countdown(next))) { %>Your next visit to Balai starts in <%= countdown(next).replace('In ', '') %>.<%
+        } else if (next && next.status === 'checked_in') { %>Welcome to the beach — here’s everything for your stay.<%
+        } else if (next) { %>Here’s what’s next for your bookings at Balai-Reserve.<%
+        } else { %>Plan a stay, a beach day or a celebration by the sea.<% } %>
+      </p>
       <% } else { %>
-      <a href="/auth/login" class="btn btn-warning btn-lg px-4"><i class="fas fa-sign-in-alt me-2"></i>Sign In to Book</a>
+      <h1 class="pt-title hm-title">Book at Balai-Reserve</h1>
+      <p class="pt-lede">Live prices for rooms, cottages, the function hall and event packages. Sign in to book and pay the downpayment online.</p>
       <% } %>
     </div>
+    <% if (currentUser) { %>
+    <a href="/portal/book" class="btn btn-primary btn-lg hm-book"><i class="fas fa-plus" aria-hidden="true"></i><%= hasAnyBooking ? 'Book another stay' : 'Book a stay' %></a>
+    <% } %>
+  </header>
+
+  <% if (next) { const s = bkState(next); const cd = countdown(next); %>
+  <%# ── Trip summary: the next relevant booking and its required action ── %>
+  <section class="trip" aria-labelledby="tripHeading">
+    <h2 class="br-sr-only" id="tripHeading"><%= next.status === 'checked_in' ? 'Your stay now' : 'Your next trip' %></h2>
+    <div class="trip-photo pt-photo">
+      <% if (next.photo) { %>
+      <img src="<%= next.photo %>" alt="<%= next.item_names || typeLabel[next.reservation_type] %>" width="900" height="675" />
+      <% } else { %>
+      <div class="photo-pending"><i class="far fa-image" aria-hidden="true"></i>Photos coming soon</div>
+      <% } %>
+      <% if (cd) { %><span class="trip-when-chip"><i class="far fa-calendar" aria-hidden="true"></i><%= cd %></span><% } %>
+    </div>
+    <div class="trip-body">
+      <p class="booking-line"><span class="booking-ref"><%= next.booking_ref %></span><span><%= typeLabel[next.reservation_type] || 'Booking' %><% if (next.num_guests) { %> · <%= next.num_guests %> guest<%= Number(next.num_guests) === 1 ? '' : 's' %><% } %></span></p>
+      <h3 class="trip-title"><a href="/portal/my-reservations/<%= next.id %>"><%= next.item_names || typeLabel[next.reservation_type] || 'Booking' %></a></h3>
+
+      <dl class="trip-dates">
+        <% if (next.reservation_type === 'room' && next.check_in_date) { %>
+        <div><dt>Check-in</dt><dd><%= formatDate(next.check_in_date, 'ddd, MMM D') %></dd><dd class="trip-dates-sub">from <%= t12(rc.checkIn || '14:00') %></dd></div>
+        <div><dt>Check-out</dt><dd><%= formatDate(next.check_out_date, 'ddd, MMM D') %></dd><dd class="trip-dates-sub">by <%= t12(rc.checkOut || '12:00') %></dd></div>
+        <% } else { const d = next.check_in_date || next.event_date; %>
+        <div><dt>Date</dt><dd><%= d ? formatDate(d, 'ddd, MMM D') : 'To be confirmed' %></dd><% if (d) { %><dd class="trip-dates-sub"><%= formatDate(d, 'YYYY') %></dd><% } %></div>
+        <% if (next.start_time) { %><div><dt>Time</dt><dd><%= t12(next.start_time) %></dd><% if (next.end_time) { %><dd class="trip-dates-sub">until <%= t12(next.end_time) %></dd><% } %></div><% } %>
+        <% } %>
+      </dl>
+
+      <p class="pt-status">
+        <span class="pt-status-item"><span class="pt-status-label">Reservation</span><%- statusBadge(next.status) %></span>
+        <span class="pt-status-item"><span class="pt-status-label">Payment</span><%- statusBadge(next.payment_status) %></span>
+      </p>
+
+      <div class="trip-next trip-next--<%= s.tone %>">
+        <span class="trip-next-icon" aria-hidden="true"><i class="fas <%= s.icon %>"></i></span>
+        <div class="trip-next-body">
+          <p class="trip-next-label">Next step</p>
+          <p class="trip-next-title"><%= s.title %></p>
+          <p class="trip-next-text"><%= s.text %></p>
+        </div>
+      </div>
+      <div class="trip-actions">
+        <a href="<%= s.href %>" class="btn <%= s.primary ? 'btn-primary' : 'btn-secondary-quiet' %>"><%= s.cta %><span class="br-sr-only"> for <%= next.booking_ref %></span></a>
+        <% if (s.href !== '/portal/my-reservations/' + next.id) { %>
+        <a href="/portal/my-reservations/<%= next.id %>" class="pt-link-more">Booking details <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+        <% } %>
+      </div>
+    </div>
+  </section>
+  <% } else if (currentUser) { %>
+  <%# ── No upcoming booking: a graceful way in, with real places to look at ── %>
+  <section class="hm-empty" aria-labelledby="emptyHeading">
+    <div class="hm-empty-text">
+      <h2 class="hm-empty-title" id="emptyHeading">No trips planned yet</h2>
+      <p>Pick a room for the night, a cottage for a beach day, or the function hall for a celebration. You’ll see the total and the <%= downpaymentPercent %>% downpayment before you submit anything.</p>
+      <a href="/portal/calendar" class="pt-link-more">Check the availability calendar <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+  </section>
+  <% } else { %>
+  <section class="explore" aria-labelledby="exploreHeading">
+    <div class="explore-photo pt-photo">
+      <% if (heroPhoto) { %><img src="<%= heroPhoto %>" alt="" /><% } else { %><div class="photo-pending"><i class="far fa-image" aria-hidden="true"></i>Photos coming soon</div><% } %>
+    </div>
+    <div class="explore-body">
+      <h2 class="explore-title" id="exploreHeading">Sign in to book</h2>
+      <p>Online bookings are paid with GCash, Maya or bank transfer. You upload your payment proof and the resort’s staff verify it.</p>
+      <div class="explore-actions">
+        <a href="/auth/login" class="btn btn-primary btn-lg">Sign in</a>
+        <a href="/auth/register" class="btn btn-secondary-quiet btn-lg">Create an account</a>
+      </div>
+      <a href="/portal/rooms" class="pt-link-more">Explore stays first <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+  </section>
+  <% } %>
+
+  <%# With a trip coming up, reservations lead; without one, real places to stay lead (the empty state's discovery). %>
+  <% for (const block of (next ? ['res', 'explore'] : ['explore', 'res'])) { %>
+  <%# ── Your reservations ─────────────────────────────────────────── %>
+  <% if (block === 'res' && (others.length || past.length)) { %>
+  <section class="pt-section" aria-labelledby="resHeading">
+    <div class="pt-section-head">
+      <h2 class="pt-h2" id="resHeading">Your reservations</h2>
+      <a href="/portal/my-reservations" class="pt-link-more">All reservations <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <% if (others.length) { %>
+    <h3 class="hm-sub">Also coming up</h3>
+    <ul class="rt-list">
+      <% for (const b of others) { %><li><%include('portal/_reservation-tile', Object.assign({}, __locals, { tile: { r: b, h: 'h4' } }))%></li><% } %>
+    </ul>
+    <% } %>
+    <% if (past.length) { %>
+    <h3 class="hm-sub">Recent and past</h3>
+    <ul class="rt-list rt-list--quiet">
+      <% for (const b of past) { %><li><%include('portal/_reservation-tile', Object.assign({}, __locals, { tile: { r: b, h: 'h4' } }))%></li><% } %>
+    </ul>
+    <% } %>
+  </section>
+  <% } %>
+
+  <%# ── Explore accommodations (live catalogue, shared listing tiles) ── %>
+  <% if (block === 'explore' && (recs.length || pkgs.length)) { %>
+  <section class="pt-section" aria-labelledby="recHeading">
+    <div class="pt-section-head">
+      <div>
+        <h2 class="pt-h2" id="recHeading"><%= next ? 'Plan another visit' : 'Explore accommodations' %></h2>
+        <p class="pt-meta mb-0">Live prices · <%= downpaymentPercent %>% downpayment online</p>
+      </div>
+      <a href="/portal/rooms" class="pt-link-more">Browse everything <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <% if (recs.length) { %>
+    <ul class="rec-strip" aria-label="Rooms, cottages and venue">
+      <% for (const r of recs) { %>
+      <li class="rec-item">
+        <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: r.row, kind: r.k, variant: 'tile', h: 'h3' } }))%>
+      </li>
+      <% } %>
+    </ul>
+    <% } %>
+    <% if (pkgs.length) { %>
+    <div class="rec-pkgs">
+      <h3 class="pt-h3">Event packages</h3>
+      <ul class="rec-pkg-list">
+        <% for (const p of pkgs) { %>
+        <li>
+          <a href="<%= currentUser ? '/portal/book?type=event&package_id=' + p.id : '/portal/venues#packages' %>">
+            <span class="rec-pkg-name"><%= p.name %></span>
+            <span class="pt-meta"><%= p.capacity ? 'Up to ' + p.capacity + ' guests' : 'Package' %></span>
+            <span class="rec-pkg-price"><%= formatPrice(p.price) %></span>
+          </a>
+        </li>
+        <% } %>
+      </ul>
+      <a href="/portal/venues#packages" class="pt-link-more">Compare all packages and add-ons <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <% } %>
+  </section>
+  <% } %>
+  <% } %>
+
+  <% if (!bookings.length) { %>
+  <%# ── How online booking works (only until the guest has a booking) ── %>
+  <section class="pt-section" aria-labelledby="howHeading">
+    <h2 class="pt-h2" id="howHeading">How online booking works</h2>
+    <ol class="how-steps">
+      <li><strong>Submit your booking</strong>Choose a room, cottage, venue or package and your dates. You’ll see the total before submitting. It’s saved as Awaiting payment with a BK- reference.</li>
+      <li><strong>Pay the <%= downpaymentPercent %>% downpayment</strong>Send it by GCash, Maya or bank transfer using the account details shown on your booking.</li>
+      <li><strong>Upload your proof</strong>Add a screenshot of your payment. Staff check it against the resort’s account before confirming.</li>
+      <li><strong>Check in with your QR</strong>Show the QR code at the front desk; only staff can confirm check-in. The balance is paid at the resort.</li>
+    </ol>
+  </section>
+  <% } %>
+
+  <% if (currentUser) { %>
+  <%# ── Messages and contact ─────────────────────────────────────── %>
+  <div class="hm-help pt-section">
+    <section class="hm-msgs" aria-labelledby="msgHeading">
+      <div class="pt-section-head">
+        <h2 class="pt-h2" id="msgHeading">Messages</h2>
+        <a href="/portal/my-inquiries" class="pt-link-more">All inquiries <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+      </div>
+      <% if (unread > 0) { %>
+      <a href="/portal/notifications" class="hm-unread"><span class="hm-unread-dot" aria-hidden="true"></span><%= unread %> unread notification<%= unread === 1 ? '' : 's' %><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+      <% } %>
+      <% if (inquiries.length) { %>
+      <ul class="hm-inq">
+        <% for (const q of inquiries) { %>
+        <li>
+          <a href="/portal/my-inquiries#inq-<%= q.id %>" class="hm-inq-row">
+            <span class="hm-inq-subject"><%= q.subject %></span>
+            <span class="hm-inq-state <%= q.resolution ? 'is-replied' : '' %>"><%= q.resolution ? 'Replied' : 'Awaiting reply' %></span>
+            <span class="pt-meta">Sent <%= formatDateTime(q.created_at, 'MMM D, h:mm A') %><% if (q.resolved_at && q.resolution) { %> · replied <%= formatDateTime(q.resolved_at, 'MMM D') %><% } %></span>
+          </a>
+        </li>
+        <% } %>
+      </ul>
+      <% } else { %>
+      <p class="pt-small text-muted">Questions about dates, prices or a booking? Send the resort a message — the reply appears here.</p>
+      <% } %>
+      <a href="/portal/inquire" class="btn btn-secondary-quiet mt-2"><i class="far fa-paper-plane" aria-hidden="true"></i>Send a message</a>
+    </section>
+
+    <section class="hm-contact" aria-labelledby="contactHeading">
+      <h2 class="pt-h2" id="contactHeading">Getting here and contact</h2>
+      <ul class="hm-facts">
+        <li><i class="fas fa-location-dot" aria-hidden="true"></i><span><%= rc.address %><br><a href="https://www.google.com/maps/search/?api=1&query=<%= encodeURIComponent(rc.address || '') %>" target="_blank" rel="noopener noreferrer">Open in Google Maps<span class="br-sr-only"> (opens in a new tab)</span></a></span></li>
+        <li><i class="far fa-clock" aria-hidden="true"></i><span>Check-in from <%= t12(rc.checkIn || '14:00') %> · check-out by <%= t12(rc.checkOut || '12:00') %></span></li>
+        <% if (rc.phone) { %><li><i class="fas fa-phone" aria-hidden="true"></i><a href="tel:<%= String(rc.phone).replace(/[^\d+]/g, '') %>"><%= rc.phone %></a></li><% } %>
+        <% if (rc.email) { %><li><i class="far fa-envelope" aria-hidden="true"></i><a href="mailto:<%= rc.email %>"><%= rc.email %></a></li><% } %>
+        <li><i class="fab fa-facebook" aria-hidden="true"></i><a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener">Balai Miciano on Facebook<span class="br-sr-only"> (opens in a new tab)</span></a></li>
+      </ul>
+    </section>
   </div>
+  <% } %>
+
 </div>
 
-<div class="container-lg px-4 py-4">
-
-  <%# Availability stats %>
-  <div class="row g-3 mb-5">
-    <div class="col-6 col-md-3">
-      <a href="/portal/rooms" class="text-decoration-none">
-        <div class="text-center p-3 bg-white rounded-3 shadow-sm border h-100" style="transition:box-shadow .2s;">
-          <div class="fs-2 fw-bold text-primary"><%= availableRooms %></div>
-          <div class="text-muted small"><i class="fas fa-bed me-1"></i>Rooms Available</div>
-        </div>
-      </a>
-    </div>
-    <div class="col-6 col-md-3">
-      <a href="/portal/venues" class="text-decoration-none">
-        <div class="text-center p-3 bg-white rounded-3 shadow-sm border h-100">
-          <div class="fs-2 fw-bold text-success"><%= availableVenues %></div>
-          <div class="text-muted small"><i class="fas fa-map-marker-alt me-1"></i>Venues Available</div>
-        </div>
-      </a>
-    </div>
-    <div class="col-6 col-md-3">
-      <a href="/portal/cottages" class="text-decoration-none">
-        <div class="text-center p-3 bg-white rounded-3 shadow-sm border h-100">
-          <div class="fs-2 fw-bold" style="color:#059669;"><%= availableCottages %></div>
-          <div class="text-muted small"><i class="fas fa-home me-1"></i>Cottages Available</div>
-        </div>
-      </a>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="text-center p-3 bg-white rounded-3 shadow-sm border h-100">
-        <div class="fs-2 fw-bold text-warning"><%= packages.length %></div>
-        <div class="text-muted small"><i class="fas fa-star me-1"></i>Event Packages</div>
-      </div>
-    </div>
-  </div>
-
-  <%# ── Featured Rooms ──────────────────────────────────────── %>
-  <% if (featuredRooms && featuredRooms.length > 0) { %>
-  <div class="section-label mb-3">
-    <h4><i class="fas fa-bed me-2 text-primary"></i>Featured Rooms</h4>
-    <a href="/portal/rooms" class="btn btn-sm btn-outline-primary">View All Rooms <i class="fas fa-arrow-right ms-1"></i></a>
-  </div>
-  <div class="row g-3 mb-5">
-    <% for (const r of featuredRooms) { %>
-    <div class="col-12 col-md-4">
-      <div class="feat-card h-100">
-        <div class="feat-img">
-          <% if (r.imagesList && r.imagesList.length > 0) { %>
-            <img src="<%= r.imagesList[0] %>" alt="<%= r.name %>" loading="lazy" />
-            <% if (r.imagesList.length > 1) { %>
-            <div class="feat-badge"><i class="fas fa-images me-1"></i><%= r.imagesList.length %></div>
-            <% } %>
-          <% } else { %>
-            <div class="feat-img-placeholder" style="background:linear-gradient(135deg,#1e1b4b,#4f46e5);">
-              <i class="fas fa-bed"></i>
-            </div>
-          <% } %>
-        </div>
-        <div class="feat-body">
-          <div class="feat-type text-primary"><%= r.type_name %></div>
-          <div class="feat-name"><%= r.name %></div>
-          <div class="feat-meta">
-            <i class="fas fa-users me-1"></i><%= r.capacity %> guests
-            <% if (r.floor) { %>&nbsp;&middot;&nbsp;<%= r.floor %><% } %>
-          </div>
-          <div class="feat-footer">
-            <div>
-              <div class="feat-price"><%= formatPeso(r.price) %><small>/night</small></div>
-              <div style="font-size:.7rem;color:#d97706;">DP: <%= formatPeso(Math.ceil(r.price*0.5)) %></div>
-            </div>
-            <a href="/portal/book?type=room&item_id=<%= r.id %>" class="btn btn-primary btn-sm px-3">Book</a>
-          </div>
-        </div>
-      </div>
-    </div>
-    <% } %>
-  </div>
-  <% } %>
-
-  <%# ── Featured Venues ─────────────────────────────────────── %>
-  <% if (featuredVenues && featuredVenues.length > 0) { %>
-  <div class="section-label mb-3">
-    <h4><i class="fas fa-map-marker-alt me-2 text-success"></i>Featured Venues</h4>
-    <a href="/portal/venues" class="btn btn-sm btn-outline-success">View All Venues <i class="fas fa-arrow-right ms-1"></i></a>
-  </div>
-  <div class="row g-3 mb-5">
-    <% for (const v of featuredVenues) { %>
-    <div class="col-12 col-md-4">
-      <div class="feat-card h-100">
-        <div class="feat-img">
-          <% if (v.imagesList && v.imagesList.length > 0) { %>
-            <img src="<%= v.imagesList[0] %>" alt="<%= v.name %>" loading="lazy" />
-            <% if (v.imagesList.length > 1) { %>
-            <div class="feat-badge"><i class="fas fa-images me-1"></i><%= v.imagesList.length %></div>
-            <% } %>
-          <% } else { %>
-            <div class="feat-img-placeholder" style="background:linear-gradient(135deg,#064e3b,#10b981);">
-              <i class="fas fa-map-marker-alt"></i>
-            </div>
-          <% } %>
-          <div style="position:absolute;top:.6rem;left:.6rem;background:rgba(0,0,0,.5);color:#fff;font-size:.68rem;padding:2px 8px;border-radius:999px;backdrop-filter:blur(4px);">
-            <%= v.venue_type.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase()) %>
-          </div>
-        </div>
-        <div class="feat-body">
-          <div class="feat-type text-success">Venue</div>
-          <div class="feat-name"><%= v.name %></div>
-          <div class="feat-meta">
-            <i class="fas fa-users me-1"></i>Up to <%= v.capacity %>
-            <% if (v.location) { %>&nbsp;&middot;&nbsp;<i class="fas fa-map-pin me-1"></i><%= v.location %><% } %>
-          </div>
-          <div class="feat-footer">
-            <div>
-              <div class="feat-price"><%= formatPeso(v.price) %><small> / event</small></div>
-              <div style="font-size:.7rem;color:#d97706;">DP: <%= formatPeso(Math.ceil(v.price*0.5)) %></div>
-            </div>
-            <a href="/portal/book?type=venue&item_id=<%= v.id %>" class="btn btn-success btn-sm px-3">Book</a>
-          </div>
-        </div>
-      </div>
-    </div>
-    <% } %>
-  </div>
-  <% } %>
-
-  <%# ── Featured Cottages ───────────────────────────────────── %>
-  <% if (featuredCottages && featuredCottages.length > 0) { %>
-  <div class="section-label mb-3">
-    <h4><i class="fas fa-home me-2" style="color:#059669;"></i>Cottages</h4>
-    <a href="/portal/cottages" class="btn btn-sm btn-outline-secondary" style="border-color:#059669;color:#059669;">View All Cottages <i class="fas fa-arrow-right ms-1"></i></a>
-  </div>
-  <div class="row g-3 mb-5">
-    <% for (const c of featuredCottages) { %>
-    <div class="col-12 col-md-4">
-      <div class="feat-card h-100">
-        <div class="feat-img">
-          <% if (c.imagesList && c.imagesList.length > 0) { %>
-            <img src="<%= c.imagesList[0] %>" alt="<%= c.name %>" loading="lazy" />
-            <% if (c.imagesList.length > 1) { %>
-            <div class="feat-badge"><i class="fas fa-images me-1"></i><%= c.imagesList.length %></div>
-            <% } %>
-          <% } else { %>
-            <div class="feat-img-placeholder" style="background:linear-gradient(135deg,#064e3b,#059669);">
-              <i class="fas fa-home"></i>
-            </div>
-          <% } %>
-        </div>
-        <div class="feat-body">
-          <div class="feat-type" style="color:#059669;"><i class="fas fa-leaf me-1"></i>Cottage</div>
-          <div class="feat-name"><%= c.name %></div>
-          <div class="feat-meta"><i class="fas fa-users me-1"></i>Up to <%= c.capacity %> guests</div>
-          <div class="feat-footer">
-            <div>
-              <div class="feat-price"><%= formatPeso(c.price) %></div>
-              <div style="font-size:.7rem;color:#d97706;">DP: <%= formatPeso(Math.ceil(c.price*0.5)) %></div>
-            </div>
-            <a href="/portal/book?type=cottage&item_id=<%= c.id %>" class="btn btn-sm px-3" style="background:#059669;color:#fff;border:none;">Book</a>
-          </div>
-        </div>
-      </div>
-    </div>
-    <% } %>
-  </div>
-  <% } %>
-
-  <%# How It Works %>
-  <div class="bg-white rounded-3 border p-4 mb-5">
-    <h5 class="fw-bold mb-4 text-center">How to Book</h5>
-    <div class="row g-3 text-center">
-      <div class="col-6 col-md-3">
-        <div class="mb-2" style="font-size:2rem;color:#4f46e5;"><i class="fas fa-search"></i></div>
-        <div class="fw-bold small">1. Browse</div>
-        <div class="text-muted small">Find your ideal room, venue, or cottage — with photos</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="mb-2" style="font-size:2rem;color:#10b981;"><i class="fas fa-calendar-check"></i></div>
-        <div class="fw-bold small">2. Select & Book</div>
-        <div class="text-muted small">Pick your dates, choose a payment method, confirm</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="mb-2" style="font-size:2rem;color:#f59e0b;"><i class="fas fa-money-bill-wave"></i></div>
-        <div class="fw-bold small">3. Pay Downpayment</div>
-        <div class="text-muted small">GCash, bank transfer, Maya, or cash at front desk</div>
-      </div>
-      <div class="col-6 col-md-3">
-        <div class="mb-2" style="font-size:2rem;color:#ef4444;"><i class="fas fa-qrcode"></i></div>
-        <div class="fw-bold small">4. Get QR Code</div>
-        <div class="text-muted small">Use it for instant check-in upon arrival</div>
-      </div>
-    </div>
-  </div>
-
-</div>
+<%# Shared listing tiles: photo carousels are driven by the shared listing script %>
+<script src="/js/listing.js" defer></script>

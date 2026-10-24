@@ -329,8 +329,8 @@
         datasets: [{
           label: 'Revenue (₱)',
           data: revenueData.map(d => d.revenue),
-          borderColor: '#4f46e5',
-          backgroundColor: 'rgba(79,70,229,0.08)',
+          borderColor: '#0f5c66',
+          backgroundColor: 'rgba(15,92,102,0.08)',
           fill: true, tension: 0.4, pointRadius: 4,
         }]
       },
@@ -348,7 +348,7 @@
   const sCtx = document.getElementById('statusChart');
   const statusColors = {
     pending: '#f59e0b', awaiting_payment: '#3b82f6', confirmed: '#10b981',
-    checked_in: '#6366f1', completed: '#6b7280', cancelled: '#ef4444',
+    checked_in: '#2a7a82', completed: '#6b7280', cancelled: '#ef4444',
     rejected: '#dc2626', no_show: '#1f2937',
   };
   if (sCtx && statusData.length) {

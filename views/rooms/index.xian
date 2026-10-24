@@ -1,105 +1,114 @@
 <% layout('layouts/main') %>
+<%
+  const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const filtered  = !!(filters.search || filters.type || filters.status);
+%>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <h3 class="mb-1">Rooms</h3>
-    <p class="text-muted mb-0">Manage accommodation rooms and availability</p>
+<!--page-head-->
+<h1 class="ph-title">Rooms</h1>
+<% if (canManage) { %>
+  <div class="ph-actions">
+    <a href="/rooms/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>Add room</a>
   </div>
-  <div class="page-header-actions">
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/rooms/new" class="btn btn-primary btn-sm">
-      <i class="fas fa-plus me-1"></i> Add Room
-    </a>
-    <% } %>
-  </div>
-</div>
+  <% } %>
+<!--/page-head-->
 
-<!-- Filters -->
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/rooms" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4">
-        <input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Search room number or name..." />
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="type" class="form-select form-select-sm">
-          <option value="">All Types</option>
-          <% for (const rt of roomTypes) { %>
-            <option value="<%= rt.name %>" <%= filters.type === rt.name ? 'selected' : '' %>><%= rt.name %></option>
-          <% } %>
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="status" class="form-select form-select-sm">
-          <option value="">All Statuses</option>
-          <% for (const s of statuses) { %>
-            <option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/_/g,' ') %></option>
-          <% } %>
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search me-1"></i>Search</button>
-      </div>
-      <div class="col-6 col-md-2">
-        <a href="/rooms" class="btn btn-sm btn-outline-secondary w-100">Clear</a>
-      </div>
-    </form>
+<form method="GET" action="/rooms" class="ap-toolbar" role="search" aria-label="Filter rooms">
+  <div class="ap-field ap-field-search">
+    <label for="roomSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="roomSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Room number or name" /></div>
   </div>
-</div>
+  <div class="ap-field">
+    <label for="roomType">Room type</label>
+    <select id="roomType" name="type" class="form-select">
+      <option value="">All types</option>
+      <% for (const rt of roomTypes) { %><option value="<%= rt.name %>" <%= filters.type === rt.name ? 'selected' : '' %>><%= rt.name %></option><% } %>
+    </select>
+  </div>
+  <div class="ap-field">
+    <label for="roomStatus">Status</label>
+    <select id="roomStatus" name="status" class="form-select">
+      <option value="">All statuses</option>
+      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
+    </select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/rooms" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
 
-<!-- Room Cards Grid -->
-<% if (!rooms || rooms.length === 0) { %>
-  <div class="empty-state card">
-    <i class="fas fa-door-closed"></i>
-    <p>No rooms found. <a href="/rooms/new">Add the first room.</a></p>
+<section class="ap-panel" aria-labelledby="roomsHeading">
+  <div class="ap-panel-head">
+    <h2 id="roomsHeading">All rooms <span class="ap-meta"><%= pagination.total %> room<%= pagination.total === 1 ? '' : 's' %><%= filtered ? ' match' : '' %></span></h2>
   </div>
-<% } else { %>
-  <div class="row g-3">
-    <% for (const room of rooms) { %>
-    <div class="col-12 col-sm-6 col-lg-4 col-xl-3">
-      <div class="room-card card h-100">
-        <%# Cover image or gradient placeholder %>
-        <% if (room.imagesList && room.imagesList.length > 0) { %>
-          <div class="position-relative">
-            <img src="<%= room.imagesList[0] %>" alt="<%= room.name %>"
-              class="card-img-top rounded-top"
-              style="height:150px;object-fit:cover;" />
-            <div style="position:absolute;top:.5rem;right:.5rem;">
-              <%- statusBadge(room.status) %>
+  <% if (!rooms || rooms.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No rooms match these filters' : 'No rooms yet' %></strong>
+    <%= filtered ? 'Try a different search or clear the filters.' : 'Add the rooms guests can book overnight.' %>
+    <% if (filtered) { %><div><a href="/rooms" class="btn btn-outline-secondary btn-sm">Clear filters</a></div><% } else if (canManage) { %><div><a href="/rooms/new" class="btn btn-primary btn-sm">Add room</a></div><% } %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Room</th>
+          <th scope="col" class="cat-col-opt">Type</th>
+          <th scope="col" class="num">Sleeps</th>
+          <th scope="col" class="num">Price / night</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const room of rooms) { %>
+        <tr>
+          <td class="ap-cell-title">
+            <div class="cat-item">
+              <div class="cat-thumb">
+                <% if (room.imagesList && room.imagesList.length > 0) { %>
+                <img src="<%= room.imagesList[0] %>" alt="" loading="lazy" />
+                <% } else { %>
+                <div class="photo-pending"><span>Photos coming soon</span></div>
+                <% } %>
+              </div>
+              <div class="cat-item-text">
+                <a href="/rooms/<%= room.id %>" class="ap-name"><%= room.name %></a>
+                <span class="ap-line2"><span class="ap-code"><%= room.room_number %></span><%= room.floor ? ' · ' + room.floor : '' %></span>
+              </div>
             </div>
-          </div>
-        <% } else { %>
-          <div class="position-relative d-flex align-items-center justify-content-center rounded-top"
-            style="height:150px;background:linear-gradient(135deg,#1e1b4b,#4f46e5);color:rgba(255,255,255,.3);font-size:2.5rem;">
-            <i class="fas fa-door-open"></i>
-            <div style="position:absolute;top:.5rem;right:.5rem;">
-              <%- statusBadge(room.status) %>
+          </td>
+          <td class="cat-col-opt" data-label="Type"><%= room.type_name %></td>
+          <td class="num" data-label="Sleeps"><%= room.capacity %></td>
+          <td class="num" data-label="Price / night"><strong><%= formatPeso(room.price) %></strong></td>
+          <td class="ap-cell-status"><%- statusBadge(room.status) %></td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <a href="/rooms/<%= room.id %>" class="ap-act">View</a>
+              <% if (canManage) { %><a href="/rooms/<%= room.id %>/edit" class="ap-act">Edit</a><% } %>
             </div>
-          </div>
+          </td>
+        </tr>
         <% } %>
-        <div class="room-card-body card-body">
-          <div class="room-number"># <%= room.room_number %></div>
-          <h6 class="room-name"><a href="/rooms/<%= room.id %>"><%= room.name %></a></h6>
-          <div class="room-type text-muted small"><%= room.type_name %></div>
-          <div class="room-meta mt-2">
-            <span><i class="fas fa-users text-muted me-1"></i><%= room.capacity %> guests</span>
-            <span class="fw-bold text-primary"><%= formatPeso(room.price) %>/night</span>
-          </div>
-          <% if (room.floor) { %>
-          <div class="text-muted small mt-1"><i class="fas fa-layer-group me-1"></i><%= room.floor %></div>
-          <% } %>
-        </div>
-        <div class="room-card-footer card-footer d-flex gap-2">
-          <a href="/rooms/<%= room.id %>" class="btn btn-sm btn-outline-primary flex-fill">View</a>
-          <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-          <a href="/rooms/<%= room.id %>/edit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit"></i></a>
-          <% } %>
-        </div>
-      </div>
-    </div>
-    <% } %>
+      </tbody>
+    </table>
   </div>
+  <% if (pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+  <% } %>
+</section>
 
-  <!-- Pagination -->
-  <%include('partials/pagination')%>
-<% } %>
+</div>
+<script>
+// A thumbnail whose file is missing shows the honest empty state instead of a broken image.
+document.querySelectorAll('.cat-thumb > img').forEach(function (img) {
+  function swap() {
+    var box = document.createElement('div');
+    box.className = 'photo-pending';
+    box.textContent = 'Photo unavailable';
+    img.replaceWith(box);
+  }
+  if (img.complete && img.naturalWidth === 0) swap(); else img.addEventListener('error', swap);
+});
+</script>

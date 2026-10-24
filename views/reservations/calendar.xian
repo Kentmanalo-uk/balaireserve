@@ -1,100 +1,92 @@
 <% layout('layouts/main') %>
 
-<style>
-.fc { font-family: 'Segoe UI', system-ui, sans-serif; font-size: 13px; }
-.fc-toolbar-title { font-size: 1.1rem; font-weight: 700; }
-.fc-button-primary { background:#4f46e5 !important; border-color:#4f46e5 !important; font-size:.8rem !important; }
-.fc-button-primary:not(:disabled):active,
-.fc-button-primary:not(:disabled).fc-button-active { background:#3730a3 !important; border-color:#3730a3 !important; }
-.fc-button-primary:hover { background:#3730a3 !important; border-color:#3730a3 !important; }
-.fc-day-today { background:rgba(79,70,229,.06) !important; }
-.fc-event { border-radius:4px !important; font-size:.75rem !important; padding:1px 4px !important; cursor:pointer; }
-.fc-event:hover { opacity:.85; }
-.fc-list-event:hover td { background:#f3f4f6 !important; }
-#calendarContainer { min-height: 650px; width: 100%; }
-</style>
-
-<div class="page-header">
-  <div>
-    <h3 class="mb-1">Booking Calendar</h3>
-    <p class="text-muted mb-0">Visual overview of all reservations, check-ins, check-outs, and events</p>
-  </div>
-  <div class="page-header-actions">
-    <a href="/reservations/new" class="btn btn-sm btn-primary">
-      <i class="fas fa-plus me-1"></i>New Reservation
-    </a>
-  </div>
+<!--page-head-->
+<h1 class="ph-title">Booking calendar</h1>
+<div class="ph-actions">
+  <a href="/reservations" class="btn btn-secondary-quiet"><i class="fas fa-list" aria-hidden="true"></i>List</a>
+  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New walk-in</a>
 </div>
+<!--/page-head-->
 
-<div class="card mb-3">
-  <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
-    <strong class="small text-muted me-1">Legend:</strong>
-    <span class="d-flex align-items-center gap-1"><span class="legend-dot" style="background:#f59e0b;width:10px;height:10px;border-radius:50%;display:inline-block;"></span><span class="small">Pending</span></span>
-    <span class="d-flex align-items-center gap-1"><span class="legend-dot" style="background:#3b82f6;width:10px;height:10px;border-radius:50%;display:inline-block;"></span><span class="small">Awaiting Payment</span></span>
-    <span class="d-flex align-items-center gap-1"><span class="legend-dot" style="background:#10b981;width:10px;height:10px;border-radius:50%;display:inline-block;"></span><span class="small">Confirmed</span></span>
-    <span class="d-flex align-items-center gap-1"><span class="legend-dot" style="background:#6366f1;width:10px;height:10px;border-radius:50%;display:inline-block;"></span><span class="small">Checked In</span></span>
-    <span class="d-flex align-items-center gap-1"><span class="legend-dot" style="background:#6b7280;width:10px;height:10px;border-radius:50%;display:inline-block;"></span><span class="small">Completed</span></span>
-    <span class="d-flex align-items-center gap-1"><span class="legend-dot" style="background:#ef4444;width:10px;height:10px;border-radius:50%;display:inline-block;"></span><span class="small">Cancelled</span></span>
-    <span class="d-flex align-items-center gap-1"><span class="legend-dot" style="background:#ec4899;width:10px;height:10px;border-radius:50%;display:inline-block;"></span><span class="small">Event</span></span>
+<div class="panel">
+  <%# On phones the legend and filters fold away under one toggle so the agenda comes first %>
+  <details class="cal-options" id="calOptions" open>
+  <summary>Legend and filters</summary>
+  <!-- Status legend: same families as the status chips everywhere else -->
+  <div class="cal-legend" role="group" aria-label="Status legend">
+    <span class="lg-group">
+      <span class="lg-group-label">Dates blocked</span>
+      <span class="lg"><span class="lg-swatch lg-amber" aria-hidden="true"></span>Pending</span>
+      <span class="lg"><span class="lg-swatch lg-purple" aria-hidden="true"></span>Pencil Booking <span class="lg-note">tentative · dashed edge</span></span>
+      <span class="lg"><span class="lg-swatch lg-slate" aria-hidden="true"></span>On Hold <span class="lg-note">paused · hatched</span></span>
+      <span class="lg"><span class="lg-swatch lg-orange" aria-hidden="true"></span>Awaiting Payment</span>
+      <span class="lg"><span class="lg-swatch lg-teal" aria-hidden="true"></span>Confirmed</span>
+      <span class="lg"><span class="lg-swatch lg-blue" aria-hidden="true"></span>Checked In</span>
+    </span>
+    <span class="lg-sep" aria-hidden="true"></span>
+    <span class="lg-group">
+      <span class="lg-group-label">Not blocking</span>
+      <span class="lg"><span class="lg-swatch lg-red" aria-hidden="true"></span>Cancelled / Rejected <span class="text-muted">(tick below to show)</span></span>
+      <span class="text-muted">Completed stays are not drawn — find them in the <a href="/reservations?status=completed">reservation list</a>.</span>
+    </span>
   </div>
-</div>
 
-<div class="card mb-3">
-  <div class="card-body py-2 d-flex flex-wrap gap-3 align-items-center">
-    <strong class="small text-muted">Filter:</strong>
-    <div class="form-check form-check-inline mb-0">
-      <input class="form-check-input" type="checkbox" id="showRoom" checked>
-      <label class="form-check-label small" for="showRoom">Rooms</label>
-    </div>
-    <div class="form-check form-check-inline mb-0">
-      <input class="form-check-input" type="checkbox" id="showVenue" checked>
-      <label class="form-check-label small" for="showVenue">Venues</label>
-    </div>
-    <div class="form-check form-check-inline mb-0">
-      <input class="form-check-input" type="checkbox" id="showEvent" checked>
-      <label class="form-check-label small" for="showEvent">Events</label>
-    </div>
-    <div class="form-check form-check-inline mb-0">
-      <input class="form-check-input" type="checkbox" id="showCottage" checked>
-      <label class="form-check-label small" for="showCottage">Cottages</label>
-    </div>
-    <div class="form-check form-check-inline mb-0">
-      <input class="form-check-input" type="checkbox" id="showCancelled">
-      <label class="form-check-label small" for="showCancelled">Cancelled</label>
-    </div>
+  <div class="cal-filters">
+    <fieldset>
+      <legend>Show</legend>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="showRoom" checked>
+        <label class="form-check-label" for="showRoom">Rooms</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="showCottage" checked>
+        <label class="form-check-label" for="showCottage">Cottages</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="showVenue" checked>
+        <label class="form-check-label" for="showVenue">Venues</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="showEvent" checked>
+        <label class="form-check-label" for="showEvent">Events</label>
+      </div>
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="showCancelled">
+        <label class="form-check-label" for="showCancelled">Cancelled / rejected</label>
+      </div>
+    </fieldset>
 
     <%# ── Date range filter ── %>
-    <span class="vr d-none d-md-inline"></span>
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <strong class="small text-muted">Booking date:</strong>
-      <input type="date" id="dateFrom" class="form-control form-control-sm" style="max-width:150px;" title="From date" />
+    <fieldset>
+      <legend>Booking dates</legend>
+      <label for="dateFrom" class="visually-hidden">From date</label>
+      <input type="date" id="dateFrom" class="form-control form-control-sm" style="max-width:160px;" />
       <span class="small text-muted">to</span>
-      <input type="date" id="dateTo" class="form-control form-control-sm" style="max-width:150px;" title="To date" />
-      <button type="button" id="applyDateFilter" class="btn btn-sm btn-primary"><i class="fas fa-filter me-1"></i>Apply</button>
-      <button type="button" id="clearDateFilter" class="btn btn-sm btn-outline-secondary">Clear</button>
-    </div>
+      <label for="dateTo" class="visually-hidden">To date</label>
+      <input type="date" id="dateTo" class="form-control form-control-sm" style="max-width:160px;" />
+      <button type="button" id="applyDateFilter" class="btn btn-sm btn-primary">Apply</button>
+      <button type="button" id="clearDateFilter" class="btn btn-sm btn-secondary-quiet">Clear</button>
+    </fieldset>
   </div>
-</div>
 
-<div class="card">
-  <div class="card-body p-3">
+  </details>
+
+  <div class="cal-body">
     <div id="calendarContainer"></div>
   </div>
 </div>
 
-<div class="modal fade" id="eventModal" tabindex="-1">
+<div class="modal fade" id="eventModal" tabindex="-1" aria-labelledby="eventModalTitle" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">
-      <div class="modal-header text-white" id="eventModalHeader" style="background:#4f46e5;">
-        <h5 class="modal-title" id="eventModalTitle">Booking Details</h5>
-        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      <div class="modal-header" id="eventModalHeader">
+        <h2 class="modal-title" id="eventModalTitle">Booking details</h2>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body" id="eventModalBody"></div>
       <div class="modal-footer">
-        <a href="#" id="eventModalLink" class="btn btn-primary btn-sm">
-          <i class="fas fa-external-link-alt me-1"></i>View Reservation
-        </a>
-        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-secondary-quiet" data-bs-dismiss="modal">Close</button>
+        <a href="#" id="eventModalLink" class="btn btn-primary">Open reservation</a>
       </div>
     </div>
   </div>
@@ -105,30 +97,54 @@ window.addEventListener('load', function () {
 
   var rawEvents = <%- calendarEvents %>;
 
-  var STATUS_COLORS = {
-    pending:          '#f59e0b',
-    awaiting_payment: '#3b82f6',
-    confirmed:        '#10b981',
-    checked_in:       '#6366f1',
-    completed:        '#6b7280',
-    cancelled:        '#ef4444',
-    rejected:         '#dc2626',
-    no_show:          '#1f2937'
+  // Status → colour family (tokens.css st-* / main.css ev-*). Colour is never
+  // the only cue: every event title starts with its status label.
+  var STATUS_FAMILY = {
+    pending:          'amber',
+    pencil:           'purple',
+    on_hold:          'slate',
+    awaiting_payment: 'orange',
+    confirmed:        'teal',
+    checked_in:       'blue',
+    completed:        'gray',
+    cancelled:        'red',
+    rejected:         'red',
+    no_show:          'red'
   };
 
   var TYPE_LABELS = {
-    room:    '[Room]',
-    venue:   '[Venue]',
-    event:   '[Event]',
-    cottage: '[Cottage]'
+    room:    'Room',
+    venue:   'Venue',
+    event:   'Event',
+    cottage: 'Cottage'
   };
+
+  // Labels that differ from the title-cased key.
+  var HELD_LABELS = {
+    pencil:  'Pencil Booking',
+    on_hold: 'On Hold'
+  };
+
+  function statusText(s) {
+    if (HELD_LABELS[s]) return HELD_LABELS[s];
+    return String(s || '').replace(/_/g, ' ').replace(/\b\w/g, function (l) { return l.toUpperCase(); });
+  }
+  function niceDate(v) {
+    if (!v) return '';
+    var d = new Date(String(v).slice(0, 10) + 'T00:00:00');
+    return isNaN(d) ? String(v) : d.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+  var BLOCKING = { pending: 1, pencil: 1, on_hold: 1, awaiting_payment: 1, confirmed: 1, checked_in: 1 };
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
+  }
 
   function buildEvents(raw) {
     return raw.map(function (r) {
-      var color  = r.is_event ? '#ec4899' : (STATUS_COLORS[r.status] || '#6b7280');
-      var type   = TYPE_LABELS[r.reservation_type] || '';
+      var family = STATUS_FAMILY[r.status] || 'gray';
+      var type   = TYPE_LABELS[r.reservation_type] || (r.is_event ? 'Event' : '');
       var name   = r.is_event ? (r.event_name || r.title) : (r.customer_name || r.title || '');
-      var label  = name + ' ' + type;
+      var label  = statusText(r.status) + ' · ' + name + (type ? ' (' + type + ')' : '');
 
       var start  = r.checkin_date || r.event_date || '';
       var end    = r.checkout_date || r.event_date || '';
@@ -139,18 +155,21 @@ window.addEventListener('load', function () {
         end = d.toISOString().slice(0, 10);
       }
 
+      var classes = ['ev-st', 'ev-' + family];
+      if (r.status === 'pencil')  classes.push('ev-pencil');
+      if (r.status === 'on_hold') classes.push('ev-on-hold');
+
       return {
         id:    String(r.id) + (r.is_event ? '_ev' : '_res'),
         title: label,
         start: start,
         end:   end || start,
         allDay: true,
-        backgroundColor: color,
-        borderColor:     color,
-        textColor:       '#ffffff',
+        classNames: classes,
         extendedProps: {
           reservationId: r.reservation_id || r.id,
           status:        r.status || '',
+          family:        family,
           type:          r.reservation_type || '',
           isEvent:       !!r.is_event,
           customerName:  r.customer_name || '',
@@ -183,7 +202,7 @@ window.addEventListener('load', function () {
   var dateFromEl     = document.getElementById('dateFrom');
   var dateToEl       = document.getElementById('dateTo');
 
-  // Active date-range filter (null when not applied).
+  // Active date-range filter (empty when not applied).
   var dateRange = { from: '', to: '' };
 
   function getFiltered() {
@@ -216,56 +235,73 @@ window.addEventListener('load', function () {
 
   var calEl = document.getElementById('calendarContainer');
   var bsModal = new bootstrap.Modal(document.getElementById('eventModal'));
+  // Phones get the agenda (list) by default: a month grid is unreadable at 360px.
+  var narrow = window.matchMedia('(max-width: 767.98px)').matches;
+  if (narrow) document.getElementById('calOptions').removeAttribute('open');
+  // Bookings are whole-day blocks, so day and week use the day grid (no empty hour rows).
 
   var calendar = new FullCalendar.Calendar(calEl, {
-    initialView:  'dayGridMonth',
+    initialView:  narrow ? 'listWeek' : 'dayGridMonth',
     height:       'auto',
     firstDay:     0,
     navLinks:     true,
+    dayMaxEvents: 4,
     headerToolbar: {
       left:   'prev,next today',
       center: 'title',
-      right:  'dayGridMonth,timeGridWeek,listWeek'
+      // Phones get agenda lists for day / week / month; a month grid is unreadable at 360px.
+      right:  narrow ? 'listDay,listWeek,listMonth' : 'dayGridDay,dayGridWeek,dayGridMonth,listWeek'
     },
-    buttonText: {
-      today: 'Today',
-      month: 'Month',
-      week:  'Week',
-      list:  'Agenda'
+    buttonText: { today: 'Today' },
+    views: {
+      dayGridDay:   { buttonText: 'Day', dayMaxEvents: false },
+      dayGridWeek:  { buttonText: 'Week', dayMaxEvents: false },
+      dayGridMonth: { buttonText: 'Month' },
+      listDay:      { buttonText: 'Day' },
+      listWeek:     { buttonText: narrow ? 'Week' : 'Agenda' },
+      listMonth:    { buttonText: 'Month' }
     },
+    noEventsContent: 'No bookings in this period. Try the next month, or include cancelled bookings.',
+    eventInteractive: true,   // every booking is a keyboard-focusable button (Enter opens it)
     events: getFiltered(),
 
     eventClick: function (info) {
       info.jsEvent.preventDefault();
-      var p     = info.event.extendedProps;
-      var color = info.event.backgroundColor;
+      // Escape every text value (customer names etc.) before it goes into innerHTML.
+      var p = {};
+      Object.keys(info.event.extendedProps).forEach(function (key) {
+        var value = info.event.extendedProps[key];
+        p[key] = typeof value === 'string' ? esc(value) : value;
+      });
 
-      document.getElementById('eventModalHeader').style.background = color;
-      document.getElementById('eventModalTitle').textContent = info.event.title;
+      document.getElementById('eventModalTitle').textContent = (p.isEvent ? (info.event.extendedProps.eventName || 'Event') : (info.event.extendedProps.bookingRef || 'Booking')) + ' — ' + statusText(info.event.extendedProps.status);
 
       var rows = '';
-      rows += '<tr><th width="35%">Customer</th><td>' + (p.customerName || '&mdash;') + '</td></tr>';
-      rows += '<tr><th>Booking Ref</th><td><code>' + (p.bookingRef || '&mdash;') + '</code></td></tr>';
-      rows += '<tr><th>Type</th><td><span class="badge bg-light text-dark">' + (p.type || '&mdash;') + '</span></td></tr>';
+      rows += '<dt>Status</dt><dd><span class="status-chip st-' + p.family + '">' + esc(statusText(info.event.extendedProps.status)) + '</span>' + (BLOCKING[info.event.extendedProps.status] ? ' <span class="small text-muted">Dates blocked</span>' : '') + '</dd>';
+      rows += '<dt>Customer</dt><dd>' + (p.customerName || '&mdash;') + '</dd>';
+      rows += '<dt>Booking ref</dt><dd class="tnum">' + (p.bookingRef || '&mdash;') + '</dd>';
+      rows += '<dt>Type</dt><dd>' + esc(TYPE_LABELS[info.event.extendedProps.type] || info.event.extendedProps.type || '—') + '</dd>';
 
       if (p.isEvent) {
-        rows += '<tr><th>Event</th><td>' + (p.eventName || '&mdash;') + '</td></tr>';
-        rows += '<tr><th>Date</th><td>' + (p.eventDate || '&mdash;') + (p.startTime ? ' &nbsp; ' + p.startTime + ' &ndash; ' + p.endTime : '') + '</td></tr>';
-        if (p.venueName) rows += '<tr><th>Venue</th><td>' + p.venueName + '</td></tr>';
+        rows += '<dt>Event</dt><dd>' + (p.eventName || '&mdash;') + '</dd>';
+        rows += '<dt>Date</dt><dd>' + (esc(niceDate(info.event.extendedProps.eventDate)) || '&mdash;') + (p.startTime ? ' &middot; ' + p.startTime + ' &ndash; ' + p.endTime : '') + '</dd>';
+        if (p.venueName) rows += '<dt>Venue</dt><dd>' + p.venueName + '</dd>';
       } else if (p.type === 'room' || p.type === 'cottage') {
-        rows += '<tr><th>Check-in</th><td>' + (p.checkin || '&mdash;') + '</td></tr>';
-        rows += '<tr><th>Check-out</th><td>' + (p.checkout || '&mdash;') + '</td></tr>';
-        if (p.roomName) rows += '<tr><th>Room</th><td>' + p.roomName + '</td></tr>';
+        rows += '<dt>Check-in</dt><dd>' + (esc(niceDate(info.event.extendedProps.checkin)) || '&mdash;') + (p.startTime ? ' &middot; ' + p.startTime : '') + '</dd>';
+        rows += '<dt>Check-out</dt><dd>' + (esc(niceDate(info.event.extendedProps.checkout)) || '&mdash;') + (p.endTime ? ' &middot; ' + p.endTime : '') + '</dd>';
+        if (p.roomName) rows += '<dt>Room</dt><dd>' + p.roomName + '</dd>';
       } else {
-        rows += '<tr><th>Date</th><td>' + (p.eventDate || p.checkin || '&mdash;') + '</td></tr>';
-        if (p.venueName) rows += '<tr><th>Venue</th><td>' + p.venueName + '</td></tr>';
+        var day = p.checkin || p.eventDate || '';
+        var dateText = (day || '&mdash;') + (p.checkout && p.checkout !== day ? ' &ndash; ' + p.checkout : '');
+        rows += '<dt>Date</dt><dd>' + dateText + (p.startTime ? ' &middot; ' + p.startTime + ' &ndash; ' + (p.endTime || '') : '') + '</dd>';
+        if (p.eventName) rows += '<dt>Package</dt><dd>' + p.eventName + '</dd>';
+        if (p.venueName) rows += '<dt>Venue</dt><dd>' + p.venueName + '</dd>';
       }
 
-      rows += '<tr><th>Guests</th><td>' + (p.numGuests || '&mdash;') + '</td></tr>';
-      rows += '<tr><th>Status</th><td><span class="badge" style="background:' + color + ';color:#fff">' + p.status.replace(/_/g, ' ') + '</span></td></tr>';
-      rows += '<tr><th>Payment</th><td>' + (p.paymentStatus || '&mdash;').replace(/_/g, ' ') + '</td></tr>';
+      rows += '<dt>Guests</dt><dd>' + (p.numGuests || '&mdash;') + '</dd>';
+      rows += '<dt>Payment</dt><dd>' + (p.paymentStatus ? '<span class="pay-status pay-' + p.paymentStatus + '">' + esc(statusText(info.event.extendedProps.paymentStatus)) + '</span>' : '&mdash;') + '</dd>';
 
-      document.getElementById('eventModalBody').innerHTML = '<table class="table table-sm table-borderless mb-0">' + rows + '</table>';
+      document.getElementById('eventModalBody').innerHTML = '<dl class="ev-detail">' + rows + '</dl>';
       document.getElementById('eventModalLink').href = '/reservations/' + p.reservationId;
       bsModal.show();
     },
@@ -276,8 +312,15 @@ window.addEventListener('load', function () {
       if (p.checkin)   lines.push('Check-in: ' + p.checkin);
       if (p.checkout)  lines.push('Check-out: ' + p.checkout);
       if (p.eventDate && !p.checkin) lines.push('Date: ' + p.eventDate);
-      lines.push('Status: ' + p.status);
+      if (p.startTime) lines.push('Time: ' + p.startTime + (p.endTime ? ' – ' + p.endTime : ''));
       info.el.title = lines.join('\n');
+      // List view: colour the dot by the same family.
+      var dot = info.el.querySelector('.fc-list-event-dot');
+      if (dot) {
+        dot.classList.add('lg-swatch', 'lg-' + p.family);
+        var key = document.querySelector('.cal-legend .lg-' + p.family);
+        if (key) dot.style.borderColor = getComputedStyle(key).borderLeftColor;
+      }
     }
   });
 

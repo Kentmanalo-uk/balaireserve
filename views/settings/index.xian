@@ -1,290 +1,252 @@
 <% layout('layouts/main') %>
+<%
+  const TABS = [
+    { key: 'payment', label: 'Payment',      icon: 'fa-credit-card' },
+    { key: 'general', label: 'General',      icon: 'fa-building' },
+    { key: 'booking', label: 'Booking',      icon: 'fa-calendar-check' },
+    { key: 'landing', label: 'Landing page', icon: 'fa-image' },
+  ];
+  const looksPlaceholder = (v) => /x{3,}/i.test(String(v || ''));
+  // Same rule as src/utils/publicSettings.js: seed placeholders are hidden from the public site.
+  const SEED_VALUES = { resort_phone: '(02) 8123-4567', resort_email: 'info@balai-reserve.com' };
+  const isSeed = (key) => { const v = String(siteSettings[key] == null ? '' : siteSettings[key]).trim(); return !!v && (/x{4}/i.test(v) || SEED_VALUES[key] === v); };
+  const phFlag = (key) => isSeed(key) ? '<p class="set-ph-flag" id="' + key + 'Flag"><i class="fas fa-eye-slash" aria-hidden="true"></i>Placeholder value — not shown publicly until replaced.</p>' : '';
+  const phClass = (key) => isSeed(key) ? ' is-placeholder' : '';
+  const hiddenTag = '<span class="set-ph-hidden">Hidden — placeholder</span>';
+%>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <h3 class="mb-1"><i class="fas fa-cog me-2"></i>Settings</h3>
-    <p class="text-muted mb-0">Configure resort details, payment accounts, and booking rules</p>
-  </div>
-</div>
+<!--page-head-->
+<h1 class="ph-title">Settings</h1>
+<!--/page-head-->
+<p class="page-intro">Payment accounts, resort details, booking rules and landing page content. Changes appear on the public site and guest portal as soon as you save.</p>
 
-<!-- Tab Nav -->
-<ul class="nav nav-tabs mb-4 settings-tabs" id="settingsTabs">
-  <li class="nav-item">
-    <a class="nav-link <%= activeTab === 'payment' ? 'active' : '' %>"
-      href="/settings?tab=payment">
-      <i class="fas fa-credit-card me-1"></i>Payment Methods
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <%= activeTab === 'general' ? 'active' : '' %>"
-      href="/settings?tab=general">
-      <i class="fas fa-building me-1"></i>Resort Info
-    </a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link <%= activeTab === 'booking' ? 'active' : '' %>"
-      href="/settings?tab=booking">
-      <i class="fas fa-calendar-check me-1"></i>Booking Rules
-    </a>
-  </li>
-</ul>
-
-<style>
-  /* Settings tab labels: readable dark text (the theme otherwise renders them
-     near-white/invisible on the light background). Use !important to override. */
-  .settings-tabs .nav-link {
-    color: #475569 !important;
-    font-weight: 600;
-    background: transparent;
-    border: 1px solid transparent;
-  }
-  .settings-tabs .nav-link:hover {
-    color: #4f46e5 !important;
-    border-color: #e2e8f0 #e2e8f0 #dee2e6;
-  }
-  .settings-tabs .nav-link.active {
-    color: #4f46e5 !important;
-    background: #fff;
-    border-color: #dee2e6 #dee2e6 #fff;
-  }
-</style>
+<nav class="ap-tabs set-tabs" id="settingsTabs" aria-label="Settings sections">
+  <% for (const t of TABS) { %>
+  <a class="<%= activeTab === t.key ? 'active' : '' %>" href="/settings?tab=<%= t.key %>" <%- activeTab === t.key ? 'aria-current="page"' : '' %>>
+    <i class="fas <%= t.icon %>" aria-hidden="true"></i><%= t.label %>
+  </a>
+  <% } %>
+</nav>
 
 
 <%# ══════════════════════════════════════════════════
     TAB: PAYMENT METHODS
     ══════════════════════════════════════════════════ %>
 <% if (activeTab === 'payment') { %>
-<form action="/settings/payment" method="POST" enctype="multipart/form-data">
+<form data-guard="Payment" action="/settings/payment" method="POST" enctype="multipart/form-data" class="ap-form">
 
-  <div class="row g-4">
-
-    <%# ── GCash ─────────────────────────────────── %>
-    <div class="col-12">
-      <div class="card border-success">
-        <div class="card-header bg-success bg-opacity-10">
-          <h6 class="card-title mb-0 text-success">
-            <i class="fas fa-mobile-alt me-2"></i>GCash
-          </h6>
-        </div>
-        <div class="card-body">
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label required">GCash Number</label>
-              <div class="input-group">
-                <span class="input-group-text"><i class="fas fa-phone"></i></span>
-                <input type="text" name="gcash_number" class="form-control"
-                  value="<%= siteSettings.gcash_number || '' %>"
-                  placeholder="e.g. 09171234567"
-                  pattern="^09\d{9}$"
-                  title="Enter a valid 11-digit Philippine mobile number starting with 09"
-                  maxlength="11" />
-              </div>
-              <div class="form-text">This number will appear as a clickable <code>tel:</code> link on mobile — guests can tap to open GCash directly.</div>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">GCash Account Name</label>
-              <input type="text" name="gcash_name" class="form-control"
-                value="<%= siteSettings.gcash_name || '' %>"
-                placeholder="e.g. Juan Dela Cruz" />
-              <div class="form-text">Full name exactly as registered in GCash.</div>
-            </div>
-
-            <%# QR Code upload %>
-            <div class="col-12">
-              <label class="form-label">GCash QR Code <span class="text-muted small">(recommended — improves scan reliability on mobile)</span></label>
-              <div class="row g-3 align-items-start">
-
-                <%# Current QR preview %>
-                <div class="col-auto">
-                  <% if (siteSettings.gcash_qr_path) { %>
-                  <div class="text-center">
-                    <img src="<%= siteSettings.gcash_qr_path %>" alt="GCash QR"
-                      id="qrPreview"
-                      style="width:160px;height:160px;object-fit:contain;border:3px solid #16a34a;border-radius:.5rem;padding:4px;background:#fff;"
-                      onerror="this.style.display='none'" />
-                    <div class="text-muted mt-1" style="font-size:.72rem;">Current QR</div>
-                    <%# The Remove button submits the SEPARATE remove-qr form declared
-                        after the main form (via the HTML5 form= attribute) — it must
-                        NOT be a nested <form> and must NOT save other fields. %>
-                    <button type="submit" form="removeQrForm" class="btn btn-xs btn-outline-danger mt-1"
-                      data-confirm="Remove the current GCash QR code image only? This will not change your other payment settings."
-                      data-confirm-title="Remove QR Code"
-                      data-confirm-type="danger"
-                      data-confirm-ok="Remove">
-                      <i class="fas fa-trash me-1"></i>Remove
-                    </button>
-                  </div>
-                  <% } else { %>
-                  <div class="text-center border rounded p-3" style="width:160px;color:#9ca3af;">
-                    <i class="fas fa-qrcode fa-3x d-block mb-2" style="opacity:.3;"></i>
-                    <div style="font-size:.72rem;">No QR uploaded yet</div>
-                  </div>
-                  <% } %>
-                </div>
-
-                <div class="col">
-                  <label class="form-label small fw-semibold">Upload New QR Image</label>
-                  <input type="file" name="gcash_qr_image" id="gcashQrInput"
-                    class="form-control form-control-sm"
-                    accept=".jpg,.jpeg,.png,.webp" />
-                  <div class="form-text">
-                    JPG or PNG, max 5 MB. For best scan quality:<br>
-                    • Export the QR from the GCash app at full resolution<br>
-                    • Do not crop or compress — keep it as-is<br>
-                    • Minimum 400×400 px recommended
-                  </div>
-                  <%# Live preview of newly selected file %>
-                  <div id="newQrPreviewWrap" class="mt-2" style="display:none;">
-                    <div class="text-muted small mb-1">Preview of new QR:</div>
-                    <img id="newQrPreview"
-                      style="width:140px;height:140px;object-fit:contain;border:2px dashed #16a34a;border-radius:.5rem;padding:3px;background:#fff;" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+  <%# ── GCash ─────────────────────────────────── %>
+  <section class="ap-section" aria-labelledby="setGcashHeading">
+    <div class="ap-section-intro">
+      <h2 id="setGcashHeading">GCash</h2>
+      <p>Shown to guests who pick GCash on the payment step. Most guests scan the QR code, so keep it current.</p>
     </div>
-
-    <%# ── Maya ──────────────────────────────────── %>
-    <div class="col-md-6">
-      <div class="card border-purple" style="border-color:#9333ea !important;">
-        <div class="card-header" style="background:rgba(147,51,234,.08);">
-          <h6 class="card-title mb-0" style="color:#9333ea;">
-            <i class="fas fa-wallet me-2"></i>Maya (PayMaya)
-          </h6>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="gcashNumber">GCash number</label>
+          <input type="text" name="gcash_number" id="gcashNumber" class="form-control<%= phClass('gcash_number') %>"
+            value="<%= siteSettings.gcash_number || '' %>"
+            placeholder="e.g. 09171234567"
+            pattern="^09\d{9}$" inputmode="numeric"
+            title="Enter a valid 11-digit Philippine mobile number starting with 09"
+            maxlength="11" aria-describedby="gcashNumberHelp" />
+          <div class="form-text" id="gcashNumberHelp">11 digits starting with 09. On phones it becomes a tap-to-call link.</div>
+          <%- phFlag('gcash_number') %>
         </div>
-        <div class="card-body">
-          <div class="mb-3">
-            <label class="form-label required">Maya Number</label>
-            <div class="input-group">
-              <span class="input-group-text"><i class="fas fa-phone"></i></span>
-              <input type="text" name="maya_number" class="form-control"
-                value="<%= siteSettings.maya_number || '' %>"
-                placeholder="e.g. 09171234567"
-                pattern="^09\d{9}$"
-                title="Enter a valid 11-digit PH mobile number starting with 09"
-                maxlength="11" />
-            </div>
-            <div class="form-text">Tappable tel: link on mobile.</div>
-          </div>
-          <div>
-            <label class="form-label required">Maya Account Name</label>
-            <input type="text" name="maya_name" class="form-control"
-              value="<%= siteSettings.maya_name || '' %>"
-              placeholder="e.g. Juan Dela Cruz" />
-          </div>
-          <div class="mt-3">
-            <label class="form-label">Maya QR Code</label>
-            <div class="row g-3 align-items-start">
-              <div class="col-auto">
-                <% if (siteSettings.maya_qr_path) { %>
-                <div class="text-center">
-                  <img src="<%= siteSettings.maya_qr_path %>" alt="Maya QR"
-                    style="width:160px;height:160px;object-fit:contain;border:3px solid #9333ea;border-radius:.5rem;padding:4px;background:#fff;"
-                    onerror="this.style.display='none'" />
-                  <div class="text-muted mt-1" style="font-size:.72rem;">Current QR</div>
-                  <button type="submit" form="removeMayaQrForm" class="btn btn-xs btn-outline-danger mt-1"
-                    data-confirm="Remove the current Maya QR code image only? This will not change your other payment settings."
-                    data-confirm-title="Remove QR Code"
-                    data-confirm-type="danger"
-                    data-confirm-ok="Remove">
-                    <i class="fas fa-trash me-1"></i>Remove
-                  </button>
-                </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="gcashName">Account name</label>
+          <input type="text" name="gcash_name" id="gcashName" class="form-control"
+            value="<%= siteSettings.gcash_name || '' %>"
+            placeholder="e.g. Juan Dela Cruz" aria-describedby="gcashNameHelp" />
+          <div class="form-text" id="gcashNameHelp">Exactly as registered in GCash, so guests can check before sending.</div>
+        </div>
+
+        <%# QR Code upload %>
+        <div class="col-12">
+          <span class="form-label d-block">QR code</span>
+          <div class="ap-upload set-qr-upload">
+            <div class="ap-thumb-item">
+              <div class="ap-thumb is-square is-contain">
+                <% if (siteSettings.gcash_qr_path) { %>
+                <img src="<%= siteSettings.gcash_qr_path %>" alt="Current GCash QR code" id="qrPreview" data-missing="QR image unavailable — upload it again" />
                 <% } else { %>
-                <div class="text-center border rounded p-3" style="width:160px;color:#9ca3af;">
-                  <i class="fas fa-qrcode fa-3x d-block mb-2" style="opacity:.3;"></i>
-                  <div style="font-size:.72rem;">No QR uploaded yet</div>
-                </div>
+                <div class="photo-pending"><i class="fas fa-qrcode" aria-hidden="true"></i>No QR yet</div>
                 <% } %>
               </div>
-              <div class="col">
-                <label class="form-label small fw-semibold">Upload New QR Image</label>
-                <input type="file" name="maya_qr_image" id="mayaQrInput"
-                  class="form-control form-control-sm"
-                  accept=".jpg,.jpeg,.png,.webp" />
-                <div class="form-text">JPG, PNG, or WEBP, max 5 MB.</div>
-                <div id="newMayaQrPreviewWrap" class="mt-2" style="display:none;">
-                  <div class="text-muted small mb-1">Preview of new QR:</div>
-                  <img id="newMayaQrPreview"
-                    style="width:140px;height:140px;object-fit:contain;border:2px dashed #9333ea;border-radius:.5rem;padding:3px;background:#fff;" />
-                </div>
+              <% if (siteSettings.gcash_qr_path) { %>
+              <span class="ap-thumb-caption">Current QR</span>
+              <%# The Remove button submits the SEPARATE remove-qr form declared
+                  after the main form (via the HTML5 form= attribute) — it must
+                  NOT be a nested <form> and must NOT save other fields. %>
+              <button type="submit" form="removeQrForm" class="ap-act is-danger align-self-start"
+                data-confirm="Remove the current GCash QR code image only? This will not change your other payment settings."
+                data-confirm-title="Remove QR Code"
+                data-confirm-type="danger"
+                data-confirm-ok="Remove">
+                <i class="fas fa-trash-alt" aria-hidden="true"></i>Remove QR
+              </button>
+              <% } %>
+            </div>
+            <div>
+              <label class="form-label" for="gcashQrInput"><%= siteSettings.gcash_qr_path ? 'Replace QR image' : 'Upload QR image' %></label>
+              <input type="file" name="gcash_qr_image" id="gcashQrInput"
+                class="form-control" accept=".jpg,.jpeg,.png,.webp" aria-describedby="gcashQrHelp" />
+              <div class="form-text" id="gcashQrHelp">
+                JPG, PNG or WEBP, up to 5 MB. Export the QR from the GCash app at full size (at least 400×400 px) — don't crop or compress it.
+              </div>
+              <%# Live preview of newly selected file %>
+              <div id="newQrPreviewWrap" class="set-new-preview" style="display:none;">
+                <span class="ap-thumb-caption">New QR — saved when you press Save payment settings</span>
+                <div class="ap-thumb is-square is-contain"><img id="newQrPreview" alt="Preview of the new GCash QR code" /></div>
               </div>
             </div>
           </div>
         </div>
       </div>
     </div>
+  </section>
 
-    <%# ── Bank Transfer ───────────────────────── %>
-    <div class="col-md-6">
-      <div class="card border-primary">
-        <div class="card-header bg-primary bg-opacity-10">
-          <h6 class="card-title mb-0 text-primary">
-            <i class="fas fa-university me-2"></i>Bank Transfer
-          </h6>
+  <%# ── Maya ──────────────────────────────────── %>
+  <section class="ap-section" aria-labelledby="setMayaHeading">
+    <div class="ap-section-intro">
+      <h2 id="setMayaHeading">Maya</h2>
+      <p>Shown to guests who pick Maya on the payment step, together with the Maya QR code.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="mayaNumber">Maya number</label>
+          <input type="text" name="maya_number" id="mayaNumber" class="form-control<%= phClass('maya_number') %>"
+            value="<%= siteSettings.maya_number || '' %>"
+            placeholder="e.g. 09171234567"
+            pattern="^09\d{9}$" inputmode="numeric"
+            title="Enter a valid 11-digit PH mobile number starting with 09"
+            maxlength="11" aria-describedby="mayaNumberHelp" />
+          <div class="form-text" id="mayaNumberHelp">11 digits starting with 09.</div>
+          <%- phFlag('maya_number') %>
         </div>
-        <div class="card-body">
-          <div class="mb-3">
-            <label class="form-label">BDO Account Number</label>
-            <input type="text" name="bank_bdo" class="form-control"
-              value="<%= siteSettings.bank_bdo || '' %>"
-              placeholder="e.g. 0123-4567-8901" />
-          </div>
-          <div class="mb-3">
-            <label class="form-label">BPI Account Number</label>
-            <input type="text" name="bank_bpi" class="form-control"
-              value="<%= siteSettings.bank_bpi || '' %>"
-              placeholder="e.g. 1234-5678-9012" />
-          </div>
-          <div>
-            <label class="form-label required">Account Holder Name</label>
-            <input type="text" name="bank_name" class="form-control"
-              value="<%= siteSettings.bank_name || '' %>"
-              placeholder="e.g. Balai Miciano Resort" />
-            <div class="form-text">Must match the bank account name exactly.</div>
+        <div class="col-md-6">
+          <label class="form-label required" for="mayaName">Account name</label>
+          <input type="text" name="maya_name" id="mayaName" class="form-control"
+            value="<%= siteSettings.maya_name || '' %>"
+            placeholder="e.g. Juan Dela Cruz" />
+        </div>
+        <div class="col-12">
+          <span class="form-label d-block">QR code</span>
+          <div class="ap-upload set-qr-upload">
+            <div class="ap-thumb-item">
+              <div class="ap-thumb is-square is-contain">
+                <% if (siteSettings.maya_qr_path) { %>
+                <img src="<%= siteSettings.maya_qr_path %>" alt="Current Maya QR code" data-missing="QR image unavailable — upload it again" />
+                <% } else { %>
+                <div class="photo-pending"><i class="fas fa-qrcode" aria-hidden="true"></i>No QR yet</div>
+                <% } %>
+              </div>
+              <% if (siteSettings.maya_qr_path) { %>
+              <span class="ap-thumb-caption">Current QR</span>
+              <button type="submit" form="removeMayaQrForm" class="ap-act is-danger align-self-start"
+                data-confirm="Remove the current Maya QR code image only? This will not change your other payment settings."
+                data-confirm-title="Remove QR Code"
+                data-confirm-type="danger"
+                data-confirm-ok="Remove">
+                <i class="fas fa-trash-alt" aria-hidden="true"></i>Remove QR
+              </button>
+              <% } %>
+            </div>
+            <div>
+              <label class="form-label" for="mayaQrInput"><%= siteSettings.maya_qr_path ? 'Replace QR image' : 'Upload QR image' %></label>
+              <input type="file" name="maya_qr_image" id="mayaQrInput"
+                class="form-control" accept=".jpg,.jpeg,.png,.webp" aria-describedby="mayaQrHelp" />
+              <div class="form-text" id="mayaQrHelp">JPG, PNG or WEBP, up to 5 MB.</div>
+              <div id="newMayaQrPreviewWrap" class="set-new-preview" style="display:none;">
+                <span class="ap-thumb-caption">New QR — saved when you press Save payment settings</span>
+                <div class="ap-thumb is-square is-contain"><img id="newMayaQrPreview" alt="Preview of the new Maya QR code" /></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
     </div>
+  </section>
 
-  </div><!-- /row -->
-
-  <%# Live preview of what guests will see %>
-  <div class="card mt-4 border-0 bg-light">
-    <div class="card-header bg-transparent border-0 pb-0">
-      <h6 class="text-muted mb-0"><i class="fas fa-eye me-1"></i>Guest-facing preview</h6>
+  <%# ── Bank Transfer ───────────────────────── %>
+  <section class="ap-section" aria-labelledby="setBankHeading">
+    <div class="ap-section-intro">
+      <h2 id="setBankHeading">Bank transfer</h2>
+      <p>Account numbers guests can deposit to. Leave a bank blank if the resort doesn't use it.</p>
     </div>
-    <div class="card-body">
-      <div class="d-flex flex-wrap gap-3">
-        <div class="p-3 rounded-3 border bg-white flex-fill" style="min-width:200px;">
-          <div class="small fw-bold mb-1"><i class="fas fa-mobile-alt me-1" style="color:#16a34a;"></i>GCash</div>
-          <div class="small text-muted">Number: <a href="tel:<%= (siteSettings.gcash_number||'').replace(/\D/g,'') %>" class="fw-bold text-dark"><%= siteSettings.gcash_number || '—' %></a></div>
-          <div class="small text-muted">Name: <strong class="text-dark"><%= siteSettings.gcash_name || '—' %></strong></div>
-          <% if (siteSettings.gcash_qr_path) { %><div class="mt-2"><img src="<%= siteSettings.gcash_qr_path %>" style="height:60px;border-radius:.25rem;" /></div><% } %>
+    <div class="ap-section-body">
+      <% if (looksPlaceholder(siteSettings.bank_bdo) || looksPlaceholder(siteSettings.bank_bpi)) { %>
+      <div class="ap-notice" role="note">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <span>A bank account number below is still a placeholder (XXXX). The guest payment step hides it until you enter the real account number — or clear it if the resort doesn't use that bank.</span>
+      </div>
+      <% } %>
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="bankBdo">BDO account number</label>
+          <input type="text" name="bank_bdo" id="bankBdo" class="form-control<%= phClass('bank_bdo') %>"
+            value="<%= siteSettings.bank_bdo || '' %>"
+            placeholder="e.g. 0123-4567-8901" />
+          <%- phFlag('bank_bdo') %>
         </div>
-        <div class="p-3 rounded-3 border bg-white flex-fill" style="min-width:200px;">
-          <div class="small fw-bold mb-1"><i class="fas fa-wallet me-1" style="color:#9333ea;"></i>Maya</div>
-          <div class="small text-muted">Number: <a href="tel:<%= (siteSettings.maya_number||'').replace(/\D/g,'') %>" class="fw-bold text-dark"><%= siteSettings.maya_number || '—' %></a></div>
-          <div class="small text-muted">Name: <strong class="text-dark"><%= siteSettings.maya_name || '—' %></strong></div>
-          <% if (siteSettings.maya_qr_path) { %><div class="mt-2"><img src="<%= siteSettings.maya_qr_path %>" alt="Maya QR" style="height:60px;border-radius:.25rem;" /></div><% } %>
+        <div class="col-md-6">
+          <label class="form-label" for="bankBpi">BPI account number</label>
+          <input type="text" name="bank_bpi" id="bankBpi" class="form-control<%= phClass('bank_bpi') %>"
+            value="<%= siteSettings.bank_bpi || '' %>"
+            placeholder="e.g. 1234-5678-9012" />
+          <%- phFlag('bank_bpi') %>
         </div>
-        <div class="p-3 rounded-3 border bg-white flex-fill" style="min-width:200px;">
-          <div class="small fw-bold mb-1"><i class="fas fa-university me-1" style="color:#2563eb;"></i>Bank Transfer</div>
-          <div class="small text-muted">BDO: <strong class="text-dark"><%= siteSettings.bank_bdo || '—' %></strong></div>
-          <div class="small text-muted">BPI: <strong class="text-dark"><%= siteSettings.bank_bpi || '—' %></strong></div>
-          <div class="small text-muted">Name: <strong class="text-dark"><%= siteSettings.bank_name || '—' %></strong></div>
+        <div class="col-md-6">
+          <label class="form-label required" for="bankName">Account holder name</label>
+          <input type="text" name="bank_name" id="bankName" class="form-control"
+            value="<%= siteSettings.bank_name || '' %>"
+            placeholder="e.g. Balai Miciano Resort" aria-describedby="bankNameHelp" />
+          <div class="form-text" id="bankNameHelp">Must match the bank account name exactly.</div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <div class="mt-4 d-flex gap-2">
-    <button type="submit" class="btn btn-primary px-4">
-      <i class="fas fa-save me-1"></i>Save / Update Payment Settings
-    </button>
+  <%# Saved values as guests see them on the payment step %>
+  <section class="ap-section" aria-labelledby="setPreviewHeading">
+    <div class="ap-section-intro">
+      <h2 id="setPreviewHeading">What guests see</h2>
+      <p>The saved details, as shown on the guest payment step. Updates after you save.</p>
+    </div>
+    <div class="ap-section-body set-guest-preview">
+      <div>
+        <h3>GCash</h3>
+        <dl class="ap-dl">
+          <dt>Number</dt><dd><% if (isSeed("gcash_number")) { %><%- hiddenTag %><% } else { %><a href="tel:<%= (siteSettings.gcash_number||'').replace(/\D/g,'') %>"><%= siteSettings.gcash_number || '—' %></a><% } %></dd>
+          <dt>Name</dt><dd><%= siteSettings.gcash_name || '—' %></dd>
+          <dt>QR code</dt><dd><%= siteSettings.gcash_qr_path ? 'Uploaded' : 'Not uploaded' %></dd>
+        </dl>
+      </div>
+      <div>
+        <h3>Maya</h3>
+        <dl class="ap-dl">
+          <dt>Number</dt><dd><% if (isSeed("maya_number")) { %><%- hiddenTag %><% } else { %><a href="tel:<%= (siteSettings.maya_number||'').replace(/\D/g,'') %>"><%= siteSettings.maya_number || '—' %></a><% } %></dd>
+          <dt>Name</dt><dd><%= siteSettings.maya_name || '—' %></dd>
+          <dt>QR code</dt><dd><%= siteSettings.maya_qr_path ? 'Uploaded' : 'Not uploaded' %></dd>
+        </dl>
+      </div>
+      <div>
+        <h3>Bank transfer</h3>
+        <dl class="ap-dl">
+          <dt>BDO</dt><dd><% if (isSeed('bank_bdo')) { %><%- hiddenTag %><% } else { %><%= siteSettings.bank_bdo || 'Not published' %><% } %></dd>
+          <dt>BPI</dt><dd><% if (isSeed('bank_bpi')) { %><%- hiddenTag %><% } else { %><%= siteSettings.bank_bpi || 'Not published' %><% } %></dd>
+          <dt>Name</dt><dd><%= siteSettings.bank_name || '—' %></dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> should be filled in for that method to work.</span>
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save payment settings</button>
   </div>
 </form>
 
@@ -300,36 +262,61 @@
     TAB: GENERAL / RESORT INFO
     ══════════════════════════════════════════════════ %>
 <% if (activeTab === 'general') { %>
-<form action="/settings/general" method="POST">
-  <div class="card">
-    <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-building me-2"></i>Resort Information</h6></div>
-    <div class="card-body">
+<form data-guard="General" action="/settings/general" method="POST" class="ap-form">
+  <section class="ap-section" aria-labelledby="setIdentityHeading">
+    <div class="ap-section-intro">
+      <h2 id="setIdentityHeading">Resort name</h2>
+      <p>Used in page titles, the site header and the chatbot.</p>
+    </div>
+    <div class="ap-section-body">
       <div class="row g-3">
         <div class="col-md-6">
-          <label class="form-label required">Resort Name</label>
-          <input type="text" name="resort_name" class="form-control" value="<%= siteSettings.resort_name || '' %>" required />
+          <label class="form-label required" for="resortName">Resort name</label>
+          <input type="text" name="resort_name" id="resortName" class="form-control" value="<%= siteSettings.resort_name || '' %>" required />
         </div>
         <div class="col-md-6">
-          <label class="form-label">Tagline</label>
-          <input type="text" name="resort_tagline" class="form-control" value="<%= siteSettings.resort_tagline || '' %>" />
-        </div>
-        <div class="col-12">
-          <label class="form-label">Address</label>
-          <input type="text" name="resort_address" class="form-control" value="<%= siteSettings.resort_address || '' %>" />
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Phone</label>
-          <input type="text" name="resort_phone" class="form-control" value="<%= siteSettings.resort_phone || '' %>" />
-        </div>
-        <div class="col-md-6">
-          <label class="form-label">Email</label>
-          <input type="email" name="resort_email" class="form-control" value="<%= siteSettings.resort_email || '' %>" />
+          <label class="form-label" for="resortTagline">Tagline</label>
+          <input type="text" name="resort_tagline" id="resortTagline" class="form-control" value="<%= siteSettings.resort_tagline || '' %>" />
         </div>
       </div>
     </div>
-  </div>
-  <div class="mt-3">
-    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>Save Resort Settings</button>
+  </section>
+
+  <section class="ap-section" aria-labelledby="setContactHeading">
+    <div class="ap-section-intro">
+      <h2 id="setContactHeading">Public contact details</h2>
+      <p>Shown publicly on the landing page contact section and footer, and given out by the chatbot.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (isSeed('resort_phone') || isSeed('resort_email')) { %>
+      <div class="ap-notice" role="note">
+        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+        <span>The <%= isSeed('resort_phone') && isSeed('resort_email') ? 'phone and email below are' : (isSeed('resort_phone') ? 'phone below is' : 'email below is') %> still the setup placeholder. The public site and chatbot hide <%= isSeed('resort_phone') && isSeed('resort_email') ? 'them' : 'it' %> until you enter the resort's real contact details.</span>
+      </div>
+      <% } %>
+      <div class="row g-3">
+        <div class="col-12">
+          <label class="form-label" for="resortAddress">Address</label>
+          <input type="text" name="resort_address" id="resortAddress" class="form-control" value="<%= siteSettings.resort_address || '' %>" />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="resortPhone">Phone</label>
+          <input type="text" name="resort_phone" id="resortPhone" class="form-control<%= phClass('resort_phone') %>" value="<%= siteSettings.resort_phone || '' %>" inputmode="tel" aria-describedby="resortPhoneHelp" />
+          <div class="form-text" id="resortPhoneHelp">Shown publicly. Use a number the front desk answers.</div>
+          <%- phFlag('resort_phone') %>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="resortEmail">Email</label>
+          <input type="email" name="resort_email" id="resortEmail" class="form-control<%= phClass('resort_email') %>" value="<%= siteSettings.resort_email || '' %>" aria-describedby="resortEmailHelp" />
+          <div class="form-text" id="resortEmailHelp">Shown publicly. Use an inbox someone checks.</div>
+          <%- phFlag('resort_email') %>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ap-form-actions">
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save general settings</button>
   </div>
 </form>
 <% } %>
@@ -339,42 +326,273 @@
     TAB: BOOKING RULES
     ══════════════════════════════════════════════════ %>
 <% if (activeTab === 'booking') { %>
-<form action="/settings/booking" method="POST">
-  <div class="card">
-    <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-calendar-check me-2"></i>Booking Rules</h6></div>
-    <div class="card-body">
+<form data-guard="Booking" action="/settings/booking" method="POST" class="ap-form">
+  <section class="ap-section" aria-labelledby="setTimesHeading">
+    <div class="ap-section-intro">
+      <h2 id="setTimesHeading">Check-in and check-out</h2>
+      <p>Default times for room stays, shown to guests when they book.</p>
+    </div>
+    <div class="ap-section-body">
       <div class="row g-3">
-        <div class="col-md-4">
-          <label class="form-label required">Default Check-in Time</label>
-          <input type="time" name="check_in_time" class="form-control" value="<%= siteSettings.check_in_time || '14:00' %>" required />
+        <div class="col-sm-6">
+          <label class="form-label required" for="checkInTime">Check-in time</label>
+          <input type="time" name="check_in_time" id="checkInTime" class="form-control" value="<%= siteSettings.check_in_time || '14:00' %>" required />
         </div>
-        <div class="col-md-4">
-          <label class="form-label required">Default Check-out Time</label>
-          <input type="time" name="check_out_time" class="form-control" value="<%= siteSettings.check_out_time || '12:00' %>" required />
-        </div>
-        <div class="col-md-4">
-          <label class="form-label required">Downpayment Percentage (%)</label>
-          <div class="input-group">
-            <input type="number" name="downpayment_percent" class="form-control"
-              value="<%= siteSettings.downpayment_percent || '50' %>"
-              min="1" max="100" step="1" required />
-            <span class="input-group-text">%</span>
-          </div>
-        </div>
-        <div class="col-12">
-          <label class="form-label">Cancellation Policy</label>
-          <textarea name="cancellation_policy" class="form-control" rows="4"><%= siteSettings.cancellation_policy || '' %></textarea>
-          <div class="form-text">This text is shown to guests in the chatbot and on booking pages.</div>
+        <div class="col-sm-6">
+          <label class="form-label required" for="checkOutTime">Check-out time</label>
+          <input type="time" name="check_out_time" id="checkOutTime" class="form-control" value="<%= siteSettings.check_out_time || '12:00' %>" required />
         </div>
       </div>
     </div>
-  </div>
-  <div class="mt-3">
-    <button type="submit" class="btn btn-primary px-4"><i class="fas fa-save me-1"></i>Save Booking Rules</button>
+  </section>
+
+  <section class="ap-section" aria-labelledby="setDownHeading">
+    <div class="ap-section-intro">
+      <h2 id="setDownHeading">Downpayment</h2>
+      <p>The share of the total a guest pays online to secure a booking. The balance is collected at the resort.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-sm-6 col-lg-4">
+          <label class="form-label required" for="downpaymentPercent">Downpayment</label>
+          <div class="input-group">
+            <input type="number" name="downpayment_percent" id="downpaymentPercent" class="form-control"
+              value="<%= siteSettings.downpayment_percent || '50' %>"
+              min="1" max="100" step="1" required aria-describedby="downpaymentHelp" />
+            <span class="input-group-text">%</span>
+          </div>
+          <div class="form-text" id="downpaymentHelp">Whole number from 1 to 100. Used for every new booking total.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="ap-section" aria-labelledby="setCancelHeading">
+    <div class="ap-section-intro">
+      <h2 id="setCancelHeading">Cancellation policy</h2>
+      <p>Shown to guests on booking pages and given out by the chatbot. Write it exactly as the resort applies it.</p>
+    </div>
+    <div class="ap-section-body">
+      <label class="form-label" for="cancellationPolicy">Policy text</label>
+      <textarea name="cancellation_policy" id="cancellationPolicy" class="form-control" rows="5"><%= siteSettings.cancellation_policy || '' %></textarea>
+    </div>
+  </section>
+
+  <div class="ap-form-actions">
+    <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save booking settings</button>
   </div>
 </form>
 <% } %>
 
+
+<%# ══════════════════════════════════════════════════
+    TAB: LANDING PAGE IMAGES
+    Each upload/remove is its own form so one action never resubmits another.
+    ══════════════════════════════════════════════════ %>
+<% if (activeTab === 'landing') { %>
+<p class="ap-sub mb-4">
+  Content for the public <a href="/" target="_blank" rel="noopener">landing page<i class="fas fa-external-link-alt ms-1 small" aria-hidden="true"></i><span class="br-sr-only"> (opens in a new tab)</span></a>.
+  Use real photos of the resort — JPG, PNG or WEBP up to 5 MB each. Each section below saves on its own.
+</p>
+
+<div class="ap-form">
+
+  <%# ── Hero background ───────────────────────── %>
+  <section class="ap-section" aria-labelledby="setHeroHeading">
+    <div class="ap-section-intro">
+      <h2 id="setHeroHeading">Hero photo</h2>
+      <p>The large photo at the top of the landing page. A dark overlay is added there so the headline stays readable.</p>
+    </div>
+    <div class="ap-section-body">
+      <form data-guard="Hero photo" action="/settings/landing/hero" method="POST" enctype="multipart/form-data">
+        <div class="ap-upload set-landing-upload">
+          <div class="ap-thumb-item">
+            <div class="ap-thumb set-thumb-hero">
+              <img src="<%= siteSettings.landing_hero_image || defaultHeroImage %>" alt="Current hero background" loading="lazy" data-missing="Photo unavailable — upload it again" />
+            </div>
+            <span class="ap-thumb-caption"><%= siteSettings.landing_hero_image ? 'Current: custom photo' : 'Current: default beachfront photo' %></span>
+          </div>
+          <div>
+            <label for="heroImageInput" class="form-label">
+              <%= siteSettings.landing_hero_image ? 'Replace photo' : 'Upload photo' %>
+            </label>
+            <input type="file" name="hero_image" id="heroImageInput" class="form-control"
+              accept=".jpg,.jpeg,.png,.webp" required
+              data-preview="heroImagePreview" aria-describedby="heroImageHelp" />
+            <div id="heroImageHelp" class="form-text">Landscape works best, at least 1600&nbsp;px wide. The centre of the photo stays visible on phones.</div>
+            <div class="ap-thumb set-thumb-hero set-thumb-new"><img id="heroImagePreview" alt="Preview of the selected photo" hidden /></div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button type="submit" class="btn btn-primary"><i class="fas fa-upload" aria-hidden="true"></i>Save hero photo</button>
+              <% if (siteSettings.landing_hero_image) { %>
+              <button type="submit" form="removeHeroImageForm" class="btn btn-outline-danger"
+                data-confirm="Remove the custom hero photo? The landing page will go back to the default beachfront photo."
+                data-confirm-title="Remove Hero Photo" data-confirm-type="danger" data-confirm-ok="Remove">
+                Remove &amp; use default
+              </button>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <%# ── About section photo ───────────────────── %>
+  <section class="ap-section" aria-labelledby="setAboutHeading">
+    <div class="ap-section-intro">
+      <h2 id="setAboutHeading">About photo</h2>
+      <p>Shown beside the About text. Add a short description for screen readers.</p>
+    </div>
+    <div class="ap-section-body">
+      <form data-guard="About photo" action="/settings/landing/about" method="POST" enctype="multipart/form-data">
+        <div class="ap-upload set-landing-upload">
+          <div class="ap-thumb-item">
+            <div class="ap-thumb set-thumb-about">
+              <% if (siteSettings.landing_about_image) { %>
+              <img src="<%= siteSettings.landing_about_image %>" alt="<%= siteSettings.landing_about_alt || 'Current About section photo' %>" loading="lazy" data-missing="Photo unavailable — upload it again" />
+              <% } else { %>
+              <div class="photo-pending"><i class="fas fa-image" aria-hidden="true"></i>No About photo yet</div>
+              <% } %>
+            </div>
+            <% if (!siteSettings.landing_about_image) { %>
+            <span class="ap-thumb-caption set-wrap">Until you add one, the section shows the default beachfront photo when the hero uses a different picture, or a placeholder otherwise.</span>
+            <% } %>
+          </div>
+          <div>
+            <label for="aboutImageInput" class="form-label">
+              <%= siteSettings.landing_about_image ? 'Replace photo' : 'Upload photo' %>
+            </label>
+            <input type="file" name="about_image" id="aboutImageInput" class="form-control"
+              accept=".jpg,.jpeg,.png,.webp" <%= siteSettings.landing_about_image ? '' : 'required' %>
+              data-preview="aboutImagePreview" />
+            <div class="ap-thumb set-thumb-about set-thumb-new"><img id="aboutImagePreview" alt="Preview of the selected photo" hidden /></div>
+
+            <label for="aboutAltInput" class="form-label mt-3">Photo description</label>
+            <input type="text" name="landing_about_alt" id="aboutAltInput" class="form-control"
+              maxlength="<%= galleryLimits.captionLength %>" value="<%= siteSettings.landing_about_alt || '' %>"
+              placeholder="e.g. Function hall set up for a wedding reception" aria-describedby="aboutAltHelp" />
+            <div id="aboutAltHelp" class="form-text">Read aloud by screen readers. Describe what the photo shows.</div>
+
+            <div class="d-flex flex-wrap gap-2 mt-3">
+              <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save About photo</button>
+              <% if (siteSettings.landing_about_image) { %>
+              <button type="submit" form="removeAboutImageForm" class="btn btn-outline-danger"
+                data-confirm="Remove the About section photo?"
+                data-confirm-title="Remove About Photo" data-confirm-type="danger" data-confirm-ok="Remove">
+                Remove photo
+              </button>
+              <% } %>
+            </div>
+          </div>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <%# ── Gallery ───────────────────────────────── %>
+  <section class="ap-section" id="landing-gallery" aria-labelledby="setGalleryHeading">
+    <div class="ap-section-intro">
+      <h2 id="setGalleryHeading">Photo gallery</h2>
+      <p><%= landingGallery.length %> of <%= galleryLimits.maxItems %> photos. The Gallery section stays hidden on the landing page until it has at least one photo.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (landingGallery.length < galleryLimits.maxItems) { %>
+      <form data-guard="Gallery upload" action="/settings/landing/gallery" method="POST" enctype="multipart/form-data" class="set-gallery-add">
+        <label for="galleryImagesInput" class="form-label">Add photos</label>
+        <div class="set-gallery-add-row">
+          <input type="file" name="gallery_images" id="galleryImagesInput" class="form-control"
+            accept=".jpg,.jpeg,.png,.webp" multiple required aria-describedby="galleryImagesHelp"
+            data-preview-list="galleryNewPreview" />
+          <button type="submit" class="btn btn-primary"><i class="fas fa-upload" aria-hidden="true"></i>Upload</button>
+        </div>
+        <div id="galleryImagesHelp" class="form-text">
+          Select up to <%= Math.min(galleryLimits.maxUpload, galleryLimits.maxItems - landingGallery.length) %> photos at once.
+          New photos are added to the end; add captions below after uploading.
+        </div>
+        <div class="ap-thumb-grid mt-2" id="galleryNewPreview" aria-live="polite"></div>
+      </form>
+      <% } else { %>
+      <div class="ap-notice is-info">The gallery is full. Remove a photo to add another.</div>
+      <% } %>
+
+      <% if (landingGallery.length === 0) { %>
+      <div class="ap-empty"><strong>No gallery photos yet</strong>Upload real photos of the rooms, cottages, beach and events.</div>
+      <% } else { %>
+      <form data-guard="Gallery captions" action="/settings/landing/gallery/update" method="POST" class="set-gallery-form">
+        <%# Pressing Enter in a caption must save captions, not trigger a row
+            button, so the first (default) submit button is a hidden Save. %>
+        <button type="submit" class="visually-hidden" tabindex="-1" aria-hidden="true">Save Captions</button>
+        <ol class="set-gallery-list">
+          <% landingGallery.forEach(function (photo, i) { %>
+          <li class="set-gallery-item">
+            <a href="<%= photo.path %>" class="ap-thumb" data-lightbox="<%= photo.path %>" data-lightbox-title="<%= photo.caption || 'Gallery photo ' + (i + 1) %>">
+              <img src="<%= photo.path %>" alt="<%= photo.caption || 'Gallery photo ' + (i + 1) %>" loading="lazy" data-missing="Photo unavailable" />
+            </a>
+            <div class="set-gallery-caption">
+              <label for="galleryCaption<%= i %>" class="form-label">Caption for photo <%= i + 1 %></label>
+              <input type="hidden" name="path_<%= i %>" value="<%= photo.path %>" />
+              <input type="text" name="caption_<%= i %>" id="galleryCaption<%= i %>" class="form-control"
+                maxlength="<%= galleryLimits.captionLength %>" value="<%= photo.caption %>"
+                placeholder="e.g. Beachfront cottages at sunset" />
+            </div>
+            <div class="ap-actions set-gallery-actions" role="group" aria-label="Photo <%= i + 1 %> actions">
+              <button type="submit" name="move_up" value="<%= photo.path %>"
+                class="ap-act" aria-label="Move photo <%= i + 1 %> up" <%= i === 0 ? 'disabled' : '' %>>
+                <i class="fas fa-arrow-up" aria-hidden="true"></i>Up
+              </button>
+              <button type="submit" name="move_down" value="<%= photo.path %>"
+                class="ap-act" aria-label="Move photo <%= i + 1 %> down" <%= i === landingGallery.length - 1 ? 'disabled' : '' %>>
+                <i class="fas fa-arrow-down" aria-hidden="true"></i>Down
+              </button>
+              <button type="submit" name="remove" value="<%= photo.path %>"
+                class="ap-act is-danger" aria-label="Remove photo <%= i + 1 %>"
+                data-confirm="Remove this photo from the gallery? The file will be deleted."
+                data-confirm-title="Remove Photo" data-confirm-type="danger" data-confirm-ok="Remove">
+                <i class="fas fa-trash-alt" aria-hidden="true"></i>Remove
+              </button>
+            </div>
+          </li>
+          <% }) %>
+        </ol>
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save captions</button>
+        </div>
+      </form>
+      <% } %>
+    </div>
+  </section>
+
+  <%# ── Amenities list ────────────────────────── %>
+  <section class="ap-section" id="landing-amenities" aria-labelledby="setAmenitiesHeading">
+    <div class="ap-section-intro">
+      <h2 id="setAmenitiesHeading">Amenities</h2>
+      <p>Controls the Amenities list on the public site. List only amenities the resort actually offers today.</p>
+    </div>
+    <div class="ap-section-body">
+      <form data-guard="Amenities" action="/settings/landing/amenities" method="POST">
+        <label for="landingAmenities" class="form-label">Amenities, one per line</label>
+        <textarea name="landing_amenities" id="landingAmenities" class="form-control set-amenities" rows="8" maxlength="2000"
+          placeholder="One amenity per line, for example:&#10;Swimming pool&#10;Free parking"
+          aria-describedby="landingAmenitiesHelp landingAmenitiesCount"><%= siteSettings.landing_amenities || '' %></textarea>
+        <div class="form-text" id="landingAmenitiesHelp">
+          Write one amenity per line, in the order you want them shown. Blank lines and extra spaces are removed when you save. Up to 2,000 characters.
+        </div>
+        <div class="form-text" id="landingAmenitiesCount" aria-live="polite"></div>
+        <div class="d-flex justify-content-end mt-3">
+          <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save amenities</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+</div>
+
+<%# Standalone action forms (NOT nested). Buttons above target them via form=. %>
+<form action="/settings/landing/hero/remove" method="POST" id="removeHeroImageForm" class="d-none"></form>
+<form action="/settings/landing/about/remove" method="POST" id="removeAboutImageForm" class="d-none"></form>
+<% } %>
+
+</div>
 <script>
 // Live QR image preview before upload
 (function () {
@@ -408,5 +626,45 @@
     };
     reader.readAsDataURL(file);
   });
+})();
+// Landing Page tab: preview the selected hero/about photo before saving
+document.querySelectorAll('input[type="file"][data-preview]').forEach(function (input) {
+  var preview = document.getElementById(input.getAttribute('data-preview'));
+  if (!preview) return;
+  input.addEventListener('change', function () {
+    var file = this.files[0];
+    if (preview.src) URL.revokeObjectURL(preview.src);
+    if (!file) { preview.hidden = true; preview.removeAttribute('src'); return; }
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+  });
+});
+// Gallery: show thumbnails of the photos chosen for upload
+document.querySelectorAll('input[type="file"][data-preview-list]').forEach(function (input) {
+  var list = document.getElementById(input.getAttribute('data-preview-list'));
+  if (!list) return;
+  input.addEventListener('change', function () {
+    list.querySelectorAll('img').forEach(function (img) { URL.revokeObjectURL(img.src); });
+    list.textContent = '';
+    Array.prototype.forEach.call(this.files, function (file) {
+      var item = document.createElement('div'); item.className = 'ap-thumb-item';
+      var box = document.createElement('div'); box.className = 'ap-thumb';
+      var img = document.createElement('img'); img.src = URL.createObjectURL(file); img.alt = 'Selected: ' + file.name;
+      var cap = document.createElement('span'); cap.className = 'ap-thumb-caption'; cap.textContent = file.name;
+      box.appendChild(img); item.appendChild(box); item.appendChild(cap); list.appendChild(item);
+    });
+  });
+});
+// Amenities: live count of lines and characters
+(function () {
+  var box = document.getElementById('landingAmenities');
+  var out = document.getElementById('landingAmenitiesCount');
+  if (!box || !out) return;
+  function update() {
+    var lines = box.value.split(/\r?\n/).filter(function (l) { return l.trim(); }).length;
+    out.textContent = lines + ' amenit' + (lines === 1 ? 'y' : 'ies') + ' · ' + box.value.length + ' / 2,000 characters';
+  }
+  box.addEventListener('input', update);
+  update();
 })();
 </script>

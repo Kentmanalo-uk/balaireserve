@@ -1,183 +1,166 @@
 <% layout('layouts/main') %>
+<%
+  const typeLabel = t => ({ room:'Room', cottage:'Cottage', venue:'Venue', event:'Event' })[t] || String(t || '—').replace(/_/g, ' ');
+  const stayText  = r => {
+    const a = r.check_in_date || r.event_date, b = r.check_out_date;
+    const times = [r.start_time, r.end_time].filter(Boolean).join('–');
+    return (a ? formatDate(a, 'MMM D') : '—') + (b && String(b) !== String(a) ? ' – ' + formatDate(b, 'MMM D') : '') + (times ? ' · ' + times : '');
+  };
+%>
 
-<div class="page-header">
-  <div>
-    <h3 class="mb-1">Reservations Dashboard</h3>
-    <p class="text-muted mb-0">Good day, <%= currentUser.firstName %>! Here's your bookings overview for today.</p>
-  </div>
-  <div class="page-header-actions">
-    <a href="/reservations/new" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>New Reservation</a>
-  </div>
+<!--page-head-->
+<h1 class="ph-title">Today at the front desk</h1>
+<div class="ph-actions">
+  <a href="/reservations/view/calendar" class="btn btn-secondary-quiet">Booking calendar</a>
+  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New walk-in</a>
 </div>
+<!--/page-head-->
 
-<!-- Stats -->
-<div class="row g-3 mb-4">
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-warning">
-      <div class="stat-icon"><i class="fas fa-clock"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.pendingRes %></div>
-        <div class="stat-label">Pending Reservations</div>
-        <div class="stat-sub">Need attention</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-success">
-      <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.confirmedRes %></div>
-        <div class="stat-label">Confirmed</div>
-        <div class="stat-sub"><%= stats.checkedInToday %> checked in today</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-primary">
-      <div class="stat-icon"><i class="fas fa-sign-in-alt"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.checkOutsToday %></div>
-        <div class="stat-label">Check-outs Today</div>
-        <div class="stat-sub"><%= stats.availableRooms %> rooms available</div>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-danger">
-      <div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.pendingPayments %></div>
-        <div class="stat-label">Unpaid Balances</div>
-        <div class="stat-sub"><%= stats.openInquiries %> open inquiries</div>
-      </div>
-    </div>
-  </div>
-</div>
+<div class="dash-grid">
+<div class="dash-main">
 
-<div class="row g-3 mb-4">
-  <!-- Today's Arrivals -->
-  <div class="col-lg-6">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-sign-in-alt me-2 text-success"></i>Today's Arrivals</h6>
-        <span class="badge bg-success"><%= formatDate(today) %></span>
-      </div>
-      <div class="card-body p-0">
-        <% if (!arrivals || arrivals.length === 0) { %>
-        <div class="empty-state py-4"><i class="fas fa-calendar-times"></i><p>No arrivals scheduled today</p></div>
-        <% } else { %>
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead><tr><th>Guest</th><th>Ref</th><th>Type</th><th>Status</th><th></th></tr></thead>
-            <tbody>
-              <% for (const r of arrivals) { %>
-              <tr>
-                <td><div class="fw-medium"><%= r.customer_name %></div><div class="small text-muted"><%= r.customer_phone || '' %></div></td>
-                <td><code class="small"><%= r.booking_ref %></code></td>
-                <td><span class="badge bg-light text-dark small"><%= r.reservation_type %></span></td>
-                <td><%- statusBadge(r.status) %></td>
-                <td><a href="/reservations/<%= r.id %>" class="btn btn-xs btn-outline-primary">View</a></td>
-              </tr>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-        <% } %>
-      </div>
-    </div>
+<section class="dash-hero dash-lead" aria-labelledby="periodTitle">
+  <div class="dh-main">
+    <h2 class="dh-label" id="periodTitle">Arrivals today <span class="dh-when"><%= formatDate(today, 'ddd, MMM D, YYYY') %></span></h2>
+    <p class="dh-amount"><%= arrivals ? arrivals.length : 0 %></p>
+    <p class="dh-sub">pending, awaiting payment or confirmed bookings starting today</p>
   </div>
+  <dl class="dh-metrics">
+    <div><dt>Check-outs today</dt><dd><%= stats.checkOutsToday %></dd><span>checked-in guests leaving</span></div>
+    <div><dt>Checked in today</dt><dd><%= stats.checkedInToday %></dd><span>on site now</span></div>
+    <div><dt>Confirmed</dt><dd><%= stats.confirmedRes %></dd><span>bookings ready to arrive</span></div>
+    <div><dt>Rooms available</dt><dd><%= stats.availableRooms %></dd><span>ready to book now</span></div>
+  </dl>
+</section>
 
-  <!-- Today's Departures -->
-  <div class="col-lg-6">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-sign-out-alt me-2 text-warning"></i>Today's Departures</h6>
-        <span class="badge bg-warning text-dark"><%= formatDate(today) %></span>
-      </div>
-      <div class="card-body p-0">
-        <% if (!departures || departures.length === 0) { %>
-        <div class="empty-state py-4"><i class="fas fa-calendar-times"></i><p>No departures scheduled today</p></div>
-        <% } else { %>
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead><tr><th>Guest</th><th>Ref</th><th>Type</th><th></th></tr></thead>
-            <tbody>
-              <% for (const r of departures) { %>
-              <tr>
-                <td class="fw-medium"><%= r.customer_name %></td>
-                <td><code class="small"><%= r.booking_ref %></code></td>
-                <td><span class="badge bg-light text-dark small"><%= r.reservation_type %></span></td>
-                <td><a href="/reservations/<%= r.id %>" class="btn btn-xs btn-outline-warning">Check-out</a></td>
-              </tr>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-        <% } %>
-      </div>
+<section class="dash-sec" aria-label="Arrivals and departures">
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Today's arrivals</h3>
+      <span class="panel-meta"><%= formatDate(today) %></span>
     </div>
-  </div>
-</div>
-
-<div class="row g-3">
-  <!-- Pending List -->
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-hourglass-half me-2 text-warning"></i>Pending Reservations</h6>
-        <a href="/reservations?status=pending" class="btn btn-sm btn-outline-warning">All Pending</a>
-      </div>
-      <div class="card-body p-0">
-        <% if (!pendingList || pendingList.length === 0) { %>
-        <div class="empty-state py-4"><i class="fas fa-check-circle text-success" style="font-size:2rem;opacity:1"></i><p class="text-success mt-2">No pending reservations!</p></div>
-        <% } else { %>
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead><tr><th>Ref</th><th>Customer</th><th>Type</th><th>Amount</th><th>Created</th><th></th></tr></thead>
-            <tbody>
-              <% for (const r of pendingList) { %>
-              <tr>
-                <td><code class="small"><%= r.booking_ref %></code></td>
-                <td class="fw-medium"><%= r.customer_name %></td>
-                <td><span class="badge bg-light text-dark small"><%= r.reservation_type %></span></td>
-                <td><%= formatPeso(r.total_amount) %></td>
-                <td class="small text-muted"><%= formatDate(r.created_at) %></td>
-                <td><a href="/reservations/<%= r.id %>" class="btn btn-xs btn-outline-primary">Process</a></td>
-              </tr>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-        <% } %>
-      </div>
-    </div>
-  </div>
-
-  <!-- Open Inquiries -->
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-question-circle me-2 text-info"></i>Open Inquiries</h6>
-        <a href="/inquiries" class="btn btn-sm btn-outline-info">All Inquiries</a>
-      </div>
-      <div class="card-body p-0">
-        <% if (!recentInquiries || recentInquiries.length === 0) { %>
-        <div class="empty-state py-4"><i class="fas fa-inbox"></i><p>No open inquiries</p></div>
-        <% } else { %>
-          <% for (const inq of recentInquiries) { %>
-          <div class="d-flex align-items-start gap-2 p-3 border-bottom">
-            <div class="flex-shrink-0 mt-1">
-              <span class="badge bg-light text-dark small"><%= inq.category %></span>
-            </div>
-            <div class="flex-grow-1 min-width-0">
-              <div class="fw-medium small text-truncate"><%= inq.subject %></div>
-              <div class="text-muted small"><%= inq.name || 'Anonymous' %> &middot; <%= formatDate(inq.created_at) %></div>
-            </div>
-            <a href="/inquiries/<%= inq.id %>" class="btn btn-xs btn-outline-primary flex-shrink-0">View</a>
-          </div>
+    <% if (!arrivals || arrivals.length === 0) { %>
+    <div class="empty-inline">No arrivals scheduled today.</div>
+    <% } else { %>
+    <div class="table-responsive">
+      <table class="table table-br table-stack mb-0">
+        <thead><tr><th>Booking</th><th>Guest</th><th>Type</th><th>Stay</th><th>Status</th><th><span class="visually-hidden">Action</span></th></tr></thead>
+        <tbody>
+          <% for (const r of arrivals) { %>
+          <tr data-href="/reservations/<%= r.id %>">
+            <td data-cell="primary"><a href="/reservations/<%= r.id %>" class="ref"><%= r.booking_ref %></a></td>
+            <td data-cell="guest"><span class="fw-medium"><%= r.customer_name %></span><% if (r.customer_phone) { %><span class="cell-sub"><%= r.customer_phone %></span><% } %></td>
+            <td data-cell="meta"><%= typeLabel(r.reservation_type) %></td>
+            <td data-cell="meta" class="text-nowrap"><%= stayText(r) %></td>
+            <td data-cell="status"><%- statusBadge(r.status) %></td>
+            <td data-cell="action" class="text-end"><a href="/reservations/<%= r.id %>" class="row-action">Open booking</a></td>
+          </tr>
           <% } %>
-        <% } %>
-      </div>
+        </tbody>
+      </table>
     </div>
+    <% } %>
   </div>
-</div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Today's departures</h3>
+      <span class="panel-meta">Collect any balance before check-out</span>
+    </div>
+    <% if (!departures || departures.length === 0) { %>
+    <div class="empty-inline">No departures scheduled today.</div>
+    <% } else { %>
+    <div class="table-responsive">
+      <table class="table table-br table-stack mb-0">
+        <thead><tr><th>Booking</th><th>Guest</th><th>Type</th><th>Payment</th><th><span class="visually-hidden">Action</span></th></tr></thead>
+        <tbody>
+          <% for (const r of departures) { %>
+          <tr data-href="/reservations/<%= r.id %>">
+            <td data-cell="primary"><a href="/reservations/<%= r.id %>" class="ref"><%= r.booking_ref %></a></td>
+            <td data-cell="guest" class="fw-medium"><%= r.customer_name %></td>
+            <td data-cell="meta"><%= typeLabel(r.reservation_type) %></td>
+            <td data-cell="status"><%- statusBadge(r.payment_status) %></td>
+            <td data-cell="action" class="text-end"><a href="/reservations/<%= r.id %>" class="row-action">Check out</a></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+</section>
+
+<section class="panel" aria-labelledby="pendingTitle">
+  <div class="panel-head">
+    <h3 id="pendingTitle">Pending reservations</h3>
+    <a href="/reservations?status=pending" class="row-action">All pending <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+  </div>
+  <% if (!pendingList || pendingList.length === 0) { %>
+  <div class="empty-inline">Nothing waiting — no pending reservations.</div>
+  <% } else { %>
+  <div class="table-responsive">
+    <table class="table table-br table-stack mb-0">
+      <thead><tr><th>Booking</th><th>Guest</th><th>Booked for</th><th>Received</th><th>Payment</th><th class="num">Amount</th><th><span class="visually-hidden">Action</span></th></tr></thead>
+      <tbody>
+        <% for (const r of pendingList) { %>
+        <tr data-href="/reservations/<%= r.id %>">
+          <td data-cell="primary"><a href="/reservations/<%= r.id %>" class="ref"><%= r.booking_ref %></a></td>
+          <td data-cell="guest" class="fw-medium"><%= r.customer_name %></td>
+          <td data-cell="main" class="cell-meta"><%= typeLabel(r.reservation_type) %> · <%= stayText(r) %></td>
+          <td data-cell="main" class="cell-meta text-nowrap" data-label="Received"><%= formatDate(r.created_at) %></td>
+          <td data-cell="status"><%- statusBadge(r.payment_status) %></td>
+          <td data-cell="amount" class="num"><%= formatPeso(r.total_amount) %></td>
+          <td data-cell="action" class="text-end"><a href="/reservations/<%= r.id %>" class="row-action">Review</a></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+</div><!-- /.dash-main -->
+
+<%
+  const queue = [
+    { href: '/payments?status=received', label: 'Payment proofs to verify', sub: 'Guest screenshots waiting for a staff check', n: stats.proofsToVerify },
+    { href: '/reservations?status=pending', label: 'Pending reservations', sub: 'Confirm, pencil or reject', n: stats.pendingRes },
+    { href: '/reservations?status=awaiting_payment', label: 'Awaiting payment', sub: 'Waiting for the guest’s downpayment', n: stats.awaitingPayment },
+    { href: '/payments/refunds/requests', label: 'Refund requests', sub: 'Guest requests waiting for a decision', n: stats.refundRequests },
+    { href: '/inquiries', label: 'Open inquiries', sub: 'Open or in progress', n: stats.openInquiries },
+    { href: '/reservations?payment=unpaid', label: 'Balance still due', sub: 'Active bookings not fully paid', n: stats.pendingPayments, sub2: true },
+    { href: '/events', label: 'Upcoming events', sub: 'From today, not completed', n: stats.upcomingEvents, quiet: true },
+  ];
+  const waiting = queue.filter(q => !q.quiet && q.n > 0).length;
+  queue.sort((a, b) => (!b.quiet && b.n > 0) - (!a.quiet && a.n > 0));
+%>
+<aside class="dash-aside" aria-label="Right now">
+  <section class="panel ops-panel" aria-labelledby="nowTitle">
+    <div class="panel-head"><h2 id="nowTitle">Right now</h2><span class="panel-meta"><%= waiting ? waiting + (waiting === 1 ? ' queue needs' : ' queues need') + ' attention' : 'Nothing waiting' %></span></div>
+    <ul class="ops-list">
+      <% for (const q of queue) { %>
+      <li<%- q.sub2 ? ' class="ops-li-plain"' : '' %>><a href="<%= q.href %>" class="ops-row<%= !q.quiet && q.n > 0 ? ' is-attention' : '' %>">
+        <span class="ops-label"><%= q.label %><span class="cell-sub"><%= q.sub %></span></span>
+        <span class="ops-value"><%= q.n %><i class="fas fa-chevron-right ops-go" aria-hidden="true"></i></span></a></li>
+      <% if (q.sub2) { %><li><div class="ops-sublinks"><a href="/reservations?payment=unpaid">Unpaid</a><a href="/reservations?payment=partially_paid">Partially paid</a></div></li><% } %>
+      <% } %>
+    </ul>
+  </section>
+
+  <section class="panel" aria-labelledby="inqTitle">
+    <div class="panel-head"><h2 id="inqTitle">Open inquiries</h2><a href="/inquiries" class="row-action">All inquiries</a></div>
+    <% if (!recentInquiries || recentInquiries.length === 0) { %>
+    <div class="empty-inline">No open inquiries.</div>
+    <% } else { %>
+    <ul class="mini-list">
+      <% for (const inq of recentInquiries) { %>
+      <li>
+        <div class="mini-top"><a href="/inquiries/<%= inq.id %>" class="mini-title"><%= inq.subject %></a></div>
+        <div class="cell-sub"><%= inq.name || 'Anonymous' %> · <%= String(inq.category || 'general').replace(/_/g, ' ') %> · <%= formatDate(inq.created_at) %></div>
+      </li>
+      <% } %>
+    </ul>
+    <% } %>
+  </section>
+</aside>
+</div><!-- /.dash-grid -->

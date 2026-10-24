@@ -1,121 +1,94 @@
 <% layout('layouts/main') %>
+<% const cap = (s) => { const t = String(s || '').replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); }; %>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
-      <li class="breadcrumb-item"><a href="/feedback">Feedback</a></li>
-      <li class="breadcrumb-item active"><%= fb.customer_name %></li>
-    </ol></nav>
-    <h3 class="mb-0">Feedback from <%= fb.customer_name %></h3>
-  </div>
-  <div class="page-header-actions">
-    <% if (!fb.admin_response) { %><span class="badge bg-warning text-dark">Awaiting Response</span><% } else { %><span class="badge badge-success">Responded</span><% } %>
+<!--page-head-->
+<a href="/feedback" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Feedback</a>
+<h1 class="ph-title">Feedback from <%= fb.customer_name %></h1>
+<div class="ph-actions">
+    <span class="fb-flag <%= fb.admin_response ? 'is-done' : 'is-todo' %>"><i class="fas <%= fb.admin_response ? 'fa-check' : 'fa-reply' %>" aria-hidden="true"></i><%= fb.admin_response ? 'Responded' : 'Awaiting response' %></span>
     <% if (currentUser && currentUser.role === 'admin') { %>
     <form action="/feedback/<%= fb.id %>/toggle-public" method="POST" class="d-inline">
-      <button type="submit" class="btn btn-sm btn-outline-secondary"
+      <button type="submit" class="btn btn-outline-secondary"
         data-confirm="<%= fb.is_public ? 'Hide this review from the public landing page?' : 'Make this review visible on the public landing page?' %>"
         data-confirm-title="<%= fb.is_public ? 'Hide Review' : 'Show Review' %>"
         data-confirm-ok="<%= fb.is_public ? 'Hide' : 'Show' %>">
-        <i class="fas fa-<%= fb.is_public ? 'eye-slash' : 'eye' %> me-1"></i><%= fb.is_public ? 'Hide' : 'Show' %> Review
+        <i class="fas fa-<%= fb.is_public ? 'eye-slash' : 'eye' %>" aria-hidden="true"></i><%= fb.is_public ? 'Hide from website' : 'Show on website' %>
       </button>
     </form>
     <% } %>
   </div>
-</div>
+<!--/page-head-->
+<div class="page-meta"><%= fb.rating %>/5 · <%= cap(fb.category) %> · <%= formatDateTime(fb.created_at) %> · booking <a href="/reservations/<%= fb.reservation_id %>"><%= fb.booking_ref %></a></div>
 
-<div class="row g-3">
-  <div class="col-lg-7">
-
-    <!-- Review Card -->
-    <div class="card mb-3">
-      <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start mb-3">
-          <div>
-            <div class="mb-1">
-              <% for (let s=1;s<=5;s++) { %>
-              <i class="fas fa-star" style="color:<%= s<=fb.rating?'#f59e0b':'#d1d5db' %>;font-size:1.25rem;"></i>
-              <% } %>
-              <span class="ms-2 fw-bold fs-5"><%= fb.rating %>/5</span>
-            </div>
-            <div class="d-flex gap-2 flex-wrap">
-              <span class="badge bg-light text-dark">Category: <%= fb.category %></span>
-              <% if (!fb.is_public) { %><span class="badge badge-secondary">Hidden from public</span><% } %>
-            </div>
-          </div>
-          <div class="text-muted small text-end">
-            <div><%= formatDateTime(fb.created_at) %></div>
-            <a href="/reservations/<%= fb.reservation_id %>"><code class="small"><%= fb.booking_ref %></code></a>
-          </div>
+<div class="ap-split">
+  <div>
+    <section class="ap-panel" aria-labelledby="fbReviewHeading">
+      <div class="ap-panel-head">
+        <h2 id="fbReviewHeading">Review</h2>
+        <span class="ap-meta"><%= fb.is_public ? 'Visible on website (if rated 4–5)' : 'Hidden from website' %></span>
+      </div>
+      <div class="ap-panel-body">
+        <div class="fb-review-rating">
+          <span class="fb-stars fb-stars-lg" role="img" aria-label="<%= fb.rating %> out of 5"><% for (let s = 1; s <= 5; s++) { %><i class="fas fa-star <%= s <= fb.rating ? 'is-on' : '' %>" aria-hidden="true"></i><% } %></span>
+          <strong><%= fb.rating %>/5</strong>
         </div>
-
-        <blockquote class="blockquote mb-0">
-          <p class="mb-1" style="font-size:.95rem;">"<%= fb.comments %>"</p>
-          <% if (fb.suggestions) { %>
-          <footer class="blockquote-footer mt-2">Suggestion: <cite><%= fb.suggestions %></cite></footer>
-          <% } %>
-        </blockquote>
-
-        <!-- Existing response -->
+        <blockquote class="fb-quote"><p class="mb-0"><%= fb.comments %></p></blockquote>
+        <% if (fb.suggestions) { %><p class="fb-suggestion"><span class="ap-meta">Suggestion:</span> <%= fb.suggestions %></p><% } %>
         <% if (fb.admin_response) { %>
-        <div class="mt-3 p-3 bg-light rounded-3 border-start border-4 border-primary">
-          <div class="small fw-bold text-primary mb-1"><i class="fas fa-reply me-1"></i>Our Response <span class="fw-normal text-muted">— by <%= fb.responded_by_name || 'Staff' %>, <%= formatDate(fb.responded_at) %></span></div>
-          <div class="small"><%= fb.admin_response %></div>
+        <div class="fb-response">
+          <span class="ap-meta">Our response — <%= fb.responded_by_name || 'Staff' %>, <%= formatDate(fb.responded_at) %></span>
+          <p class="mb-0"><%= fb.admin_response %></p>
         </div>
         <% } %>
       </div>
-    </div>
+    </section>
 
-    <!-- Response Form -->
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-reply me-2 text-primary"></i><%= fb.admin_response ? 'Update Response' : 'Write a Response' %></h6></div>
-      <div class="card-body">
+    <section class="ap-panel" aria-labelledby="fbRespondHeading">
+      <div class="ap-panel-head"><h2 id="fbRespondHeading"><%= fb.admin_response ? 'Update response' : 'Write a response' %></h2></div>
+      <div class="ap-panel-body">
         <form action="/feedback/<%= fb.id %>/respond" method="POST">
-          <div class="mb-3">
-            <label class="form-label required">Response Message</label>
-            <textarea name="admin_response" class="form-control" rows="4"
-              placeholder="Write a professional and helpful response to the customer's review…" required><%= fb.admin_response || '' %></textarea>
-            <div class="form-text">This response may be visible to the customer. Keep it professional and helpful.</div>
-          </div>
-          <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane me-1"></i><%= fb.admin_response ? 'Update Response' : 'Send Response' %></button>
+          <label class="form-label required" for="fbResponse">Response</label>
+          <textarea name="admin_response" id="fbResponse" class="form-control" rows="4"
+            placeholder="Thank the guest and address what they raised." required aria-describedby="fbResponseHelp"><%= fb.admin_response || '' %></textarea>
+          <div class="form-text" id="fbResponseHelp">This response may be visible to the customer. Keep it professional and helpful.</div>
+          <div class="mt-3"><button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane" aria-hidden="true"></i><%= fb.admin_response ? 'Update response' : 'Save response' %></button></div>
         </form>
       </div>
-    </div>
-
+    </section>
   </div>
 
-  <div class="col-lg-5">
-    <!-- Customer Info -->
-    <div class="card mb-3">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-user me-2"></i>Customer</h6></div>
-      <div class="card-body">
-        <div class="fw-bold"><%= fb.customer_name %></div>
-        <div class="text-muted small mb-3"><%= fb.customer_email || '—' %></div>
-        <div class="d-flex gap-2">
-          <a href="/crm/customers/<%= fb.cust_id %>" class="btn btn-sm btn-outline-primary">CRM Profile</a>
-          <a href="/reservations/<%= fb.reservation_id %>" class="btn btn-sm btn-outline-secondary">Reservation</a>
-        </div>
+  <aside>
+    <section class="ap-panel" aria-labelledby="fbCustHeading">
+      <div class="ap-panel-head"><h2 id="fbCustHeading">Guest</h2></div>
+      <div class="ap-panel-body">
+        <dl class="ap-dl">
+          <dt>Name</dt><dd><a href="/crm/customers/<%= fb.cust_id %>"><%= fb.customer_name %></a></dd>
+          <dt>Email</dt><dd><%= fb.customer_email || '—' %></dd>
+          <dt>Booking</dt><dd><a href="/reservations/<%= fb.reservation_id %>" class="ap-code"><%= fb.booking_ref %></a> <span class="ap-meta"><%= cap(fb.reservation_type) %></span></dd>
+          <% if (fb.check_in_date || fb.event_date) { %><dt>Stay / event</dt><dd><%= formatDate(fb.check_in_date || fb.event_date) %></dd><% } %>
+        </dl>
       </div>
-    </div>
+    </section>
 
-    <!-- Other Feedback from same customer -->
     <% if (otherFeedback && otherFeedback.length > 0) { %>
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0 small">Other Feedback from this Customer</h6></div>
-      <div class="card-body p-0">
+    <section class="ap-panel" aria-labelledby="fbOtherHeading">
+      <div class="ap-panel-head"><h2 id="fbOtherHeading">Other feedback from this guest</h2></div>
+      <ul class="fb-list fb-list-compact">
         <% for (const o of otherFeedback) { %>
-        <div class="p-3 border-bottom">
-          <div class="d-flex justify-content-between align-items-center">
-            <div>
-              <% for (let s=1;s<=5;s++) { %><i class="fas fa-star" style="color:<%= s<=o.rating?'#f59e0b':'#d1d5db' %>;font-size:.75rem;"></i><% } %>
-            </div>
-            <a href="/feedback/<%= o.id %>" class="btn btn-xs btn-outline-secondary">View</a>
+        <li class="fb-item">
+          <div class="fb-item-head">
+            <span class="fb-stars" role="img" aria-label="<%= o.rating %> out of 5"><% for (let s = 1; s <= 5; s++) { %><i class="fas fa-star <%= s <= o.rating ? 'is-on' : '' %>" aria-hidden="true"></i><% } %></span>
+            <span class="ap-meta"><%= formatDate(o.created_at) %> · <span class="ap-code"><%= o.booking_ref %></span></span>
+            <a href="/feedback/<%= o.id %>" class="ap-act ms-auto">View</a>
           </div>
-          <div class="text-muted small mt-1"><%= o.comments ? o.comments.slice(0,60) + (o.comments.length>60?'…':'') : '—' %></div>
-          <div class="text-muted" style="font-size:.7rem;"><%= formatDate(o.created_at) %> &middot; <code class="small"><%= o.booking_ref %></code></div>
-        </div>
+          <p class="fb-comment"><%= o.comments ? o.comments.slice(0, 90) + (o.comments.length > 90 ? '…' : '') : '—' %></p>
+        </li>
         <% } %>
-      </div>
-    </div>
+      </ul>
+    </section>
     <% } %>
-  </div>
+  </aside>
+</div>
+
 </div>

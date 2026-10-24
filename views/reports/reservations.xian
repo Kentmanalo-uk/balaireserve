@@ -1,4 +1,12 @@
 <% layout('layouts/main') %>
+<%
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const exportQs = 'from=' + filters.from + '&to=' + filters.to + '&status=' + filters.status + '&type=' + filters.type;
+  const listedValue = (reservations || []).reduce((s, r) => s + Number(r.total_amount || 0), 0);
+  const allInPeriod = (statusSummary || []).reduce((s, x) => s + Number(x.cnt || 0), 0);
+  const filtered = !!(filters.status || filters.type);
+%>
+<div class="ap-page rpt-page">
 
 <div class="print-header d-none">
   <div class="print-resort-name"><%= reportBrand.name %></div>
@@ -7,61 +15,72 @@
 </div>
 
 <div class="page-header no-print">
-  <div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/reports">Reports</a></li><li class="breadcrumb-item active">Reservation Report</li></ol></nav><h3 class="mb-0">Reservation Report</h3></div>
-  <div class="page-header-actions d-flex gap-2">
-    <div class="btn-group btn-group-sm">
-      <a href="/reports/export/reservations?format=xlsx&from=<%= filters.from %>&to=<%= filters.to %>&status=<%= filters.status %>&type=<%= filters.type %>" class="btn btn-outline-success"><i class="fas fa-file-excel me-1"></i>Excel</a>
-      <a href="/reports/export/reservations?format=docx&from=<%= filters.from %>&to=<%= filters.to %>&status=<%= filters.status %>&type=<%= filters.type %>" class="btn btn-outline-primary"><i class="fas fa-file-word me-1"></i>Word</a>
-      <a href="/reports/export/reservations?format=csv&from=<%= filters.from %>&to=<%= filters.to %>&status=<%= filters.status %>&type=<%= filters.type %>" class="btn btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
-    </div>
-    <button type="button" class="btn btn-sm btn-dark" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+  <div>
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/reports">Reports</a></li><li class="breadcrumb-item active" aria-current="page">Reservations</li></ol></nav>
+    <h1>Reservation report</h1>
+    <p class="ap-sub">Bookings created from <strong><%= formatDate(filters.from) %></strong> to <strong><%= formatDate(filters.to) %></strong><%= filtered ? ', filtered by ' + [filters.status && statusLabel(filters.status), filters.type].filter(Boolean).join(' · ') : '' %>.</p>
+  </div>
+  <div class="page-header-actions rpt-actions">
+    <% if (isAdmin) { %>
+    <span class="ap-meta rpt-actions-label">Download</span>
+    <a href="/reports/export/reservations?format=xlsx&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-excel rpt-ic-xlsx" aria-hidden="true"></i>Excel</a>
+    <a href="/reports/export/reservations?format=docx&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-word rpt-ic-docx" aria-hidden="true"></i>Word</a>
+    <a href="/reports/export/reservations?format=csv&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-csv rpt-ic-csv" aria-hidden="true"></i>CSV</a>
+    <% } %>
+    <button type="button" class="btn btn-outline-secondary btn-print" data-action="print"><i class="fas fa-print" aria-hidden="true"></i>Print</button>
   </div>
 </div>
-<div class="card mb-3"><div class="card-body py-2">
-  <form method="GET" action="/reports/reservations" class="row g-2 align-items-end">
-    <div class="col-6 col-md-2"><input type="date" name="from" value="<%= filters.from %>" class="form-control form-control-sm" /></div>
-    <div class="col-6 col-md-2"><input type="date" name="to" value="<%= filters.to %>" class="form-control form-control-sm" /></div>
-    <div class="col-6 col-md-2"><select name="status" class="form-select form-select-sm"><option value="">All Statuses</option><% for (const s of ['pending','awaiting_payment','confirmed','checked_in','completed','cancelled','no_show']) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option><% } %></select></div>
-    <div class="col-6 col-md-2"><select name="type" class="form-select form-select-sm"><option value="">All Types</option><% for (const t of ['room','venue','event','cottage']) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t %></option><% } %></select></div>
-    <div class="col-6 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100">Generate</button></div>
-  </form>
-</div></div>
-<div class="row g-3 mb-3">
-  <% for (const s of statusSummary) { %>
-  <div class="col-6 col-md-3"><div class="stat-card stat-secondary"><div class="stat-body"><div class="stat-value"><%= s.cnt %></div><div class="stat-label"><%= s.status.replace(/_/g,' ') %></div></div></div></div>
-  <% } %>
+
+<form method="GET" action="/reports/reservations" class="ap-toolbar no-print" aria-label="Report filters">
+  <div class="ap-field"><label for="rptFrom">Booked from</label><input type="date" id="rptFrom" name="from" value="<%= filters.from %>" class="form-control" /></div>
+  <div class="ap-field"><label for="rptTo">Booked to</label><input type="date" id="rptTo" name="to" value="<%= filters.to %>" class="form-control" /></div>
+  <div class="ap-field"><label for="rptStatus">Status</label><select id="rptStatus" name="status" class="form-select"><option value="">All statuses</option><% for (const s of ['pending','awaiting_payment','confirmed','checked_in','completed','cancelled','no_show']) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %></select></div>
+  <div class="ap-field"><label for="rptType">Type</label><select id="rptType" name="type" class="form-select"><option value="">All types</option><% for (const t of ['room','venue','event','cottage']) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t.charAt(0).toUpperCase() + t.slice(1) %></option><% } %></select></div>
+  <div class="ap-toolbar-actions"><button type="submit" class="btn btn-primary">Update report</button></div>
+</form>
+
+<div class="ap-kpis" role="group" aria-label="Totals">
+  <div class="ap-kpi"><span class="ap-kpi-label">Bookings listed</span><span class="ap-kpi-value"><%= reservations ? reservations.length : 0 %></span></div>
+  <div class="ap-kpi"><span class="ap-kpi-label">Booked value (listed)</span><span class="ap-kpi-value"><%= formatPeso(listedValue) %></span></div>
+  <div class="ap-kpi"><span class="ap-kpi-label">All bookings in period</span><span class="ap-kpi-value"><%= allInPeriod %></span><span class="ap-kpi-note">any status or type</span></div>
 </div>
-<div class="card"><div class="card-body p-0">
-  <table class="table table-hover mb-0">
-    <thead><tr><th>Booking Ref</th><th>Customer</th><th>Type</th><th>Date</th><th>Amount</th><th>Payment</th><th>Status</th></tr></thead>
-    <tbody>
-      <% if (!reservations || reservations.length === 0) { %><tr><td colspan="7" class="text-center py-4 text-muted">No reservations in this period.</td></tr>
-      <% } else { %>
+
+<% if (statusSummary && statusSummary.length) { %>
+<section class="rpt-status-summary" aria-labelledby="rptStatusHeading">
+  <h2 id="rptStatusHeading">By status <span class="ap-meta">(all bookings created in the period)</span></h2>
+  <ul>
+    <% for (const s of statusSummary) { %>
+    <li><%- statusBadge(s.status) %><span class="rpt-count"><%= s.cnt %></span></li>
+    <% } %>
+  </ul>
+</section>
+<% } %>
+
+<section class="ap-panel" aria-labelledby="rptListHeading">
+  <div class="ap-panel-head"><h2 id="rptListHeading">Bookings <span class="ap-meta"><%= reservations ? reservations.length : 0 %></span></h2></div>
+  <% if (!reservations || reservations.length === 0) { %>
+  <div class="ap-empty"><strong>No reservations in this period</strong>Try a wider date range or clear the status and type filters.</div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead><tr><th scope="col">Booking</th><th scope="col">Guest</th><th scope="col">Type</th><th scope="col">Stay / event date</th><th scope="col" class="num">Amount</th><th scope="col">Payment</th><th scope="col">Status</th></tr></thead>
+      <tbody>
         <% for (const r of reservations) { %>
-        <tr><td><a href="/reservations/<%= r.id %>"><code class="small"><%= r.booking_ref %></code></a></td><td><%= r.customer_name %></td><td><span class="badge bg-light text-dark small"><%= r.reservation_type %></span></td><td class="small"><%= formatDate(r.check_in_date || r.event_date) %></td><td><%= formatPeso(r.total_amount) %></td><td><%- statusBadge(r.payment_status) %></td><td><%- statusBadge(r.status) %></td></tr>
+        <tr>
+          <td class="ap-cell-title"><a href="/reservations/<%= r.id %>" class="ap-name text-nowrap"><%= r.booking_ref %></a></td>
+          <td data-label="Guest"><%= r.customer_name %></td>
+          <td data-label="Type" class="text-capitalize"><%= r.reservation_type %></td>
+          <td data-label="Date" class="text-nowrap"><%= formatDate(r.check_in_date || r.event_date) %></td>
+          <td class="num" data-label="Amount"><%= formatPeso(r.total_amount) %></td>
+          <td data-label="Payment"><%- statusBadge(r.payment_status) %></td>
+          <td class="ap-cell-status"><%- statusBadge(r.status) %></td>
+        </tr>
         <% } %>
-      <% } %>
-    </tbody>
-  </table>
-</div></div>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
 
 <div class="print-footer d-none">Generated by <%= resort.name %> Booking System</div>
-
-<style>
-@media print {
-  .sidebar, .app-navbar, .navbar, .app-footer, .no-print, #toastContainer, .breadcrumb { display: none !important; }
-  .main-wrapper, .page-content, .content-wrapper { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-  body { background: #fff !important; }
-  .print-header { display: block !important; text-align: center; border-bottom: 2px solid #15803d; padding-bottom: 8px; margin-bottom: 16px; }
-  .print-resort-name { font-size: 20px; font-weight: 700; color: #15803d; }
-  .print-resort-addr { font-size: 11px; color: #555; }
-  .print-report-title { font-size: 14px; font-weight: 700; margin-top: 6px; }
-  .print-footer { display: block !important; text-align: center; font-size: 10px; color: #777; border-top: 1px solid #cbd5e1; padding-top: 6px; margin-top: 18px; }
-  .card { border: none !important; box-shadow: none !important; }
-  .stat-card { border: 1px solid #e5e7eb !important; }
-  table { font-size: 11px; }
-  thead { display: table-header-group; }
-  tr { page-break-inside: avoid; }
-  @page { margin: 14mm; }
-}
-</style>
+</div>

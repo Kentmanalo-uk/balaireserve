@@ -1,51 +1,87 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Events</h3><p class="text-muted mb-0">Manage all event bookings</p></div>
-  <div class="page-header-actions">
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/events/new" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>New Event</a>
-    <% } %>
+<%
+  const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const filtered  = !!(filters.search || filters.type || filters.status || filters.from || filters.to);
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Events</h1>
+<% if (canManage) { %>
+  <div class="ph-actions">
+    <a href="/events/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New event</a>
   </div>
-</div>
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/events" class="row g-2 align-items-end">
-      <div class="col-12 col-md-3"><input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Event name or customer..." /></div>
-      <div class="col-6 col-md-2"><select name="type" class="form-select form-select-sm"><option value="">All Types</option><% for (const t of eventTypes) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t.replace(/_/g,' ') %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><select name="status" class="form-select form-select-sm"><option value="">All Statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><input type="date" name="from" value="<%= filters.from %>" class="form-control form-control-sm" /></div>
-      <div class="col-6 col-md-2"><input type="date" name="to" value="<%= filters.to %>" class="form-control form-control-sm" /></div>
-      <div class="col-6 col-md-1"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-    </form>
+  <% } %>
+<!--/page-head-->
+
+<form method="GET" action="/events" class="ap-toolbar" role="search" aria-label="Filter events">
+  <div class="ap-field ap-field-search">
+    <label for="eventSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="eventSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Event name or customer" /></div>
   </div>
-</div>
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>Event Name</th><th>Customer</th><th>Type</th><th>Date</th><th>Time</th><th>Venue</th><th>Attendees</th><th>Cost</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-          <% if (!events || events.length === 0) { %>
-          <tr><td colspan="10" class="text-center py-4 text-muted">No events found.</td></tr>
-          <% } else { %>
-            <% for (const e of events) { %>
-            <tr>
-              <td><a href="/events/<%= e.id %>" class="fw-medium"><%= e.event_name %></a></td>
-              <td><%= e.customer_name %></td>
-              <td><span class="badge bg-light text-dark small"><%= e.event_type %></span></td>
-              <td class="small text-nowrap"><%= formatDate(e.event_date) %></td>
-              <td class="small text-nowrap"><%= e.start_time %> – <%= e.end_time %></td>
-              <td class="small"><%= e.venue_name || '—' %></td>
-              <td class="text-center"><%= e.num_attendees %></td>
-              <td class="fw-medium"><%= formatPeso(e.total_cost) %></td>
-              <td><%- statusBadge(e.status) %></td>
-              <td><a href="/events/<%= e.id %>" class="btn btn-xs btn-outline-primary">View</a></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
+  <div class="ap-field">
+    <label for="eventTypeFilter">Type</label>
+    <select id="eventTypeFilter" name="type" class="form-select"><option value="">All types</option><% for (const t of eventTypes) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= statusLabel(t) %></option><% } %></select>
   </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
+  <div class="ap-field">
+    <label for="eventStatusFilter">Status</label>
+    <select id="eventStatusFilter" name="status" class="form-select"><option value="">All statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %></select>
+  </div>
+  <div class="ap-field">
+    <label for="eventFrom">From</label>
+    <input type="date" id="eventFrom" name="from" value="<%= filters.from %>" class="form-control" />
+  </div>
+  <div class="ap-field">
+    <label for="eventTo">To</label>
+    <input type="date" id="eventTo" name="to" value="<%= filters.to %>" class="form-control" />
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/events" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<section class="ap-panel" aria-labelledby="eventsHeading">
+  <div class="ap-panel-head">
+    <h2 id="eventsHeading">Event bookings <span class="ap-meta"><%= pagination.total %> event<%= pagination.total === 1 ? '' : 's' %><%= filtered ? ' match' : '' %></span></h2>
+  </div>
+  <% if (!events || events.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No events match these filters' : 'No events yet' %></strong>
+    <%= filtered ? 'Try a different search or date range.' : 'Events you create for customers will be listed here.' %>
+    <% if (filtered) { %><div><a href="/events" class="btn btn-outline-secondary btn-sm">Clear filters</a></div><% } else if (canManage) { %><div><a href="/events/new" class="btn btn-primary btn-sm">New event</a></div><% } %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Event</th>
+          <th scope="col">Date and time</th>
+          <th scope="col" class="cat-col-opt">Venue</th>
+          <th scope="col" class="num">Guests</th>
+          <th scope="col" class="num">Cost</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const e of events) { %>
+        <tr>
+          <td class="ap-cell-title"><a href="/events/<%= e.id %>" class="ap-name"><%= e.event_name %></a><span class="ap-line2"><%= e.customer_name %> · <%= statusLabel(e.event_type) %></span></td>
+          <td data-label="Date and time" class="ap-wide"><span class="text-nowrap"><%= formatDate(e.event_date) %></span> <span class="ap-muted text-nowrap"><%= e.start_time %>–<%= e.end_time %></span></td>
+          <td class="cat-col-opt" data-label="Venue"><%= e.venue_name || '—' %></td>
+          <td class="num" data-label="Guests"><%= e.num_attendees %></td>
+          <td class="num" data-label="Cost"><strong><%= formatPeso(e.total_cost) %></strong></td>
+          <td class="ap-cell-status"><%- statusBadge(e.status) %></td>
+          <td class="ap-row-actions"><div class="ap-actions"><a href="/events/<%= e.id %>" class="ap-act">View</a></div></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% if (pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+  <% } %>
+</section>
+
 </div>

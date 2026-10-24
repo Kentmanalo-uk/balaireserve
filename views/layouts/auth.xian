@@ -4,43 +4,64 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= title || 'Balai-Reserve' %></title>
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/brand/balai-icon-32.png" />
+  <link rel="apple-touch-icon" href="/images/brand/balai-icon-192.png" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/auth.css" />
 </head>
 <body class="auth-body">
-  <a href="/" class="auth-back-home">
-    <i class="fas fa-arrow-left me-1"></i> Back to Home
-  </a>
+  <a href="#authMain" class="visually-hidden-focusable position-absolute top-0 start-0 m-2 btn btn-primary btn-sm" style="z-index:1100">Skip to sign-in form</a>
+  <div class="auth-shell">
 
-  <div class="auth-wrapper">
-    <div class="auth-card">
-      <div class="auth-brand">
-        <div class="brand-icon">
-          <i class="fas fa-home"></i>
-        </div>
-        <h1 class="brand-name">Balai-Reserve</h1>
-        <p class="brand-tagline">Your Home Away From Home</p>
-      </div>
+    <%# Same wordmark and back link as the public site header %>
+    <header class="auth-header">
+      <a href="/" class="auth-mark" aria-label="Balai-Reserve home">
+        <img src="/images/brand/balai-icon-96.png" alt="" width="44" height="44" class="brand-logo" />
+        <span class="auth-mark-name">Balai-Reserve</span>
+        <span class="auth-mark-sub">Gloria, Oriental Mindoro</span>
+      </a>
+      <a href="/" class="auth-back-home"><i class="fas fa-arrow-left" aria-hidden="true"></i>Back to the resort</a>
+    </header>
 
-      <% if (flash && flash.error) { %>
-      <div class="alert alert-danger mb-3 py-2 small">
-        <i class="fas fa-exclamation-circle me-1"></i><%= flash.error %>
+    <%# The resort's own beachfront photo, as on the landing hero %>
+    <div class="auth-photo">
+      <div class="auth-photo-text">
+        <p class="auth-photo-tagline">Your Home Away From Home</p>
+        <p class="auth-photo-place">Brgy. San Antonio, Gloria, Oriental Mindoro</p>
       </div>
-      <% } %>
-      <% if (flash && flash.success) { %>
-      <div class="alert alert-success mb-3 py-2 small">
-        <i class="fas fa-check-circle me-1"></i><%= flash.success %>
-      </div>
-      <% } %>
-      <% if (flash && flash.info) { %>
-      <div class="alert alert-info mb-3 py-2 small">
-        <i class="fas fa-info-circle me-1"></i><%= flash.info %>
-      </div>
-      <% } %>
-
-      <%- body %>
     </div>
+
+    <main class="auth-main" id="authMain">
+
+      <div class="auth-wrapper">
+        <div class="auth-card">
+          <% if (flash && flash.error) { %>
+          <div class="alert alert-danger auth-alert" role="alert">
+            <i class="fas fa-exclamation-circle" aria-hidden="true"></i><span><%= flash.error %></span>
+          </div>
+          <% } %>
+          <% if (flash && flash.success) { %>
+          <div class="alert alert-success auth-alert" role="status">
+            <i class="fas fa-check-circle" aria-hidden="true"></i><span><%= flash.success %></span>
+          </div>
+          <% } %>
+          <% if (flash && flash.info) { %>
+          <div class="alert alert-info auth-alert" role="status">
+            <i class="fas fa-info-circle" aria-hidden="true"></i><span><%= flash.info %></span>
+          </div>
+          <% } %>
+
+          <%- body %>
+        </div>
+      </div>
+    </main>
+
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

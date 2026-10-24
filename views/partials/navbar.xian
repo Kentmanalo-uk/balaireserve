@@ -1,48 +1,55 @@
-<header class="top-navbar">
+<%
+  // Today's date in the resort's time zone, so the front desk always sees the
+  // operational day regardless of the server clock.
+  const phToday = new Date().toLocaleDateString('en-PH', { timeZone: 'Asia/Manila', weekday: 'short', month: 'short', day: 'numeric' });
+  // The page's own header (back link, h1 title, contextual actions) is lifted
+  // out of the view by layouts/main.xian and rendered here, so a page has one
+  // title — in the top bar — instead of a top bar title plus a page header.
+  const head = (typeof pageHead !== 'undefined' && pageHead) ? pageHead : '';
+%>
+<header class="top-navbar<%= head && /class="ph-actions/.test(head) ? ' has-actions' : '' %><%= head && /class="ph-back/.test(head) ? ' has-back' : '' %>">
 
-  <!-- Left: Hamburger + Page Title -->
-  <div class="navbar-left">
-    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
-      <i class="fas fa-bars"></i>
-    </button>
-    <h2 class="page-title d-none d-md-block"><%= title ? title.split('–')[0].trim() : 'Dashboard' %></h2>
-  </div>
+  <button type="button" class="sidebar-toggle" id="sidebarToggle" aria-controls="sidebar" aria-expanded="false">
+    <i class="fas fa-bars" aria-hidden="true"></i><span>Menu</span>
+  </button>
 
-  <!-- Right: Actions -->
+  <div class="topbar-head"><%- head %></div>
+
   <div class="navbar-right">
+    <span class="topbar-date" title="Today in Philippine time"><%= phToday %></span>
 
-    <!-- Notification Bell -->
     <div class="dropdown">
-      <button class="navbar-icon-btn" data-bs-toggle="dropdown" aria-expanded="false" id="notifDropdown">
-        <i class="fas fa-bell"></i>
+      <button type="button" class="navbar-icon-btn" data-bs-toggle="dropdown" aria-expanded="false" id="notifDropdown"
+              aria-label="Notifications<%= unreadNotifCount > 0 ? ', ' + unreadNotifCount + ' unread' : '' %>">
+        <i class="fas fa-bell" aria-hidden="true"></i>
         <% if (unreadNotifCount > 0) { %>
-          <span class="notif-badge"><%= unreadNotifCount > 9 ? '9+' : unreadNotifCount %></span>
+          <span class="notif-badge" aria-hidden="true"><%= unreadNotifCount > 9 ? '9+' : unreadNotifCount %></span>
         <% } %>
       </button>
       <div class="dropdown-menu dropdown-menu-end notif-dropdown" aria-labelledby="notifDropdown">
         <div class="notif-header">
           <span>Notifications</span>
           <% if (unreadNotifCount > 0) { %>
-            <span class="notif-count"><%= unreadNotifCount %> new</span>
+            <span class="notif-count"><%= unreadNotifCount %> unread</span>
           <% } %>
         </div>
         <div class="notif-list">
           <% if (!recentNotifications || recentNotifications.length === 0) { %>
-            <div class="notif-empty">No notifications</div>
+            <div class="notif-empty">You're all caught up.</div>
           <% } else { %>
             <% for (const n of recentNotifications) { %>
               <a href="<%= n.link || '/notifications' %>" class="notif-item <%= n.is_read ? '' : 'unread' %>">
-                <div class="notif-icon notif-<%= n.type %>">
+                <div class="notif-icon notif-<%= n.type %>" aria-hidden="true">
                   <% if (n.type === 'reservation') { %><i class="fas fa-calendar-check"></i>
                   <% } else if (n.type === 'payment') { %><i class="fas fa-money-bill-wave"></i>
-                  <% } else if (n.type === 'inventory') { %><i class="fas fa-exclamation-triangle"></i>
-                  <% } else if (n.type === 'inquiry') { %><i class="fas fa-question-circle"></i>
+                  <% } else if (n.type === 'inventory') { %><i class="fas fa-triangle-exclamation"></i>
+                  <% } else if (n.type === 'inquiry') { %><i class="fas fa-inbox"></i>
                   <% } else { %><i class="fas fa-bell"></i><% } %>
                 </div>
                 <div class="notif-text">
-                  <div class="notif-title"><%= n.title %></div>
+                  <div class="notif-title"><% if (!n.is_read) { %><span class="visually-hidden">Unread: </span><% } %><%= n.title %></div>
                   <div class="notif-msg"><%= n.message %></div>
-                  <div class="notif-time"><%= formatDate(n.created_at) %></div>
+                  <div class="notif-time"><%= formatDateTime(n.created_at) %></div>
                 </div>
               </a>
             <% } %>
@@ -54,28 +61,24 @@
       </div>
     </div>
 
-    <!-- User Menu -->
     <% if (currentUser) { %>
     <div class="dropdown">
-      <button class="navbar-user-btn" data-bs-toggle="dropdown" aria-expanded="false">
-        <div class="user-avatar-sm">
-          <% if (currentUser.avatar) { %>
-            <img src="<%= currentUser.avatar %>" alt="Avatar" />
-          <% } else { %>
-            <span><%= currentUser.firstName.charAt(0) %><%= currentUser.lastName.charAt(0) %></span>
-          <% } %>
-        </div>
-        <span class="d-none d-sm-inline"><%= currentUser.firstName %></span>
-        <i class="fas fa-chevron-down ms-1 small"></i>
+      <button type="button" class="navbar-user-btn" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Account menu for <%= currentUser.firstName %>">
+        <span class="user-avatar-sm" aria-hidden="true">
+          <% if (currentUser.avatar) { %><img src="<%= currentUser.avatar %>" alt="" /><% } else { %><%= currentUser.firstName.charAt(0) %><%= currentUser.lastName.charAt(0) %><% } %>
+        </span>
+        <i class="fas fa-chevron-down nav-caret" aria-hidden="true"></i>
       </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li><h6 class="dropdown-header"><%= currentUser.firstName %> <%= currentUser.lastName %></h6></li>
-        <li><span class="dropdown-item-text text-muted small"><%= currentUser.roleLabel %></span></li>
+      <ul class="dropdown-menu dropdown-menu-end account-menu">
+        <li><h6 class="dropdown-header"><%= currentUser.firstName %> <%= currentUser.lastName %><span><%= currentUser.roleLabel %></span></h6></li>
         <li><hr class="dropdown-divider"></li>
-        <li><a class="dropdown-item" href="/auth/logout"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></li>
+        <li><a class="dropdown-item" href="/profile"><i class="fas fa-circle-user" aria-hidden="true"></i>My profile</a></li>
+        <li><a class="dropdown-item" href="/notifications"><i class="fas fa-bell" aria-hidden="true"></i>All notifications</a></li>
+        <li><a class="dropdown-item" href="/" ><i class="fas fa-house" aria-hidden="true"></i>View resort site</a></li>
+        <li><hr class="dropdown-divider"></li>
+        <li><a class="dropdown-item" href="/auth/logout"><i class="fas fa-arrow-right-from-bracket" aria-hidden="true"></i>Log out</a></li>
       </ul>
     </div>
     <% } %>
-
   </div>
 </header>

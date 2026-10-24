@@ -1,282 +1,578 @@
 <% layout('layouts/main') %>
+<%
+  const methodLabel = m => ({ cash:'Cash', gcash:'GCash', maya:'Maya', bank_transfer:'Bank transfer', credit_card:'Credit card', check:'Check' })[m] || String(m || '—').replace(/_/g, ' ');
+  const typeLabel   = t => ({ room:'Room', cottage:'Cottage', venue:'Venue', event_package:'Event package', event:'Event' })[t] || String(t || '—').replace(/_/g, ' ');
+  const payTypeLabel = t => ({ downpayment:'Downpayment', full_payment:'Full payment', balance:'Balance', refund:'Refund payout' })[t] || String(t || '—').replace(/_/g, ' ');
+  const plural      = (n, one, many) => n + ' ' + (n === 1 ? one : (many || one + 's'));
+  const pctOf       = (part, whole) => whole > 0 ? Math.round((part / whole) * 100) : 0;
+  // Payment-method colours (each also labelled in text): ocean, blue, green, sand, slate.
+  const methodTone  = m => ({ cash:'m-cash', gcash:'m-gcash', maya:'m-maya', bank_transfer:'m-bank' })[m] || 'm-other';
+%>
 
-<div class="page-header">
-  <div>
-    <h3 class="mb-1">Admin Dashboard</h3>
-    <p class="text-muted mb-0">Welcome back, <%= currentUser.firstName %>! Here's the full business overview.</p>
-  </div>
-  <div class="page-header-actions">
-    <a href="/reservations/new" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>New Reservation</a>
-    <a href="/reports" class="btn btn-outline-secondary btn-sm"><i class="fas fa-file-alt me-1"></i>Reports</a>
-  </div>
+<!--page-head-->
+<h1 class="ph-title">Dashboard</h1>
+<div class="ph-actions">
+  <a href="/reports" class="btn btn-secondary-quiet">Reports</a>
+  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New walk-in</a>
 </div>
+<!--/page-head-->
 
-<!-- Stats Grid: 8 cards, 4 per row on desktop, 2 per row on mobile -->
-<div class="row g-3 mb-4">
-  <!-- 1. This Month's Revenue -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-success">
-      <div class="stat-icon"><i class="fas fa-coins"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= formatPeso(stats.monthRevenue) %></div>
-        <div class="stat-label">This Month's Revenue</div>
-        <% if (stats.revChange !== null) { %>
-        <div class="stat-sub <%= stats.revChange >= 0 ? 'text-success' : 'text-danger' %>">
-          <i class="fas fa-arrow-<%= stats.revChange >= 0 ? 'up' : 'down' %> me-1"></i><%= Math.abs(stats.revChange) %>% vs last month
-        </div>
-        <% } %>
-      </div>
-    </div>
+<%# Payment method breakdown: one stacked bar + a labelled list (numbers in text, not colour alone) %>
+<% function methodBreakdown(sales, emptyText) { %>
+  <% if (!sales.methods.length) { %>
+  <p class="mb-0 text-secondary small"><%= emptyText %></p>
+  <% } else { %>
+  <div class="method-bar" aria-hidden="true">
+    <% for (const m of sales.methods) { %><span class="<%= methodTone(m.method) %>" style="width:<%= Math.max(pctOf(m.total, sales.total), 2) %>%"></span><% } %>
   </div>
-  <!-- 2. Total Revenue -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-info">
-      <div class="stat-icon"><i class="fas fa-money-bill-wave"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= formatPeso(stats.totalRevenue) %></div>
-        <div class="stat-label">Total Revenue (All Time)</div>
-        <div class="stat-sub"><%= stats.pendingPayments %> pending payment<%= stats.pendingPayments === 1 ? '' : 's' %></div>
-      </div>
-    </div>
-  </div>
-  <!-- 3. Customer Satisfaction -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-warning">
-      <div class="stat-icon"><i class="fas fa-star-half-alt"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.avgRating || '—' %> <i class="fas fa-star" style="font-size:.85rem;color:#f59e0b"></i></div>
-        <div class="stat-label">Customer Satisfaction</div>
-        <div class="stat-sub"><%= stats.totalCustomers %> customer<%= stats.totalCustomers === 1 ? '' : 's' %> total</div>
-      </div>
-    </div>
-  </div>
-  <!-- 4. Pending Reservations -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-danger">
-      <div class="stat-icon"><i class="fas fa-clock"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.pendingRes %></div>
-        <div class="stat-label">Pending Reservations</div>
-        <div class="stat-sub"><%= stats.openInquiries %> open inquir<%= stats.openInquiries === 1 ? 'y' : 'ies' %></div>
-      </div>
-    </div>
-  </div>
-  <!-- 5. Total Reservations -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-primary">
-      <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.totalReservations %></div>
-        <div class="stat-label">Total Reservations</div>
-        <div class="stat-sub"><%= stats.todayCheckIns %> checked in today</div>
-      </div>
-    </div>
-  </div>
-  <!-- 6. Rooms Available -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-success">
-      <div class="stat-icon"><i class="fas fa-door-open"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.availableRooms %> / <%= stats.totalRooms %></div>
-        <div class="stat-label">Rooms Available</div>
-        <div class="stat-sub"><%= stats.occupiedRooms %> currently occupied</div>
-      </div>
-    </div>
-  </div>
-  <!-- 7. Venues Available -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-info">
-      <div class="stat-icon"><i class="fas fa-map-marker-alt"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.availableVenues %> / <%= stats.totalVenues %></div>
-        <div class="stat-label">Venues Available</div>
-        <div class="stat-sub"><%= stats.occupiedVenues %> reserved/occupied</div>
-      </div>
-    </div>
-  </div>
-  <!-- 8. Cottages Available -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-orange">
-      <div class="stat-icon"><i class="fas fa-home"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.availableCottages %> / <%= stats.totalCottages %></div>
-        <div class="stat-label">Cottages Available</div>
-        <div class="stat-sub"><%= stats.occupiedCottages %> reserved/occupied</div>
-      </div>
-    </div>
-  </div>
-  <!-- 9. Upcoming Events -->
-  <div class="col-6 col-lg-3">
-    <div class="stat-card stat-warning">
-      <div class="stat-icon"><i class="fas fa-star"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= stats.upcomingEvents %></div>
-        <div class="stat-label">Upcoming Events</div>
-        <div class="stat-sub">Next 7 days</div>
-      </div>
-    </div>
-  </div>
-  <!-- 10. Inventory Alerts -->
-  <div class="col-6 col-lg-3">
-    <% if (invAlerts && invAlerts.length > 0) { %>
-    <a href="/inventory?alert=low" class="stat-card stat-dark text-decoration-none">
-      <div class="stat-icon"><i class="fas fa-exclamation-triangle"></i></div>
-      <div class="stat-body">
-        <div class="stat-value"><%= invAlerts.length %></div>
-        <div class="stat-label">Inventory Alerts</div>
-        <div class="stat-sub">Low stock items</div>
-      </div>
-    </a>
-    <% } else { %>
-    <div class="stat-card stat-secondary">
-      <div class="stat-icon"><i class="fas fa-boxes-stacked"></i></div>
-      <div class="stat-body">
-        <div class="stat-value">0</div>
-        <div class="stat-label">Inventory Alerts</div>
-        <div class="stat-sub">Stock levels healthy</div>
-      </div>
-    </div>
+  <ul class="method-list">
+    <% for (const m of sales.methods) { %>
+    <li>
+      <span class="ml-name"><span class="ml-swatch <%= methodTone(m.method) %>" aria-hidden="true"></span><%= methodLabel(m.method) %></span>
+      <span class="ml-count"><%= plural(m.cnt, 'payment') %></span>
+      <span class="ml-amount"><%= formatPeso(m.total) %></span>
+      <span class="ml-pct"><%= pctOf(m.total, sales.total) %>%</span>
+    </li>
     <% } %>
-  </div>
-</div>
+  </ul>
+  <% } %>
+<% } %>
 
-<!-- Charts Row -->
-<div class="row g-3 mb-4">
-  <div class="col-lg-8">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-chart-line me-2 text-primary"></i>Revenue Trend (Last 6 Months)</h6></div>
-      <div class="card-body"><canvas id="revenueChart" height="100"></canvas></div>
-    </div>
-  </div>
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-chart-pie me-2 text-success"></i>Reservation Status</h6></div>
-      <div class="card-body d-flex align-items-center justify-content-center">
-        <canvas id="statusChart" height="180"></canvas>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- Period switcher + period controls -->
+<div class="dash-controls">
+  <nav class="dash-views" aria-label="Review period">
+    <a href="/dashboard?view=daily" <%- view === 'daily' ? 'aria-current="page"' : '' %>>Daily</a>
+    <a href="/dashboard?view=monthly&year=<%= selectedYear %>" <%- view === 'monthly' ? 'aria-current="page"' : '' %>>Monthly</a>
+    <a href="/dashboard?view=yearly" <%- view === 'yearly' ? 'aria-current="page"' : '' %>>Yearly</a>
+  </nav>
 
-<!-- Tables Row -->
-<div class="row g-3 mb-4">
-  <!-- Recent Reservations -->
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-calendar-check me-2 text-primary"></i>Recent Reservations</h6>
-        <a href="/reservations" class="btn btn-sm btn-outline-primary">View All</a>
-      </div>
-      <div class="card-body p-0">
-        <div class="table-responsive">
-          <table class="table table-hover mb-0">
-            <thead><tr><th>Ref</th><th>Customer</th><th>Type</th><th>Amount</th><th>Status</th></tr></thead>
-            <tbody>
-              <% for (const r of recentReservations) { %>
-              <tr>
-                <td><a href="/reservations/<%= r.id %>"><code class="small"><%= r.booking_ref %></code></a></td>
-                <td class="fw-medium"><%= r.customer_name %></td>
-                <td><span class="badge bg-light text-dark small"><%= r.reservation_type %></span></td>
-                <td><%= formatPeso(r.total_amount) %></td>
-                <td><%- statusBadge(r.status) %></td>
-              </tr>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-  <!-- AI Insights -->
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-robot me-2 text-primary"></i>AI Insights</h6>
-        <a href="/analytics" class="btn btn-sm btn-outline-secondary">Analytics</a>
-      </div>
-      <div class="card-body">
-        <% if (!insights || insights.length === 0) { %>
-        <div class="empty-state"><i class="fas fa-chart-bar"></i><p>No insights yet</p></div>
-        <% } else { %>
-          <% for (const ins of insights) { %>
-          <div class="insight-card insight-<%= ins.insight_type %> mb-2">
-            <div class="insight-icon">
-              <% if (ins.insight_type === 'trend') { %><i class="fas fa-chart-line"></i>
-              <% } else if (ins.insight_type === 'recommendation') { %><i class="fas fa-lightbulb"></i>
-              <% } else if (ins.insight_type === 'forecast') { %><i class="fas fa-eye"></i>
-              <% } else { %><i class="fas fa-bell"></i><% } %>
-            </div>
-            <div class="insight-text">
-              <div class="insight-title"><%= ins.title %></div>
-              <div class="insight-msg small"><%= ins.message %></div>
-            </div>
-          </div>
-          <% } %>
-        <% } %>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Upcoming Events + Inventory Alerts -->
-<div class="row g-3">
-  <div class="col-lg-6">
-    <div class="card">
-      <div class="card-header d-flex justify-content-between align-items-center">
-        <h6 class="card-title mb-0"><i class="fas fa-star me-2 text-warning"></i>Upcoming Events (7 Days)</h6>
-        <a href="/events" class="btn btn-sm btn-outline-warning">All Events</a>
-      </div>
-      <div class="card-body p-0">
-        <% if (!upcomingEventsList || upcomingEventsList.length === 0) { %>
-        <div class="empty-state py-4"><i class="fas fa-calendar-times"></i><p>No events in next 7 days</p></div>
-        <% } else { %>
-        <table class="table table-hover mb-0">
-          <thead><tr><th>Event</th><th>Date</th><th>Venue</th><th>Status</th></tr></thead>
-          <tbody>
-            <% for (const e of upcomingEventsList) { %>
-            <tr>
-              <td><a href="/events/<%= e.id %>" class="fw-medium"><%= e.event_name %></a><div class="small text-muted"><%= e.customer_name %></div></td>
-              <td class="small text-nowrap"><%= formatDate(e.event_date) %></td>
-              <td class="small text-muted"><%= e.venue_name || '—' %></td>
-              <td><%- statusBadge(e.status) %></td>
-            </tr>
-            <% } %>
-          </tbody>
-        </table>
-        <% } %>
-      </div>
-    </div>
-  </div>
-  <% if (invAlerts && invAlerts.length > 0) { %>
-  <div class="col-lg-6">
-    <div class="card border-warning">
-      <div class="card-header bg-warning bg-opacity-10">
-        <h6 class="card-title mb-0 text-warning"><i class="fas fa-exclamation-triangle me-2"></i>Low Stock Alerts</h6>
-      </div>
-      <div class="card-body p-0">
-        <table class="table table-sm mb-0">
-          <thead><tr><th>Item</th><th class="text-center">Available</th><th class="text-center">Reorder Level</th></tr></thead>
-          <tbody>
-            <% for (const item of invAlerts) { %>
-            <tr><td><%= item.name %></td><td class="text-center"><span class="badge bg-danger"><%= item.available_qty %></span></td><td class="text-center"><%= item.reorder_level %></td></tr>
-            <% } %>
-          </tbody>
-        </table>
-      </div>
-      <div class="card-footer"><a href="/inventory" class="btn btn-sm btn-warning w-100">Manage Inventory</a></div>
-    </div>
-  </div>
+  <% if (view === 'daily') { %>
+  <form method="GET" action="/dashboard" class="date-switcher" aria-label="Choose a day">
+    <input type="hidden" name="view" value="daily">
+    <a href="/dashboard?view=daily" class="btn btn-secondary-quiet ds-today"<%- daily.date === today ? ' aria-current="date"' : '' %>>Today</a>
+    <a href="/dashboard?view=daily&date=<%= daily.prevDate %>" class="btn btn-secondary-quiet ds-step" aria-label="Previous day, <%= formatDate(daily.prevDate, 'MMM D') %>"><i class="fas fa-chevron-left" aria-hidden="true"></i></a>
+    <label for="dashDate" class="visually-hidden">Date</label>
+    <input type="date" id="dashDate" name="date" value="<%= daily.date %>" class="form-control ds-date">
+    <button type="submit" class="btn btn-secondary-quiet ds-go">Show</button>
+    <a href="/dashboard?view=daily&date=<%= daily.nextDate %>" class="btn btn-secondary-quiet ds-step" aria-label="Next day, <%= formatDate(daily.nextDate, 'MMM D') %>"><i class="fas fa-chevron-right" aria-hidden="true"></i></a>
+  </form>
+  <% } else if (view === 'monthly') { %>
+  <form method="GET" action="/dashboard" class="date-switcher" aria-label="Choose a year and month">
+    <input type="hidden" name="view" value="monthly">
+    <label for="dashYear" class="ds-label">Year</label>
+    <select id="dashYear" name="year" class="form-select ds-select" onchange="this.form.month.value='';this.form.submit()">
+      <% for (const y of years) { %><option value="<%= y %>" <%= y === monthly.year ? 'selected' : '' %>><%= y %></option><% } %>
+    </select>
+    <label for="dashMonth" class="ds-label">Month</label>
+    <select id="dashMonth" name="month" class="form-select ds-select" onchange="this.form.submit()">
+      <option value="">Whole year</option>
+      <% monthNames.forEach((name, i) => { %><option value="<%= i + 1 %>" <%= monthly.month === i + 1 ? 'selected' : '' %>><%= name %></option><% }) %>
+    </select>
+    <button type="submit" class="btn btn-secondary-quiet ds-go">Show</button>
+  </form>
+  <% } else { %>
+  <form method="GET" action="/dashboard" class="date-switcher" aria-label="Choose the accommodation year">
+    <input type="hidden" name="view" value="yearly">
+    <label for="dashYearY" class="ds-label">Accommodation year</label>
+    <select id="dashYearY" name="year" class="form-select ds-select" onchange="this.form.submit()">
+      <% for (const y of years) { %><option value="<%= y %>" <%= y === selectedYear ? 'selected' : '' %>><%= y %></option><% } %>
+    </select>
+    <button type="submit" class="btn btn-secondary-quiet ds-go">Show</button>
+  </form>
   <% } %>
 </div>
 
+<%
+  // The one large figure for the selected period: revenue collected (received + verified payments).
+  let hero;
+  if (view === 'daily') {
+    hero = { label: 'Revenue collected', when: formatDate(daily.date, 'ddd, MMM D, YYYY'), amount: daily.sales.total, today: daily.date === today,
+             sub: 'from ' + plural(daily.sales.count, 'payment') };
+  } else if (view === 'monthly' && monthly.detail) {
+    hero = { label: 'Revenue collected', when: monthly.detail.name + ' ' + monthly.year, amount: monthly.detail.sales.total,
+             sub: 'from ' + plural(monthly.detail.sales.count, 'payment') };
+  } else if (view === 'monthly') {
+    hero = { label: 'Revenue collected', when: String(monthly.year), amount: monthly.yearSales, sub: 'Select a month to see it day by day' };
+  } else {
+    hero = { label: 'Revenue collected', when: 'since 2026', amount: yearly.allSales, sub: 'Select a year to see it by month' };
+  }
+%>
+
+<div class="dash-grid">
+<div class="dash-main">
+
+<section class="dash-hero dash-lead" aria-labelledby="periodTitle">
+  <div class="dh-main">
+    <h2 class="dh-label" id="periodTitle"><%= hero.label %> <span class="dh-when"><%= hero.when %></span><% if (hero.today) { %><span class="dh-today">Today</span><% } %></h2>
+    <p class="dh-amount"><%= formatPeso(hero.amount) %></p>
+    <p class="dh-sub"><%= hero.sub %></p>
+  </div>
+  <dl class="dh-metrics">
+    <% if (view === 'daily') { %>
+    <div><dt>New bookings</dt><dd><%= daily.bookings.total %></dd><span><%= daily.bookings.voided ? daily.bookings.voided + ' cancelled/rejected' : 'none cancelled' %></span></div>
+    <div><dt>Check-ins</dt><dd><%= daily.arrivals %></dd><span>scheduled arrivals</span></div>
+    <div><dt>Check-outs</dt><dd><%= daily.departures %></dd><span>scheduled departures</span></div>
+    <div><dt>Refunds</dt><dd><%= daily.sales.refundCount ? formatPeso(daily.sales.refundTotal) : '0' %></dd><span><%= daily.sales.refundCount ? plural(daily.sales.refundCount, 'refund') + ' · not in revenue' : 'no refunds' %></span></div>
+    <% } else if (view === 'monthly' && monthly.detail) { const d = monthly.detail; %>
+    <div><dt>Bookings made</dt><dd><%= d.bookings.total %></dd><span><%= d.bookings.active %> active</span></div>
+    <div><dt>Cancelled / rejected</dt><dd><%= d.bookings.voided %></dd><span><%= pctOf(d.bookings.voided, d.bookings.total) %>% of bookings</span></div>
+    <div><dt>Refunds</dt><dd><%= d.sales.refundCount ? formatPeso(d.sales.refundTotal) : '0' %></dd><span><%= d.sales.refundCount ? 'not in revenue' : 'no refunds' %></span></div>
+    <div><dt>vs <%= d.prevName %></dt><dd><% if (d.salesChange !== null) { %><span class="<%= d.salesChange >= 0 ? 'up' : 'down' %>"><%= d.salesChange >= 0 ? '+' : '−' %><%= Math.abs(d.salesChange) %>%</span><% } else { %>—<% } %></dd><span><%= d.salesChange !== null ? 'revenue change' : 'no revenue to compare' %></span></div>
+    <% } else if (view === 'monthly') { const busiest = monthly.months.reduce((best, m) => (m.bookings > (best ? best.bookings : 0) ? m : best), null); %>
+    <div><dt>Bookings in <%= monthly.year %></dt><dd><%= monthly.yearBookings %></dd><span><%= monthly.yearBookings - monthly.yearVoided %> active</span></div>
+    <div><dt>Cancelled / rejected</dt><dd><%= monthly.yearVoided %></dd><span><%= pctOf(monthly.yearVoided, monthly.yearBookings) %>% of bookings</span></div>
+    <div><dt>Busiest month</dt><dd><%= busiest ? busiest.name : '—' %></dd><span><%= busiest ? plural(busiest.bookings, 'booking') : 'no bookings yet' %></span></div>
+    <% } else { %>
+    <div><dt>Bookings, all years</dt><dd><%= yearly.allBookings %></dd><span><%= plural(stats.totalCustomers, 'customer') %></span></div>
+    <div><dt>Balance still due</dt><dd><%= stats.pendingPayments %></dd><span>active bookings unpaid or part-paid</span></div>
+    <% } %>
+  </dl>
+</section>
+
+<% if (view === 'daily') { %>
+<!-- ═══ DAILY: one day ═══ -->
+<section class="panel" aria-labelledby="dayPayTitle">
+  <div class="panel-head">
+    <h3 id="dayPayTitle">Payments on <%= formatDate(daily.date, 'MMM D') %></h3>
+    <a href="/payments?from=<%= daily.date %>&to=<%= daily.date %>" class="row-action">Open in payments <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+  </div>
+  <% if (!daily.payments.length) { %>
+  <div class="empty-inline">No payments were recorded on this date.</div>
+  <% } else { %>
+  <div class="table-responsive">
+    <table class="table table-br table-stack mb-0">
+      <thead><tr><th>Time</th><th>Booking</th><th>Guest</th><th>Method</th><th class="num">Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        <% for (const p of daily.payments) {
+             const isRefund = p.payment_type === 'refund';
+             const counted  = !isRefund && (p.status === 'received' || p.status === 'verified'); %>
+        <tr class="<%= counted ? '' : 'muted-row' %>" data-href="/reservations/<%= p.reservation_id %>">
+          <td data-cell="meta" class="text-nowrap">
+            <%= formatDateTime(p.recorded_ph, 'h:mm A') %>
+            <% if (String(p.recorded_ph).slice(0, 10) !== daily.date) { %><span class="cell-sub">recorded <%= formatDate(p.recorded_ph, 'MMM D') %></span><% } %>
+          </td>
+          <td data-cell="primary"><a href="/reservations/<%= p.reservation_id %>" class="ref"><%= p.booking_ref %></a></td>
+          <td data-cell="guest" class="fw-medium"><%= p.guest_name %></td>
+          <td data-cell="meta"><%= methodLabel(p.payment_method) %><span class="cell-sub"><%= payTypeLabel(p.payment_type) %></span></td>
+          <td data-cell="amount" class="num fw-semibold"><%= isRefund ? '−' : '' %><%= formatPeso(p.amount) %></td>
+          <td data-cell="status"><%- statusBadge(p.status) %><% if (!counted) { %><span class="cell-sub">not in revenue</span><% } %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+  <div class="panel-body method-block">
+    <h4 class="method-title">By payment method</h4>
+    <% methodBreakdown(daily.sales, 'No revenue was collected on this day.') %>
+  </div>
+  <div class="panel-foot">Revenue counts received and verified payments dated this day. Refunded payments and refund payouts are not counted.</div>
+</section>
+
+<section class="panel" aria-labelledby="dayBookTitle">
+  <div class="panel-head"><h3 id="dayBookTitle">Bookings made on <%= formatDate(daily.date, 'MMM D') %></h3><span class="panel-meta"><%= plural(daily.bookingsList.length, 'booking') %></span></div>
+  <% if (!daily.bookingsList.length) { %>
+  <div class="empty-inline">No bookings were made on this day.</div>
+  <% } else { %>
+  <div class="table-responsive">
+    <table class="table table-br table-stack mb-0">
+      <thead><tr><th>Time</th><th>Booking</th><th>Guest</th><th>Accommodation</th><th class="num">Total</th><th>Status</th></tr></thead>
+      <tbody>
+        <% for (const r of daily.bookingsList) { %>
+        <tr data-href="/reservations/<%= r.id %>">
+          <td data-cell="meta" class="text-nowrap"><%= formatDateTime(r.created_ph, 'h:mm A') %></td>
+          <td data-cell="primary"><a href="/reservations/<%= r.id %>" class="ref"><%= r.booking_ref %></a></td>
+          <td data-cell="guest" class="fw-medium"><%= r.customer_name %></td>
+          <td data-cell="meta"><%= r.items || typeLabel(r.reservation_type) %></td>
+          <td data-cell="amount" class="num"><%= formatPeso(r.total_amount) %></td>
+          <td data-cell="status"><%- statusBadge(r.status) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+<% } else if (view === 'monthly') { %>
+<!-- ═══ MONTHLY: bookings per month for a year, drill into one month ═══ -->
+<section class="panel" aria-labelledby="monthChartTitle">
+  <div class="panel-head">
+    <h3 id="monthChartTitle">Bookings per month, <%= monthly.year %></h3>
+    <span class="panel-meta">By date booked · select a bar or a month to open it</span>
+  </div>
+  <div class="panel-body">
+    <% if (!monthly.yearBookings) { %><p class="text-secondary mb-3">No bookings were made in <%= monthly.year %> yet. Months fill in as bookings come in.</p><% } %>
+    <div class="dash-chart mb-3"<%- monthly.yearBookings ? '' : ' hidden' %>><canvas id="monthlyChart" role="img" aria-label="Bookings per month in <%= monthly.year %>, split into active and cancelled or rejected. The same numbers are listed below."></canvas></div>
+    <div class="month-strip">
+      <% for (const m of monthly.months) { %>
+      <a class="month-cell <%= monthly.month === m.month ? 'is-selected' : '' %>"
+         href="/dashboard?view=monthly&year=<%= monthly.year %>&month=<%= m.month %>"
+         <%- monthly.month === m.month ? 'aria-current="true"' : '' %>
+         aria-label="<%= m.name %> <%= monthly.year %>: <%= plural(m.bookings, 'booking') %>, <%= formatPeso(m.sales) %> collected">
+        <span class="mc-name"><%= m.short %></span>
+        <span class="mc-count"><%= m.bookings %></span>
+        <span class="mc-sales"><%= formatPeso(m.sales) %></span>
+      </a>
+      <% } %>
+    </div>
+  </div>
+</section>
+
+<% if (monthly.detail) { const d = monthly.detail; %>
+<section class="dash-drill" aria-labelledby="monthTitle">
+  <div class="dash-period">
+    <h2 id="monthTitle"><%= d.name %> <%= monthly.year %>, day by day</h2>
+    <a href="/dashboard?view=monthly&year=<%= monthly.year %>" class="dash-period-note">Back to the whole year</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head"><h3>Revenue collected per day</h3><% if (d.sales.total) { %><span class="panel-meta">Select a bar to open that day</span><% } %></div>
+    <div class="panel-body">
+      <% if (!d.sales.total) { %>
+      <p class="text-secondary mb-0">No revenue was collected in <%= d.name %>.</p>
+      <% } else { %>
+      <div class="dash-chart"><canvas id="daySalesChart" role="img" aria-label="Revenue collected per day in <%= d.name %> <%= monthly.year %>. Select a bar to open that day."></canvas></div>
+      <% } %>
+    </div>
+    <div class="panel-body method-block">
+      <div class="drill-cols">
+        <div>
+          <h4 class="method-title">By payment method</h4>
+          <% methodBreakdown(d.sales, 'No revenue was collected this month.') %>
+        </div>
+        <div>
+          <h4 class="method-title">Bookings by status</h4>
+          <% if (!d.statusRows.length) { %><p class="mb-0 text-secondary small">No bookings were made this month.</p><% } else { %>
+          <ul class="status-count-list">
+            <% for (const s of d.statusRows) { %><li><%- statusBadge(s.status) %><span class="tnum fw-semibold"><%= s.cnt %></span></li><% } %>
+          </ul>
+          <% } %>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h3>Bookings made in <%= d.name %></h3>
+      <a href="/reports/reservations?from=<%= d.from %>&to=<%= d.to %>" class="row-action">Reservation report <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <% if (!d.bookingsList.length) { %>
+    <div class="empty-inline">No bookings were made in <%= d.name %>.</div>
+    <% } else { %>
+    <div class="table-responsive">
+      <table class="table table-br table-stack mb-0">
+        <thead><tr><th>Booked</th><th>Booking</th><th>Guest</th><th>Accommodation</th><th class="num">Total</th><th>Status</th></tr></thead>
+        <tbody>
+          <% for (const r of d.bookingsList) { %>
+          <tr data-href="/reservations/<%= r.id %>">
+            <td data-cell="meta" class="text-nowrap"><a href="/dashboard?view=daily&date=<%= String(r.created_ph).slice(0, 10) %>"><%= formatDate(r.created_ph, 'MMM D') %></a> <span class="text-secondary"><%= formatDateTime(r.created_ph, 'h:mm A') %></span></td>
+            <td data-cell="primary"><a href="/reservations/<%= r.id %>" class="ref"><%= r.booking_ref %></a></td>
+            <td data-cell="guest" class="fw-medium"><%= r.customer_name %></td>
+            <td data-cell="meta"><%= r.items || typeLabel(r.reservation_type) %></td>
+            <td data-cell="amount" class="num"><%= formatPeso(r.total_amount) %></td>
+            <td data-cell="status"><%- statusBadge(r.status) %></td>
+          </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+    <% } %>
+  </div>
+</section>
+<% } %>
+
+<% } else { %>
+<!-- ═══ YEARLY: bookings and sales per year ═══ -->
+<section class="panel" aria-labelledby="yearTitle">
+  <div class="panel-head"><h3 id="yearTitle">Bookings and revenue per year</h3><span class="panel-meta">Select a year to see it by month</span></div>
+  <% if (yearly.rows.length > 1) { %>
+  <div class="panel-body">
+    <div class="dash-chart"><canvas id="yearlyChart" role="img" aria-label="Bookings per year, split into active and cancelled or rejected. The same numbers are in the table below."></canvas></div>
+  </div>
+  <% } %>
+  <div class="table-responsive">
+    <table class="table table-br table-stack mb-0">
+      <thead><tr><th>Year</th><th class="num">Bookings</th><th class="num">Active</th><th class="num">Cancelled / rejected</th><th class="num">Revenue collected</th><th class="num">Payments</th><th><span class="visually-hidden">Open</span></th></tr></thead>
+      <tbody>
+        <% for (const y of yearly.rows) { %>
+        <tr data-href="/dashboard?view=monthly&year=<%= y.year %>">
+          <td data-cell="primary" class="fw-semibold"><%= y.year %></td>
+          <td data-cell="side" data-label="Bookings" class="num fw-semibold"><%= y.bookings %></td>
+          <td data-cell="meta" data-label="Active" class="num"><%= y.active %></td>
+          <td data-cell="meta" data-label="Cancelled / rejected" class="num"><%= y.voided %><% if (y.bookings) { %> <span class="text-secondary small">(<%= pctOf(y.voided, y.bookings) %>%)</span><% } %></td>
+          <td data-cell="amount" class="num"><%= formatPeso(y.sales) %></td>
+          <td data-cell="meta" data-label="Payments" class="num"><%= y.payments %></td>
+          <td data-cell="action" class="text-end"><a href="/dashboard?view=monthly&year=<%= y.year %>" class="row-action">By month <i class="fas fa-arrow-right" aria-hidden="true"></i></a></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-foot">Bookings are counted by the date they were made; revenue by payment date (received and verified payments only).</div>
+</section>
+<% } %>
+
+<!-- ═══ Accommodation: bookings per room, cottage, venue and package ═══ -->
+<section class="panel" aria-labelledby="accTitle">
+  <div class="panel-head">
+    <h3 id="accTitle">Bookings by accommodation</h3>
+    <span class="panel-meta"><%= accLabel %></span>
+  </div>
+  <% if (!accommodation.length) { %>
+  <div class="empty-inline">No bookings were made in this period, so there is nothing to compare yet.</div>
+  <% } else { %>
+  <div class="panel-body">
+    <div class="dash-chart" style="height:<%= Math.max(150, accommodation.length * 36 + 70) %>px"><canvas id="accommodationChart" role="img" aria-label="Bookings per accommodation, split into active and cancelled or rejected. The same numbers are in the table below the chart."></canvas></div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-br table-stack mb-0">
+      <thead><tr><th>Accommodation</th><th class="num">Bookings</th><th class="num">Cancelled</th><th class="num">Booked value</th></tr></thead>
+      <tbody>
+        <% for (const a of accommodation) { %>
+        <tr>
+          <td data-cell="primary"><%= a.name %><span class="cell-sub"><%= typeLabel(a.item_type) %></span></td>
+          <td data-cell="side" data-label="Bookings" class="num fw-semibold"><%= a.bookings %></td>
+          <td data-cell="meta" data-label="Cancelled" class="num"><%= a.voided %></td>
+          <td data-cell="amount" data-label="Booked value" class="num"><%= formatPeso(a.booked_value) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-foot">Booked value is the price of the item on bookings that were not cancelled or rejected.</div>
+  <% } %>
+</section>
+
+<!-- Latest reservations -->
+<section class="panel" aria-labelledby="recentTitle">
+  <div class="panel-head">
+    <h3 id="recentTitle">Latest reservations</h3>
+    <a href="/reservations" class="row-action">All reservations <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+  </div>
+  <% if (!recentReservations.length) { %>
+  <div class="empty-inline">No reservations yet. Walk-ins and online bookings will appear here.</div>
+  <% } else { %>
+  <div class="table-responsive">
+    <table class="table table-br table-stack mb-0">
+      <thead><tr><th>Booking</th><th>Guest</th><th>Type</th><th>Booked</th><th class="num">Amount</th><th>Status</th></tr></thead>
+      <tbody>
+        <% for (const r of recentReservations) { %>
+        <tr data-href="/reservations/<%= r.id %>">
+          <td data-cell="primary"><a href="/reservations/<%= r.id %>" class="ref"><%= r.booking_ref %></a></td>
+          <td data-cell="guest" class="fw-medium"><%= r.customer_name %></td>
+          <td data-cell="meta"><%= typeLabel(r.reservation_type) %></td>
+          <td data-cell="meta" class="text-nowrap"><%= formatDate(r.created_at) %></td>
+          <td data-cell="amount" class="num"><%= formatPeso(r.total_amount) %></td>
+          <td data-cell="status"><%- statusBadge(r.status) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+</div><!-- /.dash-main -->
+
+<!-- ═══ Right now: live queue, not tied to the selected period ═══ -->
+<%
+  const queue = [
+    { href: '/payments?status=received', label: 'Payment proofs to verify', sub: 'Guest screenshots waiting for a staff check', n: stats.proofsToVerify },
+    { href: '/reservations?status=pending', label: 'Pending reservations', sub: 'Confirm, pencil or reject', n: stats.pendingRes },
+    { href: '/reservations?status=awaiting_payment', label: 'Awaiting payment', sub: 'Waiting for the guest\'s downpayment', n: stats.awaitingPayment },
+    { href: '/payments/refunds/requests', label: 'Refund requests', sub: 'Guest requests waiting for a decision', n: stats.refundRequests },
+    { href: '/inquiries', label: 'Open inquiries', sub: 'Open or in progress', n: stats.openInquiries },
+    { href: '/reservations?payment=unpaid', label: 'Balance still due', sub: 'Active bookings unpaid or partially paid', n: stats.pendingPayments, sub2: true },
+    { href: '#eventsTitle', label: 'Upcoming events', sub: 'Today and the next 6 days', n: stats.upcomingEvents, quiet: true },
+    { href: '/inventory' + (stats.invAlertCount > 0 ? '?alert=low' : ''), label: 'Inventory alerts', sub: stats.invAlertCount > 0 ? 'At or below the reorder level' : 'Stock levels healthy', n: stats.invAlertCount },
+  ];
+  const waiting = queue.filter(q => !q.quiet && q.n > 0).length;
+  // Queues with something waiting rise to the top; the rest keep their order.
+  queue.sort((a, b) => (!b.quiet && b.n > 0) - (!a.quiet && a.n > 0));
+%>
+<aside class="dash-aside" aria-label="Right now">
+  <section class="panel ops-panel" aria-labelledby="nowTitle">
+    <div class="panel-head"><h2 id="nowTitle">Right now</h2><span class="panel-meta"><%= waiting ? plural(waiting, 'queue') + ' need attention' : 'Nothing waiting' %></span></div>
+    <ul class="ops-list">
+      <% for (const q of queue) { %>
+      <li<%- q.sub2 ? ' class="ops-li-plain"' : '' %>><a href="<%= q.href %>" class="ops-row<%= !q.quiet && q.n > 0 ? ' is-attention' : '' %>">
+        <span class="ops-label"><%= q.label %><span class="cell-sub"><%= q.sub %></span></span>
+        <span class="ops-value"><%= q.n %><i class="fas <%= q.href.charAt(0) === '#' ? 'fa-chevron-down' : 'fa-chevron-right' %> ops-go" aria-hidden="true"></i></span></a></li>
+      <% if (q.sub2) { %><li><div class="ops-sublinks"><a href="/reservations?payment=unpaid">Unpaid</a><a href="/reservations?payment=partially_paid">Partially paid</a></div></li><% } %>
+      <% } %>
+    </ul>
+    <div class="ops-group-label">Available now</div>
+    <ul class="ops-list ops-avail">
+      <li><a href="/rooms" class="ops-row">
+        <span class="ops-label">Rooms<span class="cell-sub"><%= stats.occupiedRooms %> occupied</span></span>
+        <span class="ops-value"><%= stats.availableRooms %><small> / <%= stats.totalRooms %></small></span></a></li>
+      <li><a href="/cottages" class="ops-row">
+        <span class="ops-label">Cottages<span class="cell-sub"><%= stats.occupiedCottages %> reserved or occupied</span></span>
+        <span class="ops-value"><%= stats.availableCottages %><small> / <%= stats.totalCottages %></small></span></a></li>
+      <li><a href="/venues" class="ops-row">
+        <span class="ops-label">Venues<span class="cell-sub"><%= stats.occupiedVenues %> reserved or occupied</span></span>
+        <span class="ops-value"><%= stats.availableVenues %><small> / <%= stats.totalVenues %></small></span></a></li>
+      <li><a href="/feedback" class="ops-row">
+        <span class="ops-label">Guest rating<span class="cell-sub">Average of all feedback</span></span>
+        <span class="ops-value"><%= stats.avgRating ? stats.avgRating : '—' %><% if (stats.avgRating) { %><small> / 5</small><% } %></span></a></li>
+    </ul>
+  </section>
+
+  <section class="panel" aria-labelledby="eventsTitle">
+    <div class="panel-head"><h2 id="eventsTitle">Next 7 days</h2><a href="/events" class="row-action">All events</a></div>
+    <% if (!upcomingEventsList || upcomingEventsList.length === 0) { %>
+    <div class="empty-inline">No events or venue bookings in the next 7 days.</div>
+    <% } else { %>
+    <ul class="mini-list">
+      <% for (const e of upcomingEventsList.slice(0, 8)) { %>
+      <li>
+        <div class="mini-top"><a href="<%= e.link %>" class="mini-title"><%= e.name %></a><%- statusBadge(e.status) %></div>
+        <div class="cell-sub"><%= formatDate(e.event_date, 'ddd, MMM D') %><% if (e.start_time) { %> · <%= e.start_time %><% } %><% if (e.venue_name) { %> · <%= e.venue_name %><% } %></div>
+        <div class="cell-sub"><%= e.customer_name %></div>
+      </li>
+      <% } %>
+    </ul>
+    <% } %>
+  </section>
+
+  <% if (invAlerts && invAlerts.length > 0) { %>
+  <section class="panel" aria-labelledby="stockTitle">
+    <div class="panel-head"><h2 id="stockTitle">Low stock</h2><a href="/inventory?alert=low" class="row-action">Inventory</a></div>
+    <table class="table table-br mb-0">
+      <thead><tr><th>Item</th><th class="num">Available</th><th class="num">Reorder at</th></tr></thead>
+      <tbody>
+        <% for (const item of invAlerts) { %>
+        <tr><td><%= item.name %></td><td class="num fw-semibold text-danger"><%= item.available_qty %></td><td class="num"><%= item.reorder_level %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </section>
+  <% } %>
+
+  <% if (insights && insights.length > 0) { %>
+  <section class="panel" aria-labelledby="insightTitle">
+    <div class="panel-head"><h2 id="insightTitle">Notes from analytics</h2><a href="/analytics" class="row-action">Analytics</a></div>
+    <div class="panel-body py-1">
+      <% for (const ins of insights) { %>
+      <div class="insight-card insight-<%= ins.insight_type %>">
+        <div class="insight-icon" aria-hidden="true"><i class="fas fa-chart-line"></i></div>
+        <div class="insight-text">
+          <div class="insight-title"><%= ins.title %></div>
+          <div class="insight-msg"><%= ins.message %></div>
+        </div>
+      </div>
+      <% } %>
+    </div>
+  </section>
+  <% } %>
+</aside>
+</div><!-- /.dash-grid -->
+
 <script>
 (function(){
-  const rd = <%- revenueChartJson || '[]' %>;
-  const sd = <%- statusDistJson   || '[]' %>;
-  const statusColors = { pending:'#f59e0b',awaiting_payment:'#3b82f6',confirmed:'#10b981',checked_in:'#6366f1',completed:'#6b7280',cancelled:'#ef4444',no_show:'#1f2937' };
-  const rc = document.getElementById('revenueChart');
-  if (rc && rd.length) new Chart(rc,{type:'line',data:{labels:rd.map(d=>d.month),datasets:[{label:'Revenue',data:rd.map(d=>d.revenue),borderColor:'#4f46e5',backgroundColor:'rgba(79,70,229,.08)',fill:true,tension:.4}]},options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{callback:v=>'₱'+v.toLocaleString()}}}}});
-  const sc = document.getElementById('statusChart');
-  if (sc && sd.length) new Chart(sc,{type:'doughnut',data:{labels:sd.map(d=>d.status.replace(/_/g,' ')),datasets:[{data:sd.map(d=>d.cnt),backgroundColor:sd.map(d=>statusColors[d.status]||'#9ca3af'),borderWidth:2}]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},cutout:'65%'}});
+  // Draw after the web font is ready so axis labels and legends are measured in Inter.
+  const ready = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
+  ready.then(function () {
+  const data = <%- chartJson %>;
+  // Active bookings use the brand ocean; cancelled/rejected a warm sand step
+  // (CVD-checked pair). Every chart has a table or list with the same numbers.
+  const css = getComputedStyle(document.documentElement);
+  const tok = (name, fallback) => (css.getPropertyValue(name) || '').trim() || fallback;
+  const C_ACTIVE = tok('--color-ocean-700', '#0f5c66'), C_VOID = '#c98a2b';
+  const GRID = '#eef0ee', TICK = tok('--color-secondary', '#526368'), SURFACE = '#ffffff';
+  Chart.defaults.font.family = tok('--font-ui', 'Inter, system-ui, sans-serif');
+  Chart.defaults.font.size = 12;
+  Chart.defaults.color = TICK;
+  const peso = v => '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const axis = (title, extra) => Object.assign({ grid: { color: GRID, drawTicks: false }, border: { display: false }, ticks: { color: TICK, padding: 6 }, title: { display: true, text: title, color: TICK, font: { weight: '600' } } }, extra || {});
+  // Thin bars, 4px rounded data end, a 2px surface gap between stacked segments.
+  const bar  = (label, values, color, top) => ({ label, data: values, backgroundColor: color, hoverBackgroundColor: color, borderColor: SURFACE, borderWidth: top ? 0 : { top: 2 }, borderRadius: top ? 4 : 0, borderSkipped: 'start', maxBarThickness: 32 });
+  const legend = { position: 'top', align: 'end', labels: { boxWidth: 12, boxHeight: 12, useBorderRadius: true, borderRadius: 2, color: tok('--color-text', '#1c3034') } };
+  const tooltip = { backgroundColor: tok('--color-ocean-900', '#14343a'), padding: 10, cornerRadius: 8, titleFont: { weight: '600' }, boxPadding: 4 };
+  const pointer = (evt, els) => { evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; };
+
+  // Monthly: bookings per month for the selected year (bars drill into the month)
+  const mc = document.getElementById('monthlyChart');
+  if (mc && data.months.length && !mc.closest('[hidden]')) new Chart(mc, {
+    type: 'bar',
+    data: {
+      labels: data.months.map(m => m.short),
+      datasets: [
+        bar('Active', data.months.map(m => m.bookings - m.voided), C_ACTIVE),
+        bar('Cancelled / rejected', data.months.map(m => m.voided), C_VOID, true),
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend, tooltip: Object.assign({}, tooltip, { callbacks: {
+        title: items => data.months[items[0].dataIndex].name + ' ' + data.year,
+        footer: items => 'Total ' + data.months[items[0].dataIndex].bookings + ' · ' + peso(data.months[items[0].dataIndex].sales) + ' collected · click to open' } }) },
+      scales: { x: axis('Month booked (' + data.year + ')', { stacked: true, grid: { display: false } }), y: axis('Bookings', { stacked: true, beginAtZero: true, ticks: { color: TICK, precision: 0, padding: 6 } }) },
+      onHover: pointer,
+      onClick: (evt, els) => { if (els.length) location.href = '/dashboard?view=monthly&year=' + data.year + '&month=' + (els[0].index + 1); },
+    },
+  });
+
+  // Month drill-down: revenue collected per day (bars open the daily view)
+  const dc = document.getElementById('daySalesChart');
+  if (dc && data.days.length) new Chart(dc, {
+    type: 'bar',
+    data: { labels: data.days.map(d => d.day), datasets: [bar('Revenue collected', data.days.map(d => d.sales), C_ACTIVE, true)] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false }, tooltip: Object.assign({}, tooltip, { callbacks: {
+        title: items => new Date(data.days[items[0].dataIndex].date + 'T00:00:00').toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' }),
+        label: c => peso(c.raw) + ' from ' + data.days[c.dataIndex].count + ' payment' + (data.days[c.dataIndex].count === 1 ? '' : 's'),
+        footer: () => 'Click to open the day' } }) },
+      scales: { x: axis('Day of month', { grid: { display: false } }), y: axis('Revenue collected (₱)', { beginAtZero: true, ticks: { color: TICK, padding: 6, callback: v => '₱' + Number(v).toLocaleString('en-PH') } }) },
+      onHover: pointer,
+      onClick: (evt, els) => { if (els.length) location.href = '/dashboard?view=daily&date=' + data.days[els[0].index].date; },
+    },
+  });
+
+  // Yearly: bookings per year
+  const yc = document.getElementById('yearlyChart');
+  if (yc && data.years.length > 1) new Chart(yc, {
+    type: 'bar',
+    data: {
+      labels: data.years.map(y => String(y.year)),
+      datasets: [
+        bar('Active', data.years.map(y => y.active), C_ACTIVE),
+        bar('Cancelled / rejected', data.years.map(y => y.voided), C_VOID, true),
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend, tooltip: Object.assign({}, tooltip, { callbacks: { footer: items => peso(data.years[items[0].dataIndex].sales) + ' collected · click to open' } }) },
+      scales: { x: axis('Year booked', { stacked: true, grid: { display: false } }), y: axis('Bookings', { stacked: true, beginAtZero: true, ticks: { color: TICK, precision: 0, padding: 6 } }) },
+      onHover: pointer,
+      onClick: (evt, els) => { if (els.length) location.href = '/dashboard?view=monthly&year=' + data.years[els[0].index].year; },
+    },
+  });
+
+  // Accommodation: bookings per room / cottage / venue / package in the period
+  const typeName = { room: 'Room', cottage: 'Cottage', venue: 'Venue', event_package: 'Event package' };
+  const ac = document.getElementById('accommodationChart');
+  if (ac && data.accommodation.length) new Chart(ac, {
+    type: 'bar',
+    data: {
+      labels: data.accommodation.map(a => a.name),
+      datasets: [
+        Object.assign(bar('Active', data.accommodation.map(a => a.bookings - a.voided), C_ACTIVE), { borderWidth: { right: 2 }, borderSkipped: 'start' }),
+        bar('Cancelled / rejected', data.accommodation.map(a => a.voided), C_VOID, true),
+      ],
+    },
+    options: {
+      indexAxis: 'y', layout: { padding: { left: 4 } }, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false, axis: 'y' },
+      plugins: { legend, tooltip: Object.assign({}, tooltip, { callbacks: {
+        title: items => { const a = data.accommodation[items[0].dataIndex]; return a.name + ' (' + (typeName[a.item_type] || a.item_type) + ')'; },
+        footer: items => 'Booked value: ' + peso(data.accommodation[items[0].dataIndex].booked_value),
+      } }) },
+      scales: { x: axis('Bookings', { stacked: true, beginAtZero: true, ticks: { color: TICK, precision: 0, padding: 6 } }), y: { stacked: true, grid: { display: false }, border: { display: false }, ticks: { color: TICK } } },
+    },
+  });
+  });
 })();
 </script>

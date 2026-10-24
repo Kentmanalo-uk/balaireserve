@@ -5,45 +5,266 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title><%= title || 'Balai-Reserve' %></title>
 
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/brand/balai-icon-32.png" />
+  <link rel="apple-touch-icon" href="/images/brand/balai-icon-192.png" />
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="/css/admin-pages.css" />
 
   <%# Scripts in head so Bootstrap/Chart.js/FullCalendar are defined before any inline page script runs %>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <%# Apply the remembered sidebar width before first paint (no jump on load) %>
+  <script>try { if (localStorage.getItem('br.sidebar') === 'collapsed') document.documentElement.classList.add('sb-collapsed'); } catch (e) {}</script>
 </head>
-<body class="app-body">
+<%
+  // The back-office shell (sidebar + top bar) is for staff and admins. Anyone
+  // else who lands on a page using this layout (an error page, for instance)
+  // gets a plain header with a way back instead of staff navigation.
+  const staffShell = !!(currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff'));
+  // A view marks its header (back link, h1, contextual actions) with
+  // <!--page-head--> … <!--/page-head-->. In the staff shell it is lifted into
+  // the top bar so each page has a single title row (V3 §09).
+  let pageBody = body;
+  __locals.pageHead = '';
+  const headMatch = /<!--page-head-->([\s\S]*?)<!--\/page-head-->/.exec(body);
+  if (headMatch) {
+    pageBody = body.slice(0, headMatch.index) + body.slice(headMatch.index + headMatch[0].length);
+    if (staffShell) __locals.pageHead = headMatch[1];
+    else pageBody = '<div class="plain-page-head">' + headMatch[1] + '</div>' + pageBody;
+  }
+%>
+<body class="app-body<%= staffShell ? '' : ' app-body--plain' %>">
 
+  <a href="#mainContent" class="visually-hidden-focusable position-absolute top-0 start-0 m-2 btn btn-primary btn-sm" style="z-index:1100">Skip to content</a>
+
+  <% if (staffShell) { %>
   <%include('partials/sidebar')%>
+  <% } %>
 
-  <div class="main-wrapper" id="mainWrapper">
+  <div class="main-wrapper" id="mainWrapper"<%- staffShell ? '' : ' style="margin-left:0"' %>>
 
+    <% if (staffShell) { %>
     <%include('partials/navbar')%>
+    <% } else { %>
+    <header class="top-navbar is-plain">
+      <a href="/" class="plain-brand" aria-label="Balai-Reserve home">
+        <img src="/images/brand/balai-icon-96.png" alt="" width="40" height="40" class="brand-logo" />
+        <span class="pb-name">Balai-Reserve</span>
+        <span class="pb-sub">Gloria, Oriental Mindoro</span>
+      </a>
+      <% if (currentUser) { %>
+      <a href="/portal" class="btn btn-outline-secondary">My bookings</a>
+      <% } else { %>
+      <a href="/auth/login" class="btn btn-outline-secondary">Sign in</a>
+      <% } %>
+    </header>
+    <% } %>
 
-    <main class="page-content">
+    <main class="page-content" id="mainContent" tabindex="-1">
       <%include('partials/flash')%>
-      <%- body %>
+      <%- pageBody %>
     </main>
 
     <footer class="app-footer">
-      <span>&copy; <%= new Date().getFullYear() %> Balai-Reserve &mdash; All rights reserved.</span>
+      <span>&copy; <%= new Date().getFullYear() %> Balai-Reserve &middot; Times shown in Philippine time (UTC+8)</span>
     </footer>
 
   </div>
 
-  <%include('partials/chatbot')%>
+  <%# The guest booking assistant is for visitors and guests; staff pages keep their workspace clear %>
+  <% if (!staffShell) { %><%include('partials/chatbot')%><% } %>
 
   <!-- Toast container for real-time notifications -->
-  <div id="toastContainer"></div>
+  <div id="toastContainer" aria-live="polite"></div>
 
   <script src="/js/main.js"></script>
+  <script>
+  // Any image marked data-missing whose file is gone shows an honest
+  // "Photo unavailable" state for staff instead of a broken-image icon.
+  (function () {
+    document.querySelectorAll('img[data-missing]').forEach(function (img) {
+      function swap() {
+        var box = document.createElement('div');
+        box.className = 'photo-pending is-missing';
+        box.setAttribute('role', 'img');
+        box.setAttribute('aria-label', img.getAttribute('data-missing'));
+        box.innerHTML = '<i class="fas fa-image" aria-hidden="true"></i>';
+        var t = document.createElement('span'); t.textContent = img.getAttribute('data-missing'); box.appendChild(t);
+        img.replaceWith(box);
+      }
+      if (img.complete && img.getAttribute('src') && img.naturalWidth === 0) swap(); else img.addEventListener('error', swap);
+    });
+  })();
+  // Unsaved-change protection for forms marked data-guard (settings, catalogue editors):
+  // a bar says there are unsaved changes, and leaving the page or switching tab asks first.
+  (function () {
+    var forms = Array.prototype.slice.call(document.querySelectorAll('form[data-guard]'));
+    if (!forms.length) return;
+    function snap(f) {
+      var out = [];
+      Array.prototype.forEach.call(f.elements, function (el) {
+        if (!el.name || el.disabled || el.type === 'submit' || el.type === 'button') return;
+        if (el.type === 'file') out.push(el.name + '=' + el.files.length);
+        else if (el.type === 'checkbox' || el.type === 'radio') out.push(el.name + '=' + (el.checked ? el.value : ''));
+        else out.push(el.name + '=' + el.value);
+      });
+      return out.join('&');
+    }
+    var initial = new Map(), submitting = false;
+    forms.forEach(function (f) { initial.set(f, snap(f)); });
+    var bar = document.createElement('div');
+    bar.className = 'unsaved-bar'; bar.setAttribute('role', 'status'); bar.hidden = true;
+    bar.innerHTML = '<i class="fas fa-circle-exclamation" aria-hidden="true"></i><span class="ub-text"></span>' +
+      '<button type="button" class="btn btn-secondary-quiet ub-discard">Discard changes</button>' +
+      '<button type="button" class="btn btn-primary ub-save">Save changes</button>';
+    document.body.appendChild(bar);
+    function dirtyForms() { return forms.filter(function (f) { return snap(f) !== initial.get(f); }); }
+    function label(f) { return f.getAttribute('data-guard') || 'this form'; }
+    function sync() {
+      var d = dirtyForms();
+      bar.hidden = !d.length;
+      document.body.classList.toggle('has-unsaved', !!d.length);
+      if (d.length) bar.querySelector('.ub-text').textContent = 'Unsaved changes in ' + d.map(label).join(', ') + '.';
+    }
+    forms.forEach(function (f) {
+      f.addEventListener('input', sync); f.addEventListener('change', sync);
+    });
+    // Any real submit (a guarded form, or e.g. a confirmed 'remove photo') may leave the page.
+    document.addEventListener('submit', function (e) { if (!e.defaultPrevented) submitting = true; });
+    bar.querySelector('.ub-save').addEventListener('click', function () {
+      var d = dirtyForms(); if (!d.length) return;
+      var f = d[0];
+      if (f.requestSubmit) f.requestSubmit(); else f.submit();
+    });
+    bar.querySelector('.ub-discard').addEventListener('click', function () { submitting = true; location.reload(); });
+    window.addEventListener('beforeunload', function (e) {
+      if (submitting || !dirtyForms().length) return;
+      e.preventDefault(); e.returnValue = '';
+    });
+    // In-app links (tabs, sidebar) get a clear in-page question instead of the browser's generic one.
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest('a[href]');
+      if (!a || submitting || e.defaultPrevented || a.target === '_blank' || a.hasAttribute('data-lightbox') || a.getAttribute('href').charAt(0) === '#') return;
+      var d = dirtyForms(); if (!d.length || !window.confirmModal) return;
+      e.preventDefault();
+      window.confirmModal({ title: 'Leave without saving?', message: 'You have unsaved changes in ' + d.map(label).join(', ') + '. If you leave now they are lost.', type: 'danger', okText: 'Leave without saving' })
+        .then(function (ok) { if (ok) { submitting = true; location.href = a.href; } });
+    });
+  })();
+  // Rows marked data-href open their record; the link inside stays the keyboard
+  // target, and other links, buttons and text selection keep working.
+  document.addEventListener('click', function (e) {
+    var tr = e.target.closest('tbody tr[data-href]');
+    if (!tr || e.target.closest('a, button, input, select, textarea, label, summary, details')) return;
+    if (window.getSelection && String(window.getSelection())) return;
+    if (e.ctrlKey || e.metaKey) { window.open(tr.getAttribute('data-href'), '_blank'); return; }
+    location.href = tr.getAttribute('data-href');
+  });
+  // Sticky table headers on desktop (see main.css "Data tables"): a table that fits
+  // its column pins its header under the top bar; a wide and long one scrolls in a box.
+  (function () {
+    var wraps = document.querySelectorAll('.table-responsive, .ap-table-wrap');
+    if (!wraps.length) return;
+    function measure() {
+      var desktop = window.matchMedia('(min-width: 992px)').matches;
+      wraps.forEach(function (w) {
+        w.classList.remove('is-fit', 'is-scrollbox');
+        var t = w.querySelector(':scope > table');
+        if (!desktop || !t || !t.tHead) return;
+        if (w.scrollWidth <= w.clientWidth + 1) w.classList.add('is-fit');
+        else if (t.offsetHeight > window.innerHeight - 120) w.classList.add('is-scrollbox');
+      });
+    }
+    var timer; window.addEventListener('resize', function () { clearTimeout(timer); timer = setTimeout(measure, 150); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(measure); else measure();
+    measure();
+  })();
+  </script>
   <% if (currentUser) { %>
   <script src="/js/notifications.js"></script>
+  <% } %>
+  <% if (staffShell) { %>
+  <script>
+  // Keep the drawer toggle's aria-expanded in step with main.js's .open class.
+  (function () {
+    var sb = document.getElementById('sidebar'), tg = document.getElementById('sidebarToggle');
+    if (!sb || !tg || !window.MutationObserver) return;
+    new MutationObserver(function () {
+      var open = sb.classList.contains('open');
+      tg.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) { var c = document.getElementById('sidebarClose'); if (c) c.focus(); }
+    }).observe(sb, { attributes: true, attributeFilter: ['class'] });
+    document.addEventListener('keydown', function (e) {
+      if (!sb.classList.contains('open')) return;
+      if (e.key === 'Escape') { var c = document.getElementById('sidebarClose'); if (c) c.click(); tg.focus(); return; }
+      // Keep Tab inside the open drawer (it is a modal surface on small screens).
+      if (e.key === 'Tab') {
+        var items = Array.prototype.filter.call(sb.querySelectorAll('a[href], button:not([disabled])'), function (el) { return el.offsetParent !== null; });
+        if (!items.length) return;
+        var first = items[0], last = items[items.length - 1];
+        if (e.shiftKey && (document.activeElement === first || !sb.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && (document.activeElement === last || !sb.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+      }
+    });
+    // Closing with the X or the backdrop returns focus to the Menu button.
+    ['sidebarClose', 'sidebarOverlay'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('click', function () { setTimeout(function () { if (getComputedStyle(tg).display !== 'none') tg.focus(); }, 0); });
+    });
+  })();
+
+  // Desktop: collapse the sidebar to an icon rail (remembered per browser).
+  // Tablet (768–1023px) always shows the rail; Menu opens the full drawer.
+  (function () {
+    var root = document.documentElement, sb = document.getElementById('sidebar');
+    var btn = document.getElementById('sidebarCollapse'), tip = document.getElementById('sidebarTip');
+    if (!sb) return;
+    var desk = window.matchMedia('(min-width: 1024px)'), tablet = window.matchMedia('(min-width: 768px) and (max-width: 1023.98px)');
+    function railShown() { return (desk.matches && root.classList.contains('sb-collapsed')) || (tablet.matches && !sb.classList.contains('open')); }
+    function syncBtn() {
+      if (!btn) return;
+      var collapsed = root.classList.contains('sb-collapsed');
+      btn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      btn.querySelector('.nav-text').textContent = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+      btn.setAttribute('data-tip', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+    }
+    if (btn) btn.addEventListener('click', function () {
+      var collapsed = root.classList.toggle('sb-collapsed');
+      try { localStorage.setItem('br.sidebar', collapsed ? 'collapsed' : 'expanded'); } catch (e) {}
+      syncBtn(); hideTip();
+      window.dispatchEvent(new Event('resize'));   // charts and calendars re-measure
+    });
+    syncBtn();
+
+    // Rail tooltips: the link text stays in the accessibility tree; this is the visual label.
+    function showTip(el) {
+      if (!tip || !railShown()) return;
+      var text = el.getAttribute('data-tip'); if (!text) return;
+      tip.textContent = text; tip.hidden = false;
+      var r = el.getBoundingClientRect();
+      tip.style.top = Math.round(r.top + r.height / 2 - tip.offsetHeight / 2) + 'px';
+      tip.style.left = Math.round(r.right + 10) + 'px';
+    }
+    function hideTip() { if (tip) tip.hidden = true; }
+    sb.querySelectorAll('[data-tip]').forEach(function (el) {
+      el.addEventListener('mouseenter', function () { showTip(el); });
+      el.addEventListener('focus', function () { showTip(el); });
+      el.addEventListener('mouseleave', hideTip);
+      el.addEventListener('blur', hideTip);
+    });
+    sb.addEventListener('scroll', hideTip, true);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') hideTip(); });
+  })();
+  </script>
   <% } %>
 </body>
 </html>

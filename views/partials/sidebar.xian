@@ -1,203 +1,106 @@
-<nav class="sidebar" id="sidebar">
+<%
+  // A nav item is active when the path starts with its prefix, unless a more
+  // specific sibling owns that path (e.g. /reservations/view/calendar belongs
+  // to Booking Calendar, not Reservations).
+  const navOn = (prefix, ...except) => !!currentPath && currentPath.startsWith(prefix) && !except.some(x => currentPath.startsWith(x));
+  const isStaffRole = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const isAdminRole = currentUser && currentUser.role === 'admin';
 
-  <!-- Brand -->
+  // Grouped exactly by the existing back-office domains (V3 §09).
+  const groups = [
+    { label: null, items: [
+      { href: '/dashboard', icon: 'fa-gauge', text: 'Dashboard', on: navOn('/dashboard') },
+    ] },
+  ];
+  if (isStaffRole) {
+    groups.push({ label: 'Bookings', items: [
+      { href: '/reservations', icon: 'fa-calendar-check', text: 'Reservations', on: navOn('/reservations', '/reservations/view/calendar'),
+        badge: pendingReservationsCount, badgeText: 'need attention', badgeTitle: pendingReservationsCount + ' reservation(s) need attention (pending review or awaiting payment)' },
+      { href: '/reservations/view/calendar', icon: 'fa-calendar-days', text: 'Booking Calendar', on: navOn('/reservations/view/calendar') },
+      { href: '/guests', icon: 'fa-people-roof', text: 'Guests', on: navOn('/guests') },
+      { href: '/payments', icon: 'fa-money-bill-wave', text: 'Payments', on: navOn('/payments', '/payments/refunds/requests') },
+      { href: '/payments/refunds/requests', icon: 'fa-hand-holding-dollar', text: 'Refund Requests', on: navOn('/payments/refunds/requests') },
+      { href: '/inquiries', icon: 'fa-inbox', text: 'Inquiries', on: navOn('/inquiries'),
+        badge: pendingInquiriesCount, badgeText: 'open', badgeTitle: pendingInquiriesCount + ' open inquiry(ies)' },
+    ] });
+    groups.push({ label: 'Accommodations', items: [
+      { href: '/rooms', icon: 'fa-bed', text: 'Rooms', on: navOn('/rooms') },
+      { href: '/venues', icon: 'fa-building-columns', text: 'Venues', on: navOn('/venues') },
+      { href: '/cottages', icon: 'fa-umbrella-beach', text: 'Cottages', on: navOn('/cottages') },
+    ] });
+    groups.push({ label: 'Events', items: [
+      { href: '/events', icon: 'fa-champagne-glasses', text: 'Events', on: navOn('/events') },
+    ] });
+    groups.push({ label: 'Inventory', items: [
+      { href: '/inventory', icon: 'fa-boxes-stacked', text: 'Inventory', on: navOn('/inventory') },
+    ] });
+    groups.push({ label: 'CRM', items: [
+      { href: '/crm', icon: 'fa-address-book', text: 'Customers', on: navOn('/crm', '/crm/tickets') },
+      { href: '/crm/tickets', icon: 'fa-ticket', text: 'Support Tickets', on: navOn('/crm/tickets') },
+      { href: '/feedback', icon: 'fa-star-half-stroke', text: 'Feedback', on: navOn('/feedback') },
+    ] });
+  }
+  if (isAdminRole) {
+    groups.push({ label: 'Management', items: [
+      { href: '/reports', icon: 'fa-file-lines', text: 'Reports', on: navOn('/reports') },
+      { href: '/analytics', icon: 'fa-chart-line', text: 'Analytics', on: navOn('/analytics') },
+      { href: '/users', icon: 'fa-users-gear', text: 'User Management', on: navOn('/users') },
+      { href: '/settings', icon: 'fa-gear', text: 'Settings', on: navOn('/settings') },
+    ] });
+  }
+%>
+<nav class="sidebar" id="sidebar" aria-label="Back office">
+
   <div class="sidebar-brand">
-    <div class="brand-icon-sm"><i class="fas fa-home"></i></div>
-    <span class="brand-text">Balai-Reserve</span>
-    <button class="sidebar-close d-lg-none" id="sidebarClose" aria-label="Close sidebar">
-      <i class="fas fa-times"></i>
+    <a href="/dashboard" class="sidebar-home" data-tip="Balai-Reserve — dashboard">
+      <img src="/images/brand/balai-icon-96.png" alt="" width="38" height="38" class="brand-mark brand-logo" />
+      <span class="brand-words">
+        <span class="brand-text">Balai-Reserve</span>
+        <span class="brand-sub">Back office</span>
+      </span>
+    </a>
+    <button type="button" class="sidebar-close" id="sidebarClose" aria-label="Close menu">
+      <i class="fas fa-xmark" aria-hidden="true"></i>
     </button>
   </div>
 
-  <!-- User Info -->
-  <% if (currentUser) { %>
-  <a href="/profile" class="sidebar-user text-decoration-none" style="display:flex;">
-    <div class="user-avatar">
-      <% if (currentUser.avatar) { %>
-        <img src="<%= currentUser.avatar %>" alt="Avatar" />
-      <% } else { %>
-        <span><%= currentUser.firstName.charAt(0) %><%= currentUser.lastName.charAt(0) %></span>
+  <div class="sidebar-scroll">
+    <% for (const g of groups) { %>
+    <% if (g.label) { %><div class="nav-section-label" role="presentation"><span><%= g.label %></span></div><% } %>
+    <ul class="sidebar-nav"<%- g.label ? ' aria-label="' + g.label + '"' : '' %>>
+      <% for (const it of g.items) { %>
+      <li class="nav-item">
+        <a href="<%= it.href %>" class="nav-link<%= it.on ? ' active' : '' %>"<%- it.on ? ' aria-current="page"' : '' %> data-tip="<%= it.text %><%= it.badge > 0 ? ' (' + it.badge + ' ' + it.badgeText + ')' : '' %>">
+          <i class="fas <%= it.icon %> nav-icon" aria-hidden="true"></i><span class="nav-text"><%= it.text %></span>
+          <% if (it.badge > 0) { %><span class="nav-badge" title="<%= it.badgeTitle %>"><%= it.badge %><span class="visually-hidden"> <%= it.badgeText %></span></span><% } %>
+        </a>
+      </li>
       <% } %>
-    </div>
-    <div class="user-info">
-      <div class="user-name"><%= currentUser.firstName %> <%= currentUser.lastName %></div>
-      <div class="user-role"><%= currentUser.roleLabel %></div>
-    </div>
-  </a>
-  <% } %>
-
-  <ul class="sidebar-nav">
-
-    <!-- ── Dashboard ──────────────────────────────────── -->
-    <li class="nav-item">
-      <a href="/dashboard" class="nav-link <%= activeNav(currentPath, '/dashboard') %>">
-        <i class="fas fa-tachometer-alt nav-icon"></i><span>Dashboard</span>
-      </a>
-    </li>
-
-    <!-- ── BOOKINGS section ───────────────────────────── -->
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <li class="nav-section-label">Bookings</li>
-
-    <li class="nav-item">
-      <a href="/reservations" class="nav-link <%= activeNav(currentPath, '/reservations') %>">
-        <i class="fas fa-calendar-check nav-icon"></i><span>Reservations</span>
-        <% if (pendingReservationsCount > 0) { %>
-          <span class="nav-badge" title="<%= pendingReservationsCount %> reservation(s) need attention (pending review or awaiting payment)"><%= pendingReservationsCount %></span>
-        <% } %>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/reservations/view/calendar" class="nav-link <%= activeNav(currentPath, '/reservations/view/calendar') %>">
-        <i class="fas fa-calendar-alt nav-icon"></i><span>Booking Calendar</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/guests" class="nav-link <%= activeNav(currentPath, '/guests') %>">
-        <i class="fas fa-users nav-icon"></i><span>Guests</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/payments" class="nav-link <%= activeNav(currentPath, '/payments') %>">
-        <i class="fas fa-money-bill-wave nav-icon"></i><span>Payments</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/payments/refunds/requests" class="nav-link <%= activeNav(currentPath, '/payments/refunds/requests') %>">
-        <i class="fas fa-hand-holding-usd nav-icon"></i><span>Refund Requests</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/inquiries" class="nav-link <%= activeNav(currentPath, '/inquiries') %>">
-        <i class="fas fa-question-circle nav-icon"></i><span>Inquiries</span>
-        <% if (pendingInquiriesCount > 0) { %>
-          <span class="nav-badge"><%= pendingInquiriesCount %></span>
-        <% } %>
-      </a>
-    </li>
+    </ul>
     <% } %>
+  </div>
 
-    <!-- ── ACCOMMODATIONS section ─────────────────────── -->
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <li class="nav-section-label">Accommodations</li>
-
-    <li class="nav-item">
-      <a href="/rooms" class="nav-link <%= activeNav(currentPath, '/rooms') %>">
-        <i class="fas fa-door-open nav-icon"></i><span>Rooms</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/venues" class="nav-link <%= activeNav(currentPath, '/venues') %>">
-        <i class="fas fa-map-marker-alt nav-icon"></i><span>Venues</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/cottages" class="nav-link <%= activeNav(currentPath, '/cottages') %>">
-        <i class="fas fa-home nav-icon"></i><span>Cottages</span>
-      </a>
-    </li>
-    <% } %>
-
-    <!-- ── EVENTS section ─────────────────────────────── -->
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <li class="nav-section-label">Events</li>
-
-    <li class="nav-item">
-      <a href="/events" class="nav-link <%= activeNav(currentPath, '/events') %>">
-        <i class="fas fa-star nav-icon"></i><span>Events</span>
-      </a>
-    </li>
-    <% } %>
-
-    <!-- ── INVENTORY section ──────────────────────────── -->
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <li class="nav-section-label">Inventory</li>
-
-    <li class="nav-item">
-      <a href="/inventory" class="nav-link <%= activeNav(currentPath, '/inventory') %>">
-        <i class="fas fa-boxes nav-icon"></i><span>Inventory</span>
-      </a>
-    </li>
-    <% } %>
-
-    <!-- ── CRM section ────────────────────────────────── -->
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <li class="nav-section-label">CRM</li>
-
-    <li class="nav-item">
-      <a href="/crm" class="nav-link <%= activeNav(currentPath, '/crm') %>">
-        <i class="fas fa-user-tie nav-icon"></i><span>Customers</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/crm/calls" class="nav-link <%= activeNav(currentPath, '/crm/calls') %>">
-        <i class="fas fa-phone nav-icon"></i><span>Sales Calls</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/crm/tickets" class="nav-link <%= activeNav(currentPath, '/crm/tickets') %>">
-        <i class="fas fa-ticket-alt nav-icon"></i><span>Support Tickets</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/feedback" class="nav-link <%= activeNav(currentPath, '/feedback') %>">
-        <i class="fas fa-star-half-alt nav-icon"></i><span>Feedback</span>
-      </a>
-    </li>
-    <% } %>
-
-    <!-- ── MANAGEMENT section (admin only) ───────────── -->
-    <% if (currentUser && currentUser.role === 'admin') { %>
-    <li class="nav-section-label">Management</li>
-
-    <li class="nav-item">
-      <a href="/reports" class="nav-link <%= activeNav(currentPath, '/reports') %>">
-        <i class="fas fa-file-alt nav-icon"></i><span>Reports</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/analytics" class="nav-link <%= activeNav(currentPath, '/analytics') %>">
-        <i class="fas fa-chart-line nav-icon"></i><span>Analytics & AI</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/users" class="nav-link <%= activeNav(currentPath, '/users') %>">
-        <i class="fas fa-users-cog nav-icon"></i><span>User Management</span>
-      </a>
-    </li>
-
-    <li class="nav-item">
-      <a href="/settings" class="nav-link <%= activeNav(currentPath, '/settings') %>">
-        <i class="fas fa-cog nav-icon"></i><span>Settings</span>
-      </a>
-    </li>
-    <% } %>
-
-  </ul>
-
-  <!-- Sidebar Footer: Profile + Logout -->
   <div class="sidebar-footer">
-    <a href="/profile" class="nav-link <%= activeNav(currentPath, '/profile') %>" style="opacity:.85;">
-      <i class="fas fa-user-circle nav-icon"></i><span>My Profile</span>
+    <% if (currentUser) { %>
+    <a href="/profile" class="sidebar-user"<%- navOn('/profile') ? ' aria-current="page"' : '' %> data-tip="My profile — <%= currentUser.firstName %> <%= currentUser.lastName %>">
+      <span class="user-avatar" aria-hidden="true">
+        <% if (currentUser.avatar) { %><img src="<%= currentUser.avatar %>" alt="" /><% } else { %><%= currentUser.firstName.charAt(0) %><%= currentUser.lastName.charAt(0) %><% } %>
+      </span>
+      <span class="user-info">
+        <span class="user-name"><%= currentUser.firstName %> <%= currentUser.lastName %></span>
+        <span class="user-role"><%= currentUser.roleLabel %> · My profile</span>
+      </span>
     </a>
-    <a href="/auth/logout" class="nav-link logout-link">
-      <i class="fas fa-sign-out-alt nav-icon"></i><span>Logout</span>
+    <% } %>
+    <a href="/auth/logout" class="nav-link logout-link" data-tip="Log out">
+      <i class="fas fa-arrow-right-from-bracket nav-icon" aria-hidden="true"></i><span class="nav-text">Log out</span>
     </a>
+    <button type="button" class="sidebar-collapse" id="sidebarCollapse" aria-controls="sidebar" aria-expanded="true" data-tip="Expand sidebar">
+      <i class="fas fa-angles-left nav-icon" aria-hidden="true"></i><span class="nav-text">Collapse sidebar</span>
+    </button>
   </div>
 
 </nav>
 
-<!-- Sidebar Overlay (mobile tap-outside to close) -->
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
+<div class="sidebar-tip" id="sidebarTip" role="tooltip" hidden></div>

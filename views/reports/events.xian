@@ -1,4 +1,9 @@
 <% layout('layouts/main') %>
+<%
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const exportQs = 'from=' + filters.from + '&to=' + filters.to;
+%>
+<div class="ap-page rpt-page">
 
 <div class="print-header d-none">
   <div class="print-resort-name"><%= reportBrand.name %></div>
@@ -7,59 +12,60 @@
 </div>
 
 <div class="page-header no-print">
-  <div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/reports">Reports</a></li><li class="breadcrumb-item active">Event Report</li></ol></nav><h3 class="mb-0">Event Report</h3></div>
-  <div class="page-header-actions d-flex gap-2">
-    <div class="btn-group btn-group-sm">
-      <a href="/reports/export/events?format=xlsx&from=<%= filters.from %>&to=<%= filters.to %>" class="btn btn-outline-success"><i class="fas fa-file-excel me-1"></i>Excel</a>
-      <a href="/reports/export/events?format=docx&from=<%= filters.from %>&to=<%= filters.to %>" class="btn btn-outline-primary"><i class="fas fa-file-word me-1"></i>Word</a>
-      <a href="/reports/export/events?format=csv&from=<%= filters.from %>&to=<%= filters.to %>" class="btn btn-outline-secondary"><i class="fas fa-file-csv me-1"></i>CSV</a>
-    </div>
-    <button type="button" class="btn btn-sm btn-dark" onclick="window.print()"><i class="fas fa-print me-1"></i>Print</button>
+  <div>
+    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/reports">Reports</a></li><li class="breadcrumb-item active" aria-current="page">Events</li></ol></nav>
+    <h1>Event report</h1>
+    <p class="ap-sub">Events dated from <strong><%= formatDate(filters.from) %></strong> to <strong><%= formatDate(filters.to) %></strong>.</p>
+  </div>
+  <div class="page-header-actions rpt-actions">
+    <% if (isAdmin) { %>
+    <span class="ap-meta rpt-actions-label">Download</span>
+    <a href="/reports/export/events?format=xlsx&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-excel rpt-ic-xlsx" aria-hidden="true"></i>Excel</a>
+    <a href="/reports/export/events?format=docx&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-word rpt-ic-docx" aria-hidden="true"></i>Word</a>
+    <a href="/reports/export/events?format=csv&<%= exportQs %>" class="btn btn-outline-secondary"><i class="fas fa-file-csv rpt-ic-csv" aria-hidden="true"></i>CSV</a>
+    <% } %>
+    <button type="button" class="btn btn-outline-secondary btn-print" data-action="print"><i class="fas fa-print" aria-hidden="true"></i>Print</button>
   </div>
 </div>
-<div class="card mb-3"><div class="card-body py-2">
-  <form method="GET" action="/reports/events" class="row g-2 align-items-end">
-    <div class="col-6 col-md-3"><input type="date" name="from" value="<%= filters.from %>" class="form-control form-control-sm" /></div>
-    <div class="col-6 col-md-3"><input type="date" name="to" value="<%= filters.to %>" class="form-control form-control-sm" /></div>
-    <div class="col-6 col-md-3"><button type="submit" class="btn btn-sm btn-primary w-100">Generate</button></div>
-  </form>
-</div></div>
-<div class="row g-3 mb-3">
-  <div class="col-md-4"><div class="stat-card stat-warning"><div class="stat-icon"><i class="fas fa-star"></i></div><div class="stat-body"><div class="stat-value"><%= events.length %></div><div class="stat-label">Total Events</div></div></div></div>
-  <div class="col-md-4"><div class="stat-card stat-info"><div class="stat-icon"><i class="fas fa-users"></i></div><div class="stat-body"><div class="stat-value"><%= totalAttendees.toLocaleString() %></div><div class="stat-label">Total Attendees</div></div></div></div>
-  <div class="col-md-4"><div class="stat-card stat-success"><div class="stat-icon"><i class="fas fa-coins"></i></div><div class="stat-body"><div class="stat-value"><%= formatPeso(totalRevenue) %></div><div class="stat-label">Total Revenue</div></div></div></div>
+
+<form method="GET" action="/reports/events" class="ap-toolbar no-print" aria-label="Report period">
+  <div class="ap-field"><label for="rptFrom">Event date from</label><input type="date" id="rptFrom" name="from" value="<%= filters.from %>" class="form-control" /></div>
+  <div class="ap-field"><label for="rptTo">Event date to</label><input type="date" id="rptTo" name="to" value="<%= filters.to %>" class="form-control" /></div>
+  <div class="ap-toolbar-actions"><button type="submit" class="btn btn-primary">Update report</button></div>
+</form>
+
+<div class="ap-kpis" role="group" aria-label="Totals for this period">
+  <div class="ap-kpi"><span class="ap-kpi-label">Events</span><span class="ap-kpi-value"><%= events.length %></span></div>
+  <div class="ap-kpi"><span class="ap-kpi-label">Attendees</span><span class="ap-kpi-value"><%= totalAttendees.toLocaleString() %></span></div>
+  <div class="ap-kpi"><span class="ap-kpi-label">Total event cost</span><span class="ap-kpi-value"><%= formatPeso(totalRevenue) %></span></div>
 </div>
-<div class="card"><div class="card-body p-0">
-  <table class="table table-hover mb-0">
-    <thead><tr><th>Event Name</th><th>Customer</th><th>Type</th><th>Date</th><th>Venue</th><th>Attendees</th><th>Cost</th><th>Status</th></tr></thead>
-    <tbody>
-      <% if (!events || events.length === 0) { %><tr><td colspan="8" class="text-center py-4 text-muted">No events in this period.</td></tr>
-      <% } else { %>
+
+<section class="ap-panel" aria-labelledby="rptListHeading">
+  <div class="ap-panel-head"><h2 id="rptListHeading">Events <span class="ap-meta"><%= events.length %></span></h2></div>
+  <% if (!events || events.length === 0) { %>
+  <div class="ap-empty"><strong>No events in this period</strong>Try a wider date range.</div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead><tr><th scope="col">Event</th><th scope="col">Customer</th><th scope="col">Type</th><th scope="col">Date</th><th scope="col">Venue</th><th scope="col" class="num">Attendees</th><th scope="col" class="num">Cost</th><th scope="col">Status</th></tr></thead>
+      <tbody>
         <% for (const e of events) { %>
-        <tr><td><a href="/events/<%= e.id %>"><%= e.event_name %></a></td><td><%= e.customer_name %></td><td><span class="badge bg-light text-dark small"><%= e.event_type %></span></td><td class="small text-nowrap"><%= formatDate(e.event_date) %></td><td class="small"><%= e.venue_name || '—' %></td><td class="text-center"><%= e.num_attendees %></td><td><%= formatPeso(e.total_cost) %></td><td><%- statusBadge(e.status) %></td></tr>
+        <tr>
+          <td class="ap-cell-title"><a href="/events/<%= e.id %>" class="ap-name"><%= e.event_name %></a></td>
+          <td data-label="Customer"><%= e.customer_name %></td>
+          <td data-label="Type" class="text-capitalize"><%= e.event_type %></td>
+          <td data-label="Date" class="text-nowrap"><%= formatDate(e.event_date) %></td>
+          <td data-label="Venue"><%= e.venue_name || '—' %></td>
+          <td class="num" data-label="Attendees"><%= e.num_attendees %></td>
+          <td class="num" data-label="Cost"><%= formatPeso(e.total_cost) %></td>
+          <td class="ap-cell-status"><%- statusBadge(e.status) %></td>
+        </tr>
         <% } %>
-      <% } %>
-    </tbody>
-  </table>
-</div></div>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
 
 <div class="print-footer d-none">Generated by <%= resort.name %> Booking System</div>
-
-<style>
-@media print {
-  .sidebar, .app-navbar, .navbar, .app-footer, .no-print, #toastContainer, .breadcrumb { display: none !important; }
-  .main-wrapper, .page-content, .content-wrapper { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-  body { background: #fff !important; }
-  .print-header { display: block !important; text-align: center; border-bottom: 2px solid #15803d; padding-bottom: 8px; margin-bottom: 16px; }
-  .print-resort-name { font-size: 20px; font-weight: 700; color: #15803d; }
-  .print-resort-addr { font-size: 11px; color: #555; }
-  .print-report-title { font-size: 14px; font-weight: 700; margin-top: 6px; }
-  .print-footer { display: block !important; text-align: center; font-size: 10px; color: #777; border-top: 1px solid #cbd5e1; padding-top: 6px; margin-top: 18px; }
-  .card { border: none !important; box-shadow: none !important; }
-  .stat-card { border: 1px solid #e5e7eb !important; }
-  table { font-size: 11px; }
-  thead { display: table-header-group; }
-  tr { page-break-inside: avoid; }
-  @page { margin: 14mm; }
-}
-</style>
+</div>

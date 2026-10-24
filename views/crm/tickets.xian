@@ -1,41 +1,61 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Support Tickets</h3><p class="text-muted mb-0">Manage customer support issues</p></div>
-</div>
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/crm/tickets" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4"><input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Ticket # or subject..." /></div>
-      <div class="col-6 col-md-2"><select name="status" class="form-select form-select-sm"><option value="">All Statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><select name="priority" class="form-select form-select-sm"><option value="">All Priorities</option><% for (const p of priorities) { %><option value="<%= p %>" <%= filters.priority === p ? 'selected' : '' %>><%= p %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-      <div class="col-6 col-md-2"><a href="/crm/tickets" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-    </form>
+<%
+  const cap = (s) => { const t = String(s || '').replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const filtered = !!(filters.search || filters.status || filters.priority);
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Support tickets</h1>
+<!--/page-head-->
+
+<form method="GET" action="/crm/tickets" class="ap-toolbar" role="search" aria-label="Filter tickets">
+  <div class="ap-field ap-field-search">
+    <label for="tkSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="tkSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Ticket # or subject" /></div>
   </div>
-</div>
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>Ticket #</th><th>Customer</th><th>Subject</th><th>Priority</th><th>Assigned To</th><th>Status</th><th>Created</th></tr></thead>
-        <tbody>
-          <% if (!tickets || tickets.length === 0) { %><tr><td colspan="7" class="text-center py-4 text-muted">No tickets found.</td></tr>
-          <% } else { %>
-            <% for (const t of tickets) { %>
-            <tr>
-              <td><code class="small"><%= t.ticket_number %></code></td>
-              <td><% if (t.customer_id) { %><a href="/crm/customers/<%= t.customer_id %>"><%= t.customer_name %></a><% } else { %>—<% } %></td>
-              <td><%= t.subject %></td>
-              <td><%- statusBadge(t.priority) %></td>
-              <td class="small"><%= t.assigned_name || '—' %></td>
-              <td><%- statusBadge(t.status) %></td>
-              <td class="small text-muted"><%= formatDate(t.created_at) %></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
+  <div class="ap-field">
+    <label for="tkStatus">Status</label>
+    <select id="tkStatus" name="status" class="form-select"><option value="">All statuses</option><% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %></select>
   </div>
-  <div class="card-footer"><%include('partials/pagination')%></div>
+  <div class="ap-field">
+    <label for="tkPriority">Priority</label>
+    <select id="tkPriority" name="priority" class="form-select"><option value="">All priorities</option><% for (const p of priorities) { %><option value="<%= p %>" <%= filters.priority === p ? 'selected' : '' %>><%= cap(p) %></option><% } %></select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/crm/tickets" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<section class="ap-panel" aria-labelledby="tkHeading">
+  <div class="ap-panel-head"><h2 id="tkHeading">Tickets <span class="ap-meta"><%= pagination.total %></span></h2></div>
+  <% if (!tickets || tickets.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No tickets match these filters' : 'No support tickets' %></strong>
+    <%= filtered ? 'Try another status or priority.' : 'Escalate an inquiry to open a ticket.' %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead><tr><th scope="col">Ticket</th><th scope="col">Customer</th><th scope="col">Priority</th><th scope="col">Assigned to</th><th scope="col">Opened</th><th scope="col">Status</th><th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th></tr></thead>
+      <tbody>
+        <% for (const t of tickets) { %>
+        <tr>
+          <td class="ap-cell-title"><span class="ap-name"><%= t.subject %></span><span class="ap-line2 ap-code"><%= t.ticket_number %></span></td>
+          <td data-label="Customer"><% if (t.customer_id) { %><a href="/crm/customers/<%= t.customer_id %>"><%= t.customer_name %></a><% } else { %>—<% } %></td>
+          <td data-label="Priority"><span class="tk-pri tk-pri-<%= t.priority %>"><% if (t.priority === 'urgent' || t.priority === 'high') { %><i class="fas fa-arrow-up" aria-hidden="true"></i> <% } %><%= cap(t.priority) %></span></td>
+          <td data-label="Assigned to"><%= t.assigned_name || 'Unassigned' %></td>
+          <td data-label="Opened" class="text-nowrap"><%= formatDate(t.created_at) %></td>
+          <td class="ap-cell-status"><%- statusBadge(t.status) %></td>
+          <td class="ap-row-actions"><div class="ap-actions"><% if (t.inquiry_id) { %><a href="/inquiries/<%= t.inquiry_id %>" class="ap-act">Inquiry<span class="br-sr-only"> for ticket <%= t.ticket_number %></span></a><% } else if (t.customer_id) { %><a href="/crm/customers/<%= t.customer_id %>" class="ap-act">Customer</a><% } %></div></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+  <% if (pagination && pagination.totalPages > 1) { %><div class="ap-panel-foot"><%include('partials/pagination')%></div><% } %>
+</section>
+
 </div>

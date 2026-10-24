@@ -1,4 +1,5 @@
 <% layout('layouts/portal') %>
+<link rel="stylesheet" href="/css/booking.css" />
 
 <%# Embed package inclusions data for JS — one JSON object keyed by package id %>
 <script id="pkgData" type="application/json">
@@ -8,364 +9,139 @@
       id:       p.id,
       name:     p.name,
       price:    p.price,
+      capacity: p.capacity,
       defaults: (p.defaultInclusions || []).map(i => ({ name: i.name, price: i.price, is_optional: i.is_optional })),
       addons:   (p.addonInclusions   || []).map(i => ({ name: i.name, price: i.price })),
-    });
+    }).replace(/</g, '\\u003c');
     return JSON.stringify(String(p.id)) + ': ' + safe;
   }).join(',\n  ') %>
 }
 </script>
+<%
+  const _sel = (old.reservation_type || filters.type || '');
+  const minOf = (rows) => (rows && rows.length) ? Math.min(...rows.map(r => Number(r.price) || 0)) : null;
+  const titleCase = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  const eventTypes = [...new Set((packages || []).map(p => p.event_type).filter(t => t && t !== 'other'))].map(titleCase);
+  const typeOptions = [
+    ['room',    'Room',          'Overnight stay, priced per night.',                         minOf(rooms),    '/night',   'fa-bed'],
+    ['cottage', 'Cottage',       'Day use on one date with a time in and out. Flat rate.',    minOf(cottages), '/booking', 'fa-umbrella-beach'],
+    ['venue',   (venues && venues.length === 1) ? venues[0].name : 'Venue', 'Function hall for your own event. Flat rate per booking.', minOf(venues), '/booking', 'fa-people-roof'],
+    ['event',   'Event package', eventTypes.length ? eventTypes.join(', ') + ' and more.' : 'Packaged events with inclusions.', minOf(packages), '/event', 'fa-champagne-glasses'],
+  ];
+  const _blk = (row) => JSON.stringify(row.blocked || []);
+  const browseFor = { room: '/portal/rooms', cottage: '/portal/cottages', venue: '/portal/venues', event: '/portal/venues#packages' };
+  const isPlaceholder = (v) => !v || v === '—' || /^[X\-\s—]+$/i.test(String(v));
+  const bankReady = !isPlaceholder(paymentInfo.bank_bdo) || !isPlaceholder(paymentInfo.bank_bpi);
+  const pm0 = old.payment_method || 'gcash';
+  // Prefill from a detail page / catalogue link (?start_time=09:00&end_time=17:00&guests=4); junk falls back to the defaults.
+  const _hm = (v) => { const m = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(String(v || '').trim()); return m ? m[1] + ':' + m[2] : ''; };
+  const _qStart = _hm(filters.start_time), _qEnd = _hm(filters.end_time);
+  const _qGuests = /^[1-9]\d{0,2}$/.test(String(filters.guests || '').trim()) && Number(filters.guests) <= 500 ? String(Number(filters.guests)) : '';
+%>
 
-<style>
-/* ══════════════════════════════════════════════════════
-   Booking Wizard — Ocean Glassmorphism Theme
-   ══════════════════════════════════════════════════════ */
-:root {
-  --oc-deep:   #020c18;
-  --oc-mid:    #041428;
-  --oc-teal:   #0a3d4a;
-  --oc-cyan:   #00e5ff;
-  --oc-gold:   #ffd166;
-  --oc-green:  #39ff8a;
-}
+<div class="pt-page bw-page">
+  <div class="pt-page-head bw-head">
+    <div>
+      <a href="<%= browseFor[_sel] || '/portal' %>" class="pt-back"><i class="fas fa-arrow-left" aria-hidden="true"></i><%= _sel ? 'Back to browsing' : 'Portal home' %></a>
+      <h1 class="pt-title">Book your stay</h1>
+      <p class="pt-lede">Four short steps. You won’t pay on this page: when you submit, the booking is saved as <strong>Awaiting payment</strong> and you pay the <%= terms.downpaymentPercent %>% downpayment by GCash, Maya or bank transfer afterwards.</p>
+    </div>
+  </div>
 
-/* ── Wizard progress header ────────────────────────────── */
-.wizard-header {
-  display: flex; align-items: center; gap: 0;
-  margin-bottom: 2rem; counter-reset: step;
-}
-.wizard-step-btn {
-  flex: 1; display: flex; flex-direction: column; align-items: center;
-  gap: .25rem; padding: .75rem .5rem;
-  background: none; border: none; cursor: default; position: relative;
-}
-.wizard-step-btn:not(:last-child)::after {
-  content: ''; position: absolute; top: 50%; right: 0;
-  transform: translateY(-50%) translateX(50%);
-  width: 100%; height: 2px; background: #e2e8f0; z-index: 0;
-}
-.wizard-step-btn.done::after   { background: var(--oc-cyan); }
-.wizard-step-btn.active::after { background: #e2e8f0; }
+  <!-- Wizard progress: "Step 2 of 4" + a thin bar -->
+  <div class="bw-progress">
+    <p class="wiz-caption" id="wizCaption" aria-live="polite">Step 1 of 4 · What to book</p>
+  <ol class="wiz-progress" aria-label="Booking steps">
+    <li class="wizard-step-btn active" id="hdr1" aria-current="step"><span class="step-num">1</span><span class="step-label">What to book</span></li>
+    <li class="wizard-step-btn" id="hdr2"><span class="step-num">2</span><span class="step-label">Dates &amp; details</span></li>
+    <li class="wizard-step-btn" id="hdr3"><span class="step-num">3</span><span class="step-label">Guest info</span></li>
+    <li class="wizard-step-btn" id="hdr4"><span class="step-num">4</span><span class="step-label">Payment</span></li>
+  </ol>
+  </div>
 
-.step-circle {
-  width: 36px; height: 36px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: .8rem; font-weight: 700;
-  background: #e2e8f0; color: #6b7280;
-  position: relative; z-index: 1; transition: all .25s;
-}
-.wizard-step-btn.active .step-circle {
-  background: linear-gradient(135deg, var(--oc-deep), var(--oc-teal));
-  color: var(--oc-cyan);
-  box-shadow: 0 0 14px rgba(0,229,255,.3);
-}
-.wizard-step-btn.done .step-circle {
-  background: linear-gradient(135deg, var(--oc-teal), #0d5c6e);
-  color: var(--oc-cyan);
-  box-shadow: 0 0 10px rgba(0,229,255,.2);
-}
-.step-label { font-size: .7rem; font-weight: 600; color: #9ca3af; text-align: center; }
-.wizard-step-btn.active .step-label { color: var(--oc-teal); }
-.wizard-step-btn.done   .step-label { color: var(--oc-teal); }
+  <% if (errors && errors.length > 0) { %>
+  <div class="alert alert-danger mb-3" role="alert">
+    <% for (const e of errors) { %><div><%= e.msg %></div><% } %>
+  </div>
+  <% } %>
 
-/* ── Panels ──────────────────────────────────────────── */
-.wizard-panel { display: none; }
-.wizard-panel.active { display: block; }
+  <div class="wiz-layout">
 
-/* ── Type cards ──────────────────────────────────────── */
-.type-card {
-  border: 2px solid #e2e8f0; border-radius: .875rem;
-  padding: 1.25rem 1rem; text-align: center;
-  cursor: pointer; transition: all .2s; background: #fff;
-}
-.type-card:hover { border-color: var(--oc-teal); background: #f0f9ff; }
-.type-card.selected {
-  border-color: var(--oc-cyan);
-  background: linear-gradient(135deg, rgba(0,229,255,.06), rgba(0,229,255,.02));
-  box-shadow: 0 0 18px rgba(0,229,255,.12);
-}
-.type-card i { font-size: 2rem; color: var(--oc-teal); display: block; margin-bottom: .5rem; }
-.type-card.selected i { color: var(--oc-cyan); }
-.type-card .label { font-size: .85rem; font-weight: 700; color: #0f172a; }
-/* Locked selection: non-chosen type cards are dimmed & non-interactive */
-.type-card-disabled { opacity: .45; pointer-events: none; filter: grayscale(.4); }
-.type-card[data-locked="1"] { cursor: default; position: relative; }
-.type-lock-badge { position: absolute; top: 8px; right: 10px; color: var(--oc-cyan); font-size: .8rem; }
-/* Locked item dropdown: looks read-only */
-.is-locked-select { background: #f1f5f9; cursor: default; pointer-events: none; }
-
-/* ── Package select dropdown ─────────────────────────── */
-.pkg-select-wrap { position: relative; }
-.pkg-select-wrap .form-select { padding-right: 2.5rem; }
-
-/* ── Inclusions panel ────────────────────────────────── */
-.inclusions-panel {
-  display: none;
-  margin-top: 1rem;
-  border: 1px solid rgba(0,229,255,.25);
-  border-radius: 1rem;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,229,255,.06);
-}
-.inclusions-panel.visible { display: block; }
-
-.inclusions-header {
-  background: linear-gradient(135deg, var(--oc-deep), var(--oc-mid));
-  padding: .875rem 1.25rem;
-  display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid rgba(0,229,255,.15);
-}
-.inclusions-header-title {
-  color: #fff; font-weight: 700; font-size: .92rem;
-  display: flex; align-items: center; gap: .5rem;
-}
-.inclusions-header-title i { color: var(--oc-cyan); }
-.inclusions-addon-total {
-  font-size: .82rem; font-weight: 700;
-  color: var(--oc-gold);
-  background: rgba(255,209,102,.12);
-  border: 1px solid rgba(255,209,102,.25);
-  border-radius: .5rem; padding: .2rem .65rem;
-}
-
-/* Included (default) inclusions list */
-.inclusions-defaults {
-  background: #f8fbff;
-  padding: .875rem 1.25rem;
-  border-bottom: 1px solid #e2e8f0;
-}
-.inclusions-defaults-label {
-  font-size: .68rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .08em; color: #64748b; margin-bottom: .6rem;
-}
-.default-inc-item {
-  display: flex; align-items: center; gap: .5rem;
-  padding: .25rem 0; font-size: .84rem; color: #334155;
-}
-.default-inc-item i { color: #10b981; font-size: .75rem; flex-shrink: 0; }
-.default-inc-removable {
-  margin-left: auto; font-size: .7rem; font-weight: 600;
-  color: #ef4444; cursor: pointer; opacity: .7;
-  transition: opacity .15s; padding: .1rem .4rem;
-  border: 1px solid rgba(239,68,68,.3); border-radius: .35rem;
-  background: rgba(239,68,68,.05); white-space: nowrap;
-}
-.default-inc-removable:hover { opacity: 1; background: rgba(239,68,68,.1); }
-.default-inc-item.removed { opacity: .45; }
-.default-inc-item.removed i { color: #94a3b8; }
-.default-inc-item.removed .default-inc-removable { display: none; }
-.default-inc-add-back {
-  margin-left: auto; font-size: .7rem; font-weight: 600;
-  color: #10b981; cursor: pointer; opacity: .8;
-  transition: opacity .15s; padding: .1rem .4rem;
-  border: 1px solid rgba(16,185,129,.3); border-radius: .35rem;
-  background: rgba(16,185,129,.05); white-space: nowrap;
-}
-.default-inc-add-back:hover { opacity: 1; }
-
-/* Add-on inclusions grid */
-.inclusions-addons { padding: 1rem 1.25rem; background: #fff; }
-.inclusions-addons-label {
-  font-size: .68rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .08em; color: #64748b; margin-bottom: .75rem;
-  display: flex; align-items: center; gap: .4rem;
-}
-.inclusions-addons-label::after {
-  content: 'Optional — add to your package';
-  font-size: .65rem; font-weight: 500; color: #94a3b8;
-  text-transform: none; letter-spacing: 0;
-}
-.addon-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: .625rem;
-}
-.addon-item {
-  border: 1.5px solid #e2e8f0; border-radius: .75rem;
-  padding: .7rem .875rem; cursor: pointer;
-  transition: all .2s; background: #fff;
-  display: flex; align-items: flex-start; gap: .625rem;
-  user-select: none;
-}
-.addon-item:hover { border-color: rgba(0,229,255,.4); background: #f0f9ff; }
-.addon-item.selected {
-  border-color: var(--oc-cyan);
-  background: linear-gradient(135deg, rgba(0,229,255,.07), rgba(0,229,255,.03));
-  box-shadow: 0 0 12px rgba(0,229,255,.1);
-}
-.addon-check {
-  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
-  border: 2px solid #cbd5e1; display: flex; align-items: center; justify-content: center;
-  font-size: .6rem; color: transparent; transition: all .2s;
-  background: transparent;
-}
-.addon-item.selected .addon-check {
-  background: var(--oc-cyan); border-color: var(--oc-cyan); color: #020c18;
-  box-shadow: 0 0 8px rgba(0,229,255,.35);
-}
-.addon-name { font-size: .84rem; font-weight: 600; color: #0f172a; line-height: 1.35; }
-.addon-price {
-  margin-left: auto; white-space: nowrap; flex-shrink: 0;
-  font-size: .8rem; font-weight: 700; color: var(--oc-teal);
-}
-.addon-item.selected .addon-price { color: var(--oc-cyan); }
-
-/* Custom add-own inclusion row */
-.add-own-row {
-  display: flex; gap: .5rem; margin-top: .875rem; align-items: center;
-}
-.add-own-input {
-  flex: 1; border: 1.5px solid #e2e8f0; border-radius: .625rem;
-  padding: .45rem .875rem; font-size: .84rem;
-  transition: border-color .2s;
-}
-.add-own-input:focus { border-color: var(--oc-cyan); outline: none; box-shadow: 0 0 0 3px rgba(0,229,255,.1); }
-.add-own-price {
-  width: 110px; border: 1.5px solid #e2e8f0; border-radius: .625rem;
-  padding: .45rem .75rem; font-size: .84rem;
-  transition: border-color .2s;
-}
-.add-own-price:focus { border-color: var(--oc-cyan); outline: none; box-shadow: 0 0 0 3px rgba(0,229,255,.1); }
-.add-own-btn {
-  background: linear-gradient(135deg, var(--oc-deep), var(--oc-teal));
-  color: var(--oc-cyan); border: none; border-radius: .625rem;
-  padding: .45rem .875rem; font-size: .82rem; font-weight: 600;
-  cursor: pointer; white-space: nowrap; transition: all .2s;
-  box-shadow: 0 0 10px rgba(0,229,255,.12);
-}
-.add-own-btn:hover { box-shadow: 0 0 18px rgba(0,229,255,.3); }
-
-.custom-inc-list { margin-top: .5rem; display: flex; flex-direction: column; gap: .375rem; }
-.custom-inc-item {
-  display: flex; align-items: center; gap: .5rem;
-  background: rgba(0,229,255,.05); border: 1px solid rgba(0,229,255,.18);
-  border-radius: .625rem; padding: .4rem .75rem; font-size: .82rem;
-}
-.custom-inc-name { flex: 1; color: #0f172a; font-weight: 600; }
-.custom-inc-price { color: var(--oc-teal); font-weight: 700; font-size: .8rem; }
-.custom-inc-remove {
-  background: none; border: none; color: #ef4444; cursor: pointer;
-  font-size: .85rem; padding: 0 .2rem; opacity: .7; transition: opacity .15s;
-}
-.custom-inc-remove:hover { opacity: 1; }
-
-/* ── Payment method cards ─────────────────────────────── */
-.pay-card {
-  border: 2px solid #e2e8f0; border-radius: .875rem;
-  padding: 1rem; cursor: pointer; transition: all .2s; background: #fff;
-  display: flex; align-items: center; gap: .75rem;
-}
-.pay-card:hover { border-color: var(--oc-teal); }
-.pay-card.selected {
-  border-color: var(--oc-cyan);
-  background: linear-gradient(135deg, rgba(0,229,255,.06), rgba(0,229,255,.02));
-  box-shadow: 0 0 16px rgba(0,229,255,.12);
-}
-.pay-card input[type=radio] { display: none; }
-.pay-card-icon { width: 42px; height: 42px; border-radius: .5rem; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0; }
-
-/* ── Summary ─────────────────────────────────────────── */
-.summary-row { display: flex; justify-content: space-between; padding: .4rem 0; border-bottom: 1px solid #f1f5f9; font-size: .875rem; }
-.summary-row:last-child { border-bottom: none; }
-.summary-total { display: flex; justify-content: space-between; padding: .75rem 0 0; font-weight: 700; font-size: 1rem; }
-.summary-inclusion {
-  display: flex; justify-content: space-between;
-  padding: .3rem 0 .3rem .75rem; font-size: .8rem;
-  border-bottom: 1px solid #f1f5f9; color: #475569;
-}
-.summary-inclusion:last-child { border-bottom: none; }
-.summary-section-lbl {
-  font-size: .68rem; font-weight: 700; text-transform: uppercase;
-  letter-spacing: .07em; color: #94a3b8; padding: .35rem 0 .1rem;
-}
-</style>
-
-<div class="container-lg px-4 py-4">
-  <div class="row justify-content-center">
-    <div class="col-lg-9">
-
-      <div class="mb-3">
-        <a href="/portal" class="portal-back-btn"><i class="fas fa-arrow-left"></i>Back to Portal</a>
-        <h4 class="fw-bold mt-3 mb-0" style="color:var(--oc-deep);"><i class="fas fa-calendar-plus me-2" style="color:var(--oc-teal);"></i>Book a Reservation</h4>
-      </div>
-
-      <!-- Wizard Progress Header -->
-      <div class="wizard-header bg-white rounded-3 border px-3 py-2 mb-4">
-        <div class="wizard-step-btn active" id="hdr1">
-          <div class="step-circle">1</div>
-          <div class="step-label">What to Book</div>
-        </div>
-        <div class="wizard-step-btn" id="hdr2">
-          <div class="step-circle">2</div>
-          <div class="step-label">Dates & Details</div>
-        </div>
-        <div class="wizard-step-btn" id="hdr3">
-          <div class="step-circle">3</div>
-          <div class="step-label">Guest Info</div>
-        </div>
-        <div class="wizard-step-btn" id="hdr4">
-          <div class="step-circle">4</div>
-          <div class="step-label">Payment</div>
+    <!-- Booking summary: sticky side column on desktop, collapsible at the top on phones -->
+    <aside class="wiz-aside" aria-labelledby="summaryHeading">
+      <div class="wiz-summary" id="bookingSummary">
+        <button type="button" class="wiz-sum-toggle" id="summaryToggle" aria-expanded="false" aria-controls="summaryBody">
+          <span class="t">Booking summary</span>
+          <span class="v"><span id="summaryTotalMini">No total yet</span><i class="fas fa-chevron-down" aria-hidden="true"></i></span>
+        </button>
+        <h2 class="wiz-sum-title" id="summaryHeading">Booking summary</h2>
+        <div class="wiz-sum-body" id="summaryBody">
+          <div id="summaryContent">
+            <div class="sum-empty">Choose what to book to see your total.</div>
+          </div>
+          <p class="wiz-sum-note">Prices come from the live catalogue. The final amount is checked again when you submit.</p>
         </div>
       </div>
+    </aside>
 
-      <% if (errors && errors.length > 0) { %>
-      <div class="alert alert-danger mb-3">
-        <% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
-      </div>
-      <% } %>
-
-      <form action="/portal/book" method="POST" id="bookingForm">
+    <div class="wiz-main">
+      <form action="/portal/book" method="POST" id="bookingForm" novalidate>
 
         <!-- ═══ STEP 1 — What to Book ════════════════════════════════════ -->
-        <div class="wizard-panel active" id="panel1">
-          <div class="bg-white rounded-3 border p-4">
-            <h5 class="fw-bold mb-1">What would you like to reserve?</h5>
-            <p class="text-muted small mb-4">Select the type of accommodation or event you want to book.</p>
-            <div class="row g-3">
-              <% for (const [val,label,icon,desc] of [
-                ['room',    'Room Stay',          'fas fa-bed',           'Book a standard, deluxe, suite, or family room'],
-                ['venue',   'Venue / Event Hall', 'fas fa-map-marker-alt','Reserve a function hall, garden, or pavilion'],
-                ['event',   'Event Package',      'fas fa-star',          'Wedding, birthday, corporate, debut & more'],
-                ['cottage', 'Cottage',            'fas fa-home',          'Cozy nipa hut or bamboo cottage by the water'],
-              ]) { %>
-              <% const _sel = (old.reservation_type||filters.type); %>
-              <div class="col-6 col-md-3">
-                <div class="type-card h-100 <%= _sel===val?'selected':'' %> <%= (lockedSelection && _sel!==val) ? 'type-card-disabled' : '' %>"
-                     data-type="<%= val %>" <%- lockedSelection ? 'data-locked="1"' : '' %>>
-                  <i class="<%= icon %>"></i>
-                  <div class="label"><%= label %></div>
-                  <div class="text-muted mt-1" style="font-size:.7rem;"><%= desc %></div>
-                  <% if (lockedSelection && _sel===val) { %><span class="type-lock-badge"><i class="fas fa-lock"></i></span><% } %>
-                </div>
-              </div>
+        <section class="wizard-panel active" id="panel1" aria-labelledby="step1Title">
+          <div class="pt-surface">
+            <h2 class="wiz-step-title" id="step1Title" tabindex="-1">What would you like to book?</h2>
+            <p class="wiz-step-lede">Pick one. You'll choose the exact room, cottage, venue or package next.</p>
+            <div class="type-options" role="group" aria-labelledby="step1Title">
+              <% for (const [val, label, desc, from, unit, icon] of typeOptions) { %>
+              <button type="button"
+                class="type-card <%= _sel === val ? 'selected' : '' %> <%= (lockedSelection && _sel !== val) ? 'type-card-disabled' : '' %>"
+                data-type="<%= val %>" aria-pressed="<%= _sel === val ? 'true' : 'false' %>"
+                <%- lockedSelection ? 'data-locked="1"' : '' %> <%- (lockedSelection && _sel !== val) ? 'disabled' : '' %>>
+                <span class="type-icon" aria-hidden="true"><i class="fas <%= icon %>"></i></span>
+                <span class="label"><%= label %></span>
+                <span class="type-desc"><%= desc %></span>
+                <% if (from != null) { %><span class="type-price">From <%= formatPrice(from) %> <%= unit %></span><% } %>
+                <% if (lockedSelection && _sel === val) { %><span class="type-lock-badge">Selected</span><% } else { %><span class="type-check" aria-hidden="true">Selected</span><% } %>
+              </button>
               <% } %>
             </div>
+            <div id="typeError"></div>
             <% if (lockedSelection) { %>
-            <div class="alert alert-info py-2 small mt-3 mb-0">
-              <i class="fas fa-info-circle me-1"></i>You selected this from your chosen listing, so the type and item are locked. Go <a href="/portal/rooms">back to browse</a> to pick a different one.
+            <% const _sp = (selectedItem.imagesList || [])[0]; const _unit = _sel === 'room' ? 'per night' : 'per booking'; %>
+            <div class="sel-item mt-4">
+              <div class="sel-item-photo pt-photo">
+                <% if (_sp) { %><img src="<%= _sp %>" alt="<%= selectedItem.name %>" /><% } else { %><div class="photo-pending"><i class="far fa-image" aria-hidden="true"></i>Photos coming soon</div><% } %>
+              </div>
+              <div class="sel-item-body">
+                <p class="pt-meta mb-1">You’re booking</p>
+                <p class="sel-item-name"><%= selectedItem.name %></p>
+                <p class="sel-item-facts"><%= _sel === 'room' ? 'Sleeps ' : 'Up to ' %><%= selectedItem.capacity %><%= _sel === 'room' ? '' : ' guests' %> · <strong><%= formatPrice(selectedItem.price) %></strong> <%= _unit %></p>
+                <p class="pt-small mb-0"><a href="<%= browseFor[_sel] || '/portal' %>">Browse others</a> or <a href="/portal/book">start over</a>.</p>
+              </div>
             </div>
             <% } %>
             <input type="hidden" name="reservation_type" id="reservationType" value="<%= old.reservation_type || filters.type || '' %>" required />
           </div>
-          <div class="d-flex justify-content-end mt-3">
-            <button type="button" class="btn btn-primary px-4" id="nextStep1" style="background:linear-gradient(135deg,var(--oc-deep),var(--oc-teal));border:none;">
-              Next <i class="fas fa-arrow-right ms-1"></i>
-            </button>
+          <div class="wiz-nav">
+            <button type="button" class="btn btn-primary" id="nextStep1">Continue to dates <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
           </div>
-        </div>
+        </section>
 
         <!-- ═══ STEP 2 — Dates & Details ════════════════════════════════ -->
-        <div class="wizard-panel" id="panel2">
-          <div class="bg-white rounded-3 border p-4">
-            <h5 class="fw-bold mb-1" id="step2Title">Select Room & Dates</h5>
-            <p class="text-muted small mb-4">Choose your preferred option and dates.</p>
+        <section class="wizard-panel" id="panel2" aria-labelledby="step2Title">
+          <div class="pt-surface">
+            <h2 class="wiz-step-title" id="step2Title" tabindex="-1">Select room &amp; dates</h2>
+            <p class="wiz-step-lede" id="step2Lede">Choose your option and dates. The summary updates as you go.</p>
+            <%# Selected room / cottage / venue: real photo (if any), capacity and rate unit — filled by the script %>
+            <div class="sel-item mb-4" id="itemCard" hidden aria-live="polite"></div>
 
             <!-- ── Room fields (room type only) ── -->
             <div id="roomFields" style="display:none;">
               <div class="mb-3">
-                <label class="form-label required">Select Room</label>
+                <label class="form-label" for="roomSelect">Room</label>
                 <select name="item_id" id="roomSelect" class="form-select" <%- lockedSelection ? 'data-locked="1"' : '' %>>
-                  <option value="">— Choose a room —</option>
+                  <option value="">Choose a room</option>
                   <% for (const r of rooms) { %>
                   <option value="<%= r.id %>"
                     data-price="<%= r.price %>"
@@ -373,25 +149,25 @@
                     data-type="<%= r.type_name %>"
                     data-cap="<%= r.capacity %>"
                     data-images="<%= encodeURIComponent(JSON.stringify(r.imagesList || [])) %>"
+                    data-blocked="<%= _blk(r) %>"
                     <%= String(filters.item_id) === String(r.id) ? 'selected' : '' %>>
-                    <%= r.name %> (cap. <%= r.capacity %>) — <%= formatPeso(r.price) %>/night
+                    <%= r.name %> · sleeps <%= r.capacity %> · <%= formatPrice(r.price) %> / night
                   </option>
                   <% } %>
                 </select>
               </div>
               <div class="row g-3">
                 <div class="col-6">
-                  <label class="form-label required">Check-in Date</label>
+                  <label class="form-label" for="checkInDate">Check-in</label>
                   <input type="date" name="check_in_date" id="checkInDate" class="form-control" value="<%= old.check_in_date || filters.checkin || '' %>" />
                 </div>
                 <div class="col-6">
-                  <label class="form-label required">Check-out Date</label>
+                  <label class="form-label" for="checkOutDate">Check-out</label>
                   <input type="date" name="check_out_date" id="checkOutDate" class="form-control" value="<%= old.check_out_date || filters.checkout || '' %>" />
                 </div>
               </div>
-              <div class="alert alert-info mt-3 py-2 small d-none" id="roomPricePreview">
-                <i class="fas fa-tag me-1"></i><span id="roomPriceText"></span>
-              </div>
+              <div class="bw-cal" id="roomCal" aria-label="Availability calendar for the selected room"></div>
+              <p class="wiz-hint d-none" id="roomPricePreview"><span id="roomPriceText"></span></p>
             </div>
 
             <!-- ── Cottage fields (cottage type only) ── -->
@@ -402,71 +178,71 @@
             %>
             <div id="cottageFields" style="display:none;">
               <div class="mb-3">
-                <label class="form-label required">Select Cottage</label>
+                <label class="form-label" for="cottageSelect">Cottage</label>
                 <select name="cottage_item_id" id="cottageSelect" class="form-select" <%- lockedSelection ? 'data-locked="1"' : '' %>>
-                  <option value="">— Choose a cottage —</option>
+                  <option value="">Choose a cottage</option>
                   <% for (const c of cottages) { %>
                   <option value="<%= c.id %>"
                     data-price="<%= c.price %>"
                     data-name="<%= c.name %>"
-                    data-rate-type="<%= c.name === 'Umbrella Table' ? 'day' : 'hour' %>"
                     data-cap="<%= c.capacity %>"
                     data-images="<%= encodeURIComponent(JSON.stringify(c.imagesList || [])) %>"
+                    data-blocked="<%= _blk(c) %>"
                     <%= String(filters.item_id) === String(c.id) ? 'selected' : '' %>>
-                    <%= c.name %> — cap. <%= c.capacity %> pax — <%= formatPeso(c.price) %>
+                    <%= c.name %> · up to <%= c.capacity %> guests · <%= formatPrice(c.price) %> per booking
                   </option>
                   <% } %>
                 </select>
-                <% if (cottages && cottages.length > 0) { %>
-                <div class="alert alert-info mt-2 py-2 small d-none" id="cottagePricePreview">
-                  <i class="fas fa-tag me-1"></i><span id="cottagePriceText"></span>
-                </div>
-                <% } %>
               </div>
               <div class="row g-3">
-                <div class="col-6">
-                  <label class="form-label required">Booking Date</label>
+                <div class="col-12 col-sm-4">
+                  <label class="form-label" for="cottageDate">Date</label>
                   <input type="date" name="cottage_checkin" id="cottageDate" class="form-control" value="<%= old.check_in_date || filters.checkin || filters.date || '' %>" />
                 </div>
-                <div class="col-6">
-                  <label class="form-label required">Time In</label>
-                  <input type="time" name="cottage_start_time" id="cottageStartTime" class="form-control" value="<%= old.start_time || '14:00' %>" />
+                <div class="col-6 col-sm-4">
+                  <label class="form-label" for="cottageStartTime">Time in</label>
+                  <input type="time" name="cottage_start_time" id="cottageStartTime" class="form-control" value="<%= old.start_time || _qStart || '14:00' %>" />
                 </div>
-                <div class="col-6">
-                  <label class="form-label required">Time Out</label>
-                  <input type="time" name="cottage_end_time" id="cottageEndTime" class="form-control" value="<%= old.end_time || '22:00' %>" />
+                <div class="col-6 col-sm-4">
+                  <label class="form-label" for="cottageEndTime">Time out</label>
+                  <input type="time" name="cottage_end_time" id="cottageEndTime" class="form-control" value="<%= old.end_time || _qEnd || '22:00' %>" />
                 </div>
               </div>
+              <div class="bw-cal" id="cottageCal" aria-label="Availability calendar for the selected cottage"></div>
+              <% if (cottages && cottages.length > 0) { %>
+              <p class="wiz-hint d-none" id="cottagePricePreview"><span id="cottagePriceText"></span></p>
+              <% } %>
             </div>
 
             <!-- ── Venue / Event fields ── -->
             <div id="venueFields" style="display:none;">
-              <div class="mb-3">
-                <label class="form-label">Select Venue <span class="text-muted small">(optional)</span></label>
+              <div class="mb-3" id="venueGroup">
+                <label class="form-label" for="venueSelect"><span id="venueLabel">Venue</span> <span class="opt" id="venueOpt">(optional, adds the venue fee)</span></label>
                 <%# Venue uses venue_item_id to avoid colliding with roomSelect's item_id %>
                 <select name="venue_item_id" id="venueSelect" class="form-select" <%- lockedSelection ? 'data-locked="1"' : '' %>>
-                  <option value="">— Choose a venue —</option>
+                  <option value="">No venue</option>
                   <% for (const v of venues) { %>
                   <option value="<%= v.id %>" data-price="<%= v.price %>" data-name="<%= v.name %>" data-cap="<%= v.capacity %>"
                     data-images="<%= encodeURIComponent(JSON.stringify(v.imagesList || [])) %>"
+                    data-blocked="<%= _blk(v) %>"
                     <%= String(filters.item_id) === String(v.id) ? 'selected' : '' %>>
-                    <%= v.name %> (Cap: <%= v.capacity %>) — <%= formatPeso(v.price) %>
+                    <%= v.name %> · up to <%= v.capacity %> guests · <%= formatPrice(v.price) %> per booking
                   </option>
                   <% } %>
                 </select>
               </div>
 
               <!-- Package selector -->
-              <div class="mb-2">
-                <label class="form-label">Event Package <span class="text-muted small">(optional)</span></label>
+              <div class="mb-2" id="packageGroup">
+                <label class="form-label" for="packageSelect">Event package <span class="opt" id="packageOpt">(optional)</span></label>
                 <select name="package_id" id="packageSelect" class="form-select">
-                  <option value="">— No package —</option>
+                  <option value="">No package</option>
                   <% for (const p of packages) { %>
                   <option value="<%= p.id %>"
                     data-price="<%= p.price %>"
                     data-name="<%= p.name %>"
                     <%= String(filters.package_id) === String(p.id) ? 'selected' : '' %>>
-                    <%= p.name %> — <%= formatPeso(p.price) %>
+                    <%= p.name %><%= p.capacity ? ' · up to ' + p.capacity + ' guests' : '' %> · <%= formatPrice(p.price) %>
                   </option>
                   <% } %>
                 </select>
@@ -474,42 +250,32 @@
 
               <!-- ══ INCLUSIONS PANEL (shown when a package is selected) ═══ -->
               <div class="inclusions-panel" id="inclusionsPanel">
-
                 <div class="inclusions-header">
-                  <div class="inclusions-header-title">
-                    <i class="fas fa-sliders-h"></i>
-                    Customize Your Package Inclusions
-                  </div>
-                  <span class="inclusions-addon-total" id="addonTotalBadge">+₱0 add-ons</span>
+                  <span class="inclusions-header-title">Package inclusions</span>
+                  <span class="inclusions-addon-total" id="addonTotalBadge">No add-ons selected</span>
                 </div>
 
                 <!-- Default (included) inclusions -->
                 <div class="inclusions-defaults" id="defaultInclusionsWrap">
-                  <div class="inclusions-defaults-label"><i class="fas fa-check-circle me-1" style="color:#10b981;"></i>Included in base price</div>
+                  <p class="inc-label">Included in the package price</p>
                   <div id="defaultInclusionsList"></div>
                 </div>
 
                 <!-- Optional add-ons -->
                 <div class="inclusions-addons" id="addonInclusionsWrap" style="display:none;">
-                  <div class="inclusions-addons-label"><i class="fas fa-plus-circle me-1" style="color:var(--oc-teal);"></i></div>
+                  <p class="inc-label">Optional add-ons — each one you select is added to your total and the downpayment.</p>
                   <div class="addon-grid" id="addonGrid"></div>
                 </div>
 
-                <!-- Add your own custom inclusion -->
-                <div style="padding:.875rem 1.25rem 1rem;background:#f8fbff;border-top:1px solid #e2e8f0;">
-                  <div style="font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:.625rem;">
-                    <i class="fas fa-pencil-alt me-1" style="color:var(--oc-teal);"></i>Add a custom request
-                  </div>
+                <!-- Add your own request (noted for staff; not priced online) -->
+                <div class="inclusions-custom">
+                  <label class="inc-label d-block" for="customIncName">Anything else for your event? <span class="fw-normal">Added to your special requests — staff will confirm and quote any cost.</span></label>
                   <div class="add-own-row">
-                    <input type="text" id="customIncName" class="add-own-input" placeholder="e.g. Flower Wall Backdrop" maxlength="80" />
-                    <input type="number" id="customIncPrice" class="add-own-price" placeholder="₱ price" min="0" step="100" />
-                    <button type="button" class="add-own-btn" id="addCustomIncBtn">
-                      <i class="fas fa-plus me-1"></i>Add
-                    </button>
+                    <input type="text" id="customIncName" class="form-control" placeholder="e.g. Flower wall backdrop" maxlength="80" />
+                    <button type="button" class="btn btn-outline-secondary" id="addCustomIncBtn">Add</button>
                   </div>
                   <div class="custom-inc-list" id="customIncList"></div>
                 </div>
-
               </div>
               <!-- /inclusions-panel -->
 
@@ -517,191 +283,290 @@
               <div id="inclusionHiddenInputs"></div>
 
               <div class="row g-3 mt-1">
-                <div class="col-6 col-md-4">
-                  <label class="form-label required">Event Date</label>
+                <div class="col-12 col-sm-4">
+                  <label class="form-label" for="eventDate">Event date</label>
                   <input type="date" name="event_date" id="eventDate" class="form-control" value="<%= old.event_date || filters.date || '' %>" />
                 </div>
-                <div class="col-6 col-md-4">
-                  <label class="form-label">Start Time</label>
-                  <input type="time" name="start_time" id="eventStartTime" class="form-control" value="<%= old.start_time || '14:00' %>" />
+                <div class="col-6 col-sm-4">
+                  <label class="form-label" for="eventStartTime">Start time</label>
+                  <input type="time" name="start_time" id="eventStartTime" class="form-control" value="<%= old.start_time || _qStart || '14:00' %>" />
                 </div>
-                <div class="col-6 col-md-4">
-                  <label class="form-label">End Time</label>
-                  <input type="time" name="end_time" id="eventEndTime" class="form-control" value="<%= old.end_time || '22:00' %>" />
+                <div class="col-6 col-sm-4">
+                  <label class="form-label" for="eventEndTime">End time</label>
+                  <input type="time" name="end_time" id="eventEndTime" class="form-control" value="<%= old.end_time || _qEnd || '22:00' %>" />
                 </div>
               </div>
+              <div class="bw-cal" id="eventCal" aria-label="Availability calendar for the event date"></div>
             </div>
 
             <%# ── Photo gallery of the selected item ── %>
-            <div id="itemGallery" class="mt-3 d-none">
-              <label class="form-label small fw-semibold mb-2"><i class="fas fa-images me-1"></i>Photos <span class="text-muted">(click to enlarge)</span></label>
-              <div id="itemGalleryThumbs" class="d-flex flex-wrap gap-2"></div>
+            <div id="itemGallery" class="wiz-group d-none">
+              <p class="inc-label">Photos — select to enlarge</p>
+              <div id="itemGalleryThumbs" class="item-gallery"></div>
             </div>
 
             <input type="hidden" name="total_amount" id="totalAmount" value="<%= old.total_amount || '' %>" />
           </div>
-          <div class="d-flex justify-content-between mt-3">
-            <button type="button" class="btn btn-outline-secondary px-4" id="prevStep2">
-              <i class="fas fa-arrow-left me-1"></i> Back
-            </button>
-            <button type="button" class="btn btn-primary px-4" id="nextStep2" style="background:linear-gradient(135deg,var(--oc-deep),var(--oc-teal));border:none;">
-              Next <i class="fas fa-arrow-right ms-1"></i>
-            </button>
+          <div class="wiz-nav">
+            <button type="button" class="btn btn-outline-secondary" id="prevStep2"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back</button>
+            <button type="button" class="btn btn-primary" id="nextStep2">Continue to guest details <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
           </div>
-        </div>
+        </section>
 
         <!-- ═══ STEP 3 — Guest Info ══════════════════════════════════════ -->
-        <div class="wizard-panel" id="panel3">
-          <div class="bg-white rounded-3 border p-4">
-            <h5 class="fw-bold mb-1">Guest Information</h5>
-            <p class="text-muted small mb-4">Tell us about your group.</p>
+        <section class="wizard-panel" id="panel3" aria-labelledby="step3Title">
+          <div class="pt-surface">
+            <h2 class="wiz-step-title" id="step3Title" tabindex="-1">Guest information</h2>
+            <p class="wiz-step-lede">Booking for <strong><%= currentUser.firstName %> <%= currentUser.lastName %></strong><% if (currentUser.email) { %> · <%= currentUser.email %><% } %>.</p>
             <div class="row g-3">
-              <div class="col-md-6">
-                <label class="form-label required">Number of Guests</label>
-                <input type="number" name="num_guests" id="numGuests" class="form-control" value="<%= old.num_guests || 1 %>" min="1" max="500" required />
+              <div class="col-sm-6">
+                <label class="form-label" for="numGuests">Number of guests</label>
+                <input type="number" name="num_guests" id="numGuests" class="form-control" value="<%= old.num_guests || _qGuests || 1 %>" min="1" max="500" inputmode="numeric" required aria-describedby="guestCapHint" />
+                <div class="form-text" id="guestCapHint"></div>
               </div>
-              <div class="col-md-6">
-                <label class="form-label required">Contact Number</label>
-                <input type="tel" name="contact_phone" class="form-control" value="<%= old.contact_phone || '' %>" placeholder="+639545425256 or 09545425256" pattern="(?:\+639|09)[0-9]{9}" title="Enter a valid Philippine mobile number, such as +639545425256 or 09545425256." required />
+              <div class="col-sm-6">
+                <label class="form-label" for="contactPhone">Mobile number</label>
+                <input type="tel" name="contact_phone" id="contactPhone" class="form-control" value="<%= old.contact_phone || '' %>" placeholder="09171234567" inputmode="tel" autocomplete="tel" pattern="(?:\+639|09)[0-9]{9}" title="Enter a valid Philippine mobile number, such as +639545425256 or 09545425256." required aria-describedby="phoneHint" />
+                <div class="form-text" id="phoneHint">Philippine mobile: 09XXXXXXXXX or +639XXXXXXXXX. Staff use it if they need to reach you.</div>
               </div>
               <div class="col-12">
-                <label class="form-label">Special Requests / Notes</label>
-                <textarea name="special_requests" class="form-control" rows="4" placeholder="Dietary requirements, accessibility needs, occasion details…"><%= old.special_requests || '' %></textarea>
+                <label class="form-label" for="specialRequests">Special requests <span class="opt">(optional)</span></label>
+                <textarea name="special_requests" id="specialRequests" class="form-control" rows="4" placeholder="Arrival time, dietary needs, accessibility, occasion details…"><%= old.special_requests || '' %></textarea>
               </div>
             </div>
           </div>
-          <div class="d-flex justify-content-between mt-3">
-            <button type="button" class="btn btn-outline-secondary px-4" id="prevStep3">
-              <i class="fas fa-arrow-left me-1"></i> Back
-            </button>
-            <button type="button" class="btn btn-primary px-4" id="nextStep3" style="background:linear-gradient(135deg,var(--oc-deep),var(--oc-teal));border:none;">
-              Next <i class="fas fa-arrow-right ms-1"></i>
-            </button>
+          <div class="wiz-nav">
+            <button type="button" class="btn btn-outline-secondary" id="prevStep3"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back</button>
+            <button type="button" class="btn btn-primary" id="nextStep3">Review payment <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
           </div>
-        </div>
+        </section>
 
         <!-- ═══ STEP 4 — Payment & Confirm ══════════════════════════════ -->
-        <div class="wizard-panel" id="panel4">
-          <div class="row g-3">
+        <section class="wizard-panel" id="panel4" aria-labelledby="step4Title">
+          <div class="pt-surface">
+            <h2 class="wiz-step-title" id="step4Title" tabindex="-1">Payment</h2>
+            <p class="wiz-step-lede">Pay through GCash, Maya or bank transfer, then upload your receipt for verification. You pay outside this site after you submit; cash isn’t available for online bookings.</p>
 
-            <!-- Booking Summary -->
-            <div class="col-lg-5 order-lg-2">
-              <div class="bg-white rounded-3 border p-4 sticky-lg-top" style="top:80px;">
-                <h6 class="fw-bold mb-3" style="color:var(--oc-teal);"><i class="fas fa-receipt me-2"></i>Booking Summary</h6>
-                <div id="summaryContent">
-                  <div class="text-muted small text-center py-3">Complete the previous steps to see summary</div>
-                </div>
+            <fieldset>
+              <legend class="inc-label">Payment method</legend>
+              <div class="pay-options" id="paymentMethods">
+                <label class="pay-card <%= pm0 === 'gcash' ? 'selected' : '' %>" for="pm_gcash">
+                  <input type="radio" name="payment_method" id="pm_gcash" value="gcash" <%= pm0 === 'gcash' ? 'checked' : '' %> required />
+                  <span class="pay-radio" aria-hidden="true"></span>
+                  <span class="flex-grow-1">
+                    <span class="pay-card-name d-block">GCash</span>
+                    <span class="pay-card-sub d-block"><%= isPlaceholder(paymentInfo.gcash_number) ? (paymentInfo.gcash_qr_path ? 'Pay by scanning the resort’s GCash QR' : 'Number not published yet — contact the resort first') : 'Send to ' + paymentInfo.gcash_number + ' · ' + paymentInfo.gcash_name %></span>
+                  </span>
+                  <span class="check-icon <%= pm0 === 'gcash' ? '' : 'd-none' %>">Selected</span>
+                </label>
+
+                <label class="pay-card <%= pm0 === 'maya' ? 'selected' : '' %>" for="pm_maya">
+                  <input type="radio" name="payment_method" id="pm_maya" value="maya" <%= pm0 === 'maya' ? 'checked' : '' %> />
+                  <span class="pay-radio" aria-hidden="true"></span>
+                  <span class="flex-grow-1">
+                    <span class="pay-card-name d-block">Maya</span>
+                    <span class="pay-card-sub d-block"><%= isPlaceholder(paymentInfo.maya_number) ? (paymentInfo.maya_qr_path ? 'Pay by scanning the resort’s Maya QR' : 'Number not published yet — contact the resort first') : 'Send to ' + paymentInfo.maya_number + ' · ' + paymentInfo.maya_name %></span>
+                  </span>
+                  <span class="check-icon <%= pm0 === 'maya' ? '' : 'd-none' %>">Selected</span>
+                </label>
+
+                <label class="pay-card <%= pm0 === 'bank_transfer' ? 'selected' : '' %>" for="pm_bank">
+                  <input type="radio" name="payment_method" id="pm_bank" value="bank_transfer" <%= pm0 === 'bank_transfer' ? 'checked' : '' %> />
+                  <span class="pay-radio" aria-hidden="true"></span>
+                  <span class="flex-grow-1">
+                    <span class="pay-card-name d-block">Bank transfer (BDO or BPI)</span>
+                    <span class="pay-card-sub d-block"><%= bankReady ? 'Account name: ' + paymentInfo.bank_name : 'Account numbers not published yet — contact the resort first' %></span>
+                  </span>
+                  <span class="check-icon <%= pm0 === 'bank_transfer' ? '' : 'd-none' %>">Selected</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <%# Account details per method — copied into #payInstrText when a method is picked %>
+            <template id="payInfo-gcash">
+              <dl class="pt-dl">
+                <dt>Send to</dt>
+                <dd><% if (!isPlaceholder(paymentInfo.gcash_number)) { %><span class="pay-acct"><span class="acct-num"><%= paymentInfo.gcash_number %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.gcash_number %>" aria-label="Copy GCash number"><i class="far fa-copy" aria-hidden="true"></i>Copy number</button></span><% } else { %><span class="pay-missing">Not published yet<%= paymentInfo.gcash_qr_path ? ' — scan the QR code below' : ' — contact the resort before paying' %></span><% } %></dd>
+                <dt>Account name</dt><dd><%= paymentInfo.gcash_name %></dd>
+                <dt>Message</dt><dd>Your BK- booking reference (shown after you submit)</dd>
+              </dl>
+            </template>
+            <template id="payInfo-maya">
+              <dl class="pt-dl">
+                <dt>Send to</dt>
+                <dd><% if (!isPlaceholder(paymentInfo.maya_number)) { %><span class="pay-acct"><span class="acct-num"><%= paymentInfo.maya_number %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.maya_number %>" aria-label="Copy Maya number"><i class="far fa-copy" aria-hidden="true"></i>Copy number</button></span><% } else { %><span class="pay-missing">Not published yet<%= paymentInfo.maya_qr_path ? ' — scan the QR code below' : ' — contact the resort before paying' %></span><% } %></dd>
+                <dt>Account name</dt><dd><%= paymentInfo.maya_name %></dd>
+                <dt>Message</dt><dd>Your BK- booking reference (shown after you submit)</dd>
+              </dl>
+            </template>
+            <template id="payInfo-bank_transfer">
+              <% if (bankReady) { %>
+              <dl class="pt-dl">
+                <% if (!isPlaceholder(paymentInfo.bank_bdo)) { %><dt>BDO account</dt><dd><span class="pay-acct"><span class="acct-num"><%= paymentInfo.bank_bdo %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.bank_bdo %>">Copy number</button></span></dd><% } %>
+                <% if (!isPlaceholder(paymentInfo.bank_bpi)) { %><dt>BPI account</dt><dd><span class="pay-acct"><span class="acct-num"><%= paymentInfo.bank_bpi %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.bank_bpi %>">Copy number</button></span></dd><% } %>
+                <dt>Account name</dt><dd><%= paymentInfo.bank_name %></dd>
+                <dt>Reference</dt><dd>Your BK- booking reference (shown after you submit)</dd>
+              </dl>
+              <% } else { %>
+              <p class="mb-0 pt-small">The resort hasn't published its bank account numbers yet. Please <a href="/portal/inquire">contact the resort</a> for bank details before paying, or choose GCash or Maya.</p>
+              <% } %>
+            </template>
+
+            <div id="paymentInstructions" class="pay-details d-none" aria-live="polite">
+              <p class="inc-label mb-2">Where to send the downpayment</p>
+              <div id="payInstrText"></div>
+              <div class="pay-qr d-none" data-pay-qr="gcash">
+                <% if (paymentInfo.gcash_qr_path) { %>
+                <figure class="mb-0">
+                  <img src="<%= paymentInfo.gcash_qr_path %>" alt="GCash QR code for <%= paymentInfo.gcash_name %>" />
+                  <figcaption>Scan with the GCash app</figcaption>
+                </figure>
+                <% } else { %>
+                <p class="pay-qr-missing">No GCash QR code has been uploaded yet — send to the number above.</p>
+                <% } %>
+              </div>
+              <div class="pay-qr d-none" data-pay-qr="maya">
+                <% if (paymentInfo.maya_qr_path) { %>
+                <figure class="mb-0">
+                  <img src="<%= paymentInfo.maya_qr_path %>" alt="Maya QR code for <%= paymentInfo.maya_name %>" />
+                  <figcaption>Scan with the Maya app</figcaption>
+                </figure>
+                <% } else { %>
+                <p class="pay-qr-missing">No Maya QR code has been uploaded yet — send to the number above.</p>
+                <% } %>
               </div>
             </div>
 
-            <!-- Payment Method -->
-            <div class="col-lg-7 order-lg-1">
-              <div class="bg-white rounded-3 border p-4">
-                <h5 class="fw-bold mb-1">Choose Payment Method</h5>
-                <p class="text-muted small mb-4">Select how you will pay the required downpayment to confirm your booking.</p>
-
-                <div class="d-flex flex-column gap-3" id="paymentMethods">
-                  <label class="pay-card <%= (old.payment_method||'gcash')==='gcash'?'selected':'' %>" for="pm_gcash">
-                    <input type="radio" name="payment_method" id="pm_gcash" value="gcash" <%= (old.payment_method||'gcash')==='gcash'?'checked':'' %> required />
-                    <div class="pay-card-icon" style="background:#f0fdf4;color:#16a34a;"><i class="fas fa-mobile-alt"></i></div>
-                    <div class="flex-grow-1">
-                      <div class="fw-bold small">GCash</div>
-                      <div class="text-muted" style="font-size:.75rem;">Send via GCash to <strong><%= paymentInfo.gcash_number %></strong></div>
-                    </div>
-                    <i class="fas fa-check-circle text-success d-none check-icon" style="font-size:1.1rem;"></i>
-                  </label>
-
-                  <label class="pay-card <%= (old.payment_method||'')==='bank_transfer'?'selected':'' %>" for="pm_bank">
-                    <input type="radio" name="payment_method" id="pm_bank" value="bank_transfer" <%= (old.payment_method||'')==='bank_transfer'?'checked':'' %> />
-                    <div class="pay-card-icon" style="background:#eff6ff;color:#2563eb;"><i class="fas fa-university"></i></div>
-                    <div class="flex-grow-1">
-                      <div class="fw-bold small">Bank Transfer (BDO / BPI)</div>
-                      <div class="text-muted" style="font-size:.75rem;">BDO: <%= paymentInfo.bank_bdo %> &nbsp;/&nbsp; BPI: <%= paymentInfo.bank_bpi %></div>
-                    </div>
-                    <i class="fas fa-check-circle text-success d-none check-icon" style="font-size:1.1rem;"></i>
-                  </label>
-
-                  <label class="pay-card <%= (old.payment_method||'')==='maya'?'selected':'' %>" for="pm_maya">
-                    <input type="radio" name="payment_method" id="pm_maya" value="maya" <%= (old.payment_method||'')==='maya'?'checked':'' %> />
-                    <div class="pay-card-icon" style="background:#fdf4ff;color:#9333ea;"><i class="fas fa-wallet"></i></div>
-                    <div class="flex-grow-1">
-                      <div class="fw-bold small">Maya (PayMaya)</div>
-                      <div class="text-muted" style="font-size:.75rem;">Send via Maya to <strong><%= paymentInfo.maya_number %></strong></div>
-                    </div>
-                    <i class="fas fa-check-circle text-success d-none check-icon" style="font-size:1.1rem;"></i>
-                  </label>
-
-                  <label class="pay-card <%= (old.payment_method||'')==='cash'?'selected':'' %>" for="pm_cash">
-                    <input type="radio" name="payment_method" id="pm_cash" value="cash" <%= (old.payment_method||'')==='cash'?'checked':'' %> />
-                    <div class="pay-card-icon" style="background:#fff7ed;color:#ea580c;"><i class="fas fa-money-bills"></i></div>
-                    <div class="flex-grow-1">
-                      <div class="fw-bold small">Cash (Walk-in)</div>
-                      <div class="text-muted" style="font-size:.75rem;">Pay in person at our front desk upon arrival</div>
-                    </div>
-                    <i class="fas fa-check-circle text-success d-none check-icon" style="font-size:1.1rem;"></i>
-                  </label>
-                </div>
-
-                <div id="paymentInstructions" class="alert alert-info mt-3 small d-none">
-                  <strong><i class="fas fa-info-circle me-1"></i>Payment Instructions:</strong>
-                  <div id="payInstrText" class="mt-1"></div>
-                </div>
-
-                <div class="alert alert-warning mt-3 py-2 small">
-                  <i class="fas fa-exclamation-triangle me-1"></i>
-                  A <strong><%= terms.downpaymentPercent %>% downpayment</strong> is required to confirm your booking. You will have <strong>48 hours</strong> to complete payment. Failure to pay may result in automatic cancellation.
-                </div>
-
-                <div class="form-check mt-3">
-                  <input class="form-check-input" type="checkbox" id="agreeTerms" required />
-                  <label class="form-check-label small" for="agreeTerms">
-                    I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">booking terms and conditions</a> and understand the downpayment requirement and cancellation policy.
-                  </label>
-                </div>
-              </div>
+            <div class="wiz-group">
+              <h3 class="pt-h3">What happens after you submit</h3>
+              <ol class="next-steps">
+                <li>Your booking is saved with a <strong>BK-YYYY-NNNN</strong> reference and shows as <strong>Awaiting payment</strong> (payment: Unpaid). It is not confirmed or paid yet.</li>
+                <li>Pay the downpayment (<span data-sum="dp">shown in the summary</span>) by your chosen method, and add your BK- reference as the message. Please pay within 48 hours — unpaid bookings may be released.</li>
+                <li>Upload a screenshot of your payment on the booking page. Staff check it against the resort’s account.</li>
+                <li>Once staff verify your payment you’re notified and the status updates; the remaining balance is paid at the resort.</li>
+              </ol>
             </div>
 
+            <div class="form-check mt-4">
+              <input class="form-check-input" type="checkbox" id="agreeTerms" required />
+              <label class="form-check-label" for="agreeTerms">
+                I agree to the <a href="#" data-bs-toggle="modal" data-bs-target="#termsModal">booking terms and cancellation policy</a> and understand the downpayment requirement.
+              </label>
+            </div>
+            <div id="agreeTermsSlot"></div>
           </div>
-          <div class="d-flex justify-content-between mt-3">
-            <button type="button" class="btn btn-outline-secondary px-4" id="prevStep4">
-              <i class="fas fa-arrow-left me-1"></i> Back
-            </button>
-            <button type="submit" class="btn btn-lg px-5" id="submitBooking" style="background:linear-gradient(135deg,var(--oc-teal),#0d5c6e);color:var(--oc-cyan);border:none;box-shadow:0 0 18px rgba(0,229,255,.25);font-weight:700;">
-              <i class="fas fa-check me-2"></i>Confirm Booking
-            </button>
+          <div class="wiz-nav">
+            <button type="button" class="btn btn-outline-secondary" id="prevStep4"><i class="fas fa-arrow-left" aria-hidden="true"></i> Back</button>
+            <button type="submit" class="btn btn-primary btn-lg" id="submitBooking">Submit booking</button>
           </div>
-        </div>
+        </section>
 
       </form>
     </div>
   </div>
 </div>
 
+<script src="/js/br-datepicker.js"></script>
 <script>
 (function () {
   'use strict';
   var downpaymentPercent = Number('<%= terms.downpaymentPercent %>');
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   /* ── Package data injected from server ─────────────────────────────────── */
   var pkgData = {};
-  try { pkgData = JSON.parse(document.getElementById('pkgData').textContent); } catch(e) {}
+  try { pkgData = JSON.parse(document.getElementById('pkgData').textContent); } catch (e) {}
 
   /* ── State ─────────────────────────────────────────────────────────────── */
   var currentStep      = 1;
   var selectedAddons   = {};   // key: addonName → price
   var removedDefaults  = {};   // key: incName → true  (defaults the user removed)
-  var customInclusions = [];   // [{name, price}] user-typed additions
+  var customInclusions = [];   // [{name, price:0}] guest requests, noted for staff
+  var STEP_NAMES = ['', 'What to book', 'Dates & details', 'Guest info', 'Payment'];
+  var TYPE_LABEL = { room: 'Room', cottage: 'Cottage', venue: 'Venue', event: 'Event package' };
 
   /* ── Helpers ───────────────────────────────────────────────────────────── */
+  // Amounts due (total, downpayment, balance): always 2 decimals, like formatPeso.
   function fmt(n) {
-    return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    return '₱' + Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  // Catalogue rates: no ".00" for whole pesos, like formatPrice.
+  function fmtPrice(n) {
+    var v = Number(n) || 0, whole = Math.round(v * 100) % 100 === 0;
+    return '₱' + v.toLocaleString('en-PH', { minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: 2 });
+  }
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmtDate(ymd) {
+    if (!ymd) return '';
+    var d = new Date(ymd + 'T00:00:00Z');
+    if (isNaN(d)) return ymd;
+    return d.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+  }
+  function fmtTime(hm) {
+    if (!hm) return '';
+    var p = hm.split(':'), h = parseInt(p[0], 10), m = p[1] || '00';
+    if (isNaN(h)) return hm;
+    return ((h % 12) || 12) + ':' + m + ' ' + (h < 12 ? 'AM' : 'PM');
+  }
+  function localToday() {
+    var now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+  function onwardMessage(min) {
+    var d = new Date(min + 'T00:00:00');
+    return 'Please select ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' onward.';
+  }
+  function selOpt(sel) { return sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex] : null; }
 
   // Professional in-app message (falls back to native alert only if unavailable).
   function notify(message, type) {
     if (window.appNotify) { window.appNotify(message, type || 'warning'); }
     else { alert(message); }
   }
+
+  // Inline validation: message right below the field, field marked invalid and focused.
+  function clearFieldErrors(scope) {
+    (scope || document).querySelectorAll('.field-error[data-js]').forEach(function (e) { e.remove(); });
+    (scope || document).querySelectorAll('[aria-invalid="true"]').forEach(function (f) {
+      f.removeAttribute('aria-invalid'); f.classList.remove('is-invalid');
+    });
+  }
+  function fieldError(field, message, anchor) {
+    if (!field) { notify(message, 'warning'); return false; }
+    var id = (field.id || 'field') + 'Err';
+    var box = document.getElementById(id);
+    if (!box) {
+      box = document.createElement('div');
+      box.id = id; box.className = 'field-error'; box.setAttribute('data-js', '1'); box.setAttribute('role', 'alert');
+      (anchor || field.closest('.input-group') || field).insertAdjacentElement('afterend', box);
+    }
+    box.textContent = message;
+    if (field.classList && field.matches('input,select,textarea')) {
+      field.classList.add('is-invalid'); field.setAttribute('aria-invalid', 'true');
+      var desc = (field.getAttribute('aria-describedby') || '').split(' ').filter(Boolean);
+      if (desc.indexOf(id) < 0) { desc.push(id); field.setAttribute('aria-describedby', desc.join(' ')); }
+    }
+    if (field.focus) field.focus();
+    return false;
+  }
+  document.addEventListener('input', function (e) {
+    var f = e.target;
+    if (f.getAttribute && f.getAttribute('aria-invalid') === 'true') {
+      f.removeAttribute('aria-invalid'); f.classList.remove('is-invalid');
+      var box = document.getElementById(f.id + 'Err'); if (box) box.remove();
+    }
+  });
+  document.addEventListener('change', function (e) {
+    var f = e.target;
+    if (f.getAttribute && f.getAttribute('aria-invalid') === 'true') {
+      f.removeAttribute('aria-invalid'); f.classList.remove('is-invalid');
+      var box = document.getElementById(f.id + 'Err'); if (box) box.remove();
+    }
+  });
 
   function goTo(step) {
     for (var i = 1; i <= 4; i++) {
@@ -712,11 +577,29 @@
         hdr.className = 'wizard-step-btn';
         if (i < step)   hdr.className += ' done';
         if (i === step) hdr.className += ' active';
+        if (i === step) hdr.setAttribute('aria-current', 'step'); else hdr.removeAttribute('aria-current');
       }
     }
     currentStep = step;
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    var cap = document.getElementById('wizCaption');
+    if (cap) cap.textContent = 'Step ' + step + ' of 4 · ' + STEP_NAMES[step];
+    if (step === 4) setSummaryOpen(true);
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+    var title = document.getElementById('step' + step + 'Title');
+    if (title) title.focus({ preventScroll: true });
   }
+
+  /* ── Mobile summary toggle ──────────────────────────────────────────────── */
+  var summaryBox = document.getElementById('bookingSummary');
+  var summaryToggle = document.getElementById('summaryToggle');
+  function setSummaryOpen(open) {
+    if (!summaryBox) return;
+    summaryBox.classList.toggle('is-open', !!open);
+    if (summaryToggle) summaryToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  if (summaryToggle) summaryToggle.addEventListener('click', function () {
+    setSummaryOpen(!summaryBox.classList.contains('is-open'));
+  });
 
   /* ── Step 1: What to book ──────────────────────────────────────────────── */
   var typeCards    = document.querySelectorAll('.type-card');
@@ -730,9 +613,11 @@
   typeCards.forEach(function (card) {
     card.addEventListener('click', function () {
       if (selectionLocked) return;   // locked: ignore type changes
-      typeCards.forEach(function (c) { c.classList.remove('selected'); });
+      typeCards.forEach(function (c) { c.classList.remove('selected'); c.setAttribute('aria-pressed', 'false'); });
       this.classList.add('selected');
+      this.setAttribute('aria-pressed', 'true');
       resTypeInput.value = this.dataset.type;
+      var te = document.getElementById('typeErrorErr'); if (te) te.remove();
       updateStep2Fields(this.dataset.type);
     });
   });
@@ -743,7 +628,9 @@
     var sel = document.getElementById(id);
     if (!sel || !sel.hasAttribute('data-locked')) return;
     var lockedValue = sel.value;
+    if (!lockedValue) return;   // only the type's own list carries the chosen item
     sel.classList.add('is-locked-select');
+    sel.setAttribute('aria-readonly', 'true');
     sel.addEventListener('mousedown', function (e) { e.preventDefault(); });  // block dropdown open
     sel.addEventListener('change', function () {
       if (this.value !== lockedValue) {
@@ -751,21 +638,16 @@
         this.dispatchEvent(new Event('input', { bubbles: true }));
       }
     });
-    sel.addEventListener('keydown', function (e) { e.preventDefault(); });
+    sel.addEventListener('keydown', function (e) { if (e.key !== 'Tab') e.preventDefault(); });
   });
 
   nextStep1Btn.addEventListener('click', function () {
-    if (!resTypeInput.value) { notify('Please select what you would like to book.', 'warning'); return; }
+    if (!resTypeInput.value) {
+      return fieldError(document.getElementById('typeError'), 'Please choose what you would like to book.');
+    }
     updateStep2Fields(resTypeInput.value);
     goTo(2);
   });
-
-  var initialType = resTypeInput.value;
-  if (initialType) {
-    var initCard = document.querySelector('.type-card[data-type="' + initialType + '"]');
-    if (initCard) initCard.classList.add('selected');
-    updateStep2Fields(initialType);
-  }
 
   function updateStep2Fields(type) {
     var roomF           = document.getElementById('roomFields');
@@ -780,17 +662,30 @@
     venueF.style.display   = isEventTimeType ? '' : 'none';
     if (eventStartTime) eventStartTime.disabled = !isEventTimeType;
     if (eventEndTime)   eventEndTime.disabled = !isEventTimeType;
-    if (type === 'room')    title.textContent = 'Select Room & Dates';
-    if (type === 'cottage') title.textContent = 'Select Cottage & Date';
-    if (type === 'venue')   title.textContent = 'Select Venue & Date';
-    if (type === 'event')   title.textContent = 'Select Venue & Event Package';
+    if (type === 'room')    title.textContent = 'Choose your room and dates';
+    if (type === 'cottage') title.textContent = 'Choose your cottage, date and time';
+    if (type === 'venue')   title.textContent = 'Choose the venue and event date';
+    if (type === 'event')   title.textContent = 'Choose your package and event date';
+    // Venue is required for a venue booking; a package is the point of an event booking.
+    var vOpt = document.getElementById('venueOpt'), pOpt = document.getElementById('packageOpt');
+    if (vOpt) vOpt.style.display = type === 'venue' ? 'none' : '';
+    if (pOpt) pOpt.style.display = type === 'event' ? 'none' : '';
+    var pg = document.getElementById('packageGroup'), vg = document.getElementById('venueGroup');
+    if (pg && vg && pg.parentNode === vg.parentNode) {
+      if (type === 'event' && vg.nextElementSibling === pg) vg.parentNode.insertBefore(pg, vg);
+      if (type === 'venue' && pg.nextElementSibling === vg) pg.parentNode.insertBefore(vg, pg);
+    }
+    recalcTotal();
+    renderGalleryForType();
   }
 
   /* ── Pre-select item_id from URL ───────────────────────────────────────── */
   var sp = new URLSearchParams(location.search);
   var urlItemId = sp.get('item_id');
+  var urlType = sp.get('type');
   if (urlItemId) {
-    ['roomSelect','venueSelect','cottageSelect'].forEach(function (selId) {
+    var targetSel = { room: 'roomSelect', venue: 'venueSelect', cottage: 'cottageSelect' }[urlType];
+    (targetSel ? [targetSel] : ['roomSelect','venueSelect','cottageSelect']).forEach(function (selId) {
       var sel = document.getElementById(selId);
       if (!sel) return;
       for (var i = 0; i < sel.options.length; i++) {
@@ -811,10 +706,10 @@
   var hiddenInputsDiv = document.getElementById('inclusionHiddenInputs');
   var customListDiv   = document.getElementById('customIncList');
 
+  // Selected priced add-ons are charged: the server adds each one's catalogue price to the total.
   function getAddonTotal() {
     var t = 0;
     for (var k in selectedAddons) { if (selectedAddons.hasOwnProperty(k)) t += selectedAddons[k]; }
-    for (var j = 0; j < customInclusions.length; j++) { t += customInclusions[j].price; }
     return t;
   }
 
@@ -836,13 +731,17 @@
 
     /* ── Default (included) inclusions ─── */
     defaultList.innerHTML = '';
+    if (!(pkg.defaults || []).length) {
+      defaultList.innerHTML = '<div class="default-inc-item text-muted">The resort confirms this package\'s inclusions with you.</div>';
+    }
     (pkg.defaults || []).forEach(function (inc) {
       var row = document.createElement('div');
       row.className = 'default-inc-item';
       row.dataset.name = inc.name;
 
       var icon = document.createElement('i');
-      icon.className = 'fas fa-check-circle';
+      icon.className = 'fas fa-check';
+      icon.setAttribute('aria-hidden', 'true');
       row.appendChild(icon);
 
       var nameSpan = document.createElement('span');
@@ -851,30 +750,31 @@
 
       // Removable defaults (is_optional = 1 with price = 0) get a "Remove" btn
       if (inc.is_optional) {
-        var removeBtn = document.createElement('span');
+        var removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
         removeBtn.className = 'default-inc-removable';
         removeBtn.textContent = 'Remove';
+        removeBtn.setAttribute('aria-label', 'Remove ' + inc.name);
+        var addBack = document.createElement('button');
+        addBack.type = 'button';
+        addBack.className = 'default-inc-add-back';
+        addBack.textContent = 'Add back';
+        addBack.setAttribute('aria-label', 'Add back ' + inc.name);
         removeBtn.addEventListener('click', function () {
           removedDefaults[inc.name] = true;
           row.classList.add('removed');
-          // Show "Add back" button
-          var addBack = document.createElement('span');
-          addBack.className = 'default-inc-add-back';
-          addBack.textContent = 'Add back';
-          addBack.addEventListener('click', function () {
-            delete removedDefaults[inc.name];
-            row.classList.remove('removed');
-            addBack.remove();
-            row.appendChild(removeBtn);
-            syncHiddenInputs();
-            updateAddonBadge();
-            calcVenuePrice();
-          });
           removeBtn.remove();
           row.appendChild(addBack);
-          syncHiddenInputs();
-          updateAddonBadge();
-          calcVenuePrice();
+          addBack.focus();
+          syncHiddenInputs(); updateAddonBadge(); calcVenuePrice();
+        });
+        addBack.addEventListener('click', function () {
+          delete removedDefaults[inc.name];
+          row.classList.remove('removed');
+          addBack.remove();
+          row.appendChild(removeBtn);
+          removeBtn.focus();
+          syncHiddenInputs(); updateAddonBadge(); calcVenuePrice();
         });
         row.appendChild(removeBtn);
       }
@@ -886,36 +786,37 @@
     if (pkg.addons && pkg.addons.length > 0) {
       addonWrap.style.display = '';
       pkg.addons.forEach(function (addon) {
-        var card = document.createElement('div');
+        var card = document.createElement('button');
+        card.type = 'button';
         card.className = 'addon-item';
         card.dataset.name  = addon.name;
         card.dataset.price = addon.price;
+        card.setAttribute('aria-pressed', 'false');
 
-        var chk = document.createElement('div');
+        var chk = document.createElement('span');
         chk.className = 'addon-check';
-        chk.innerHTML = '<i class="fas fa-check"></i>';
+        chk.innerHTML = '<i class="fas fa-check" aria-hidden="true"></i>';
         card.appendChild(chk);
 
-        var info = document.createElement('div');
-        info.style.flex = '1';
-        var nm = document.createElement('div');
+        var nm = document.createElement('span');
         nm.className = 'addon-name';
         nm.textContent = addon.name;
-        info.appendChild(nm);
-        card.appendChild(info);
+        card.appendChild(nm);
 
-        var pr = document.createElement('div');
+        var pr = document.createElement('span');
         pr.className = 'addon-price';
-        pr.textContent = fmt(addon.price);
+        pr.textContent = '+' + fmtPrice(addon.price);
         card.appendChild(pr);
 
         card.addEventListener('click', function () {
           if (card.classList.contains('selected')) {
             card.classList.remove('selected');
+            card.setAttribute('aria-pressed', 'false');
             delete selectedAddons[addon.name];
           } else {
             card.classList.add('selected');
-            selectedAddons[addon.name] = addon.price;
+            card.setAttribute('aria-pressed', 'true');
+            selectedAddons[addon.name] = Number(addon.price) || 0;
           }
           syncHiddenInputs();
           updateAddonBadge();
@@ -933,7 +834,8 @@
 
   function updateAddonBadge() {
     var t = getAddonTotal();
-    addonBadge.textContent = t > 0 ? '+' + fmt(t) + ' add-ons' : 'No add-ons selected';
+    var n = Object.keys(selectedAddons).length;
+    addonBadge.textContent = t > 0 ? n + ' add-on' + (n === 1 ? '' : 's') + ': +' + fmt(t) + ' to your total' : 'No add-ons selected';
   }
 
   /* Sync hidden inputs — one per selected/custom inclusion */
@@ -966,12 +868,12 @@
       }
     }
 
-    // Custom (user-typed) inclusions
+    // Custom (guest-typed) requests
     customInclusions.forEach(function (ci) {
       var inp3 = document.createElement('input');
       inp3.type  = 'hidden';
       inp3.name  = 'selected_inclusions[]';
-      inp3.value = JSON.stringify({ name: ci.name, price: ci.price });
+      inp3.value = JSON.stringify({ name: ci.name, price: 0 });
       hiddenInputsDiv.appendChild(inp3);
     });
   }
@@ -984,21 +886,19 @@
     });
   }
 
-  /* ── Custom "add your own" inclusion ─────────────────────────────────── */
-  document.getElementById('addCustomIncBtn').addEventListener('click', function () {
-    var nameEl  = document.getElementById('customIncName');
-    var priceEl = document.getElementById('customIncPrice');
-    var name    = (nameEl.value || '').trim();
-    var price   = Math.max(0, parseFloat(priceEl.value) || 0);
-
+  /* ── Custom request (noted for staff, not priced online) ─────────────── */
+  function addCustomRequest() {
+    var nameEl = document.getElementById('customIncName');
+    var name   = (nameEl.value || '').trim();
     if (!name) { nameEl.focus(); return; }
+    // A request that names one of the package's priced add-ons is that add-on (and is charged), so select it instead.
+    var match = Array.prototype.find.call(addonGrid.querySelectorAll('.addon-item'), function (c) { return c.dataset.name === name; });
+    if (match) { if (!match.classList.contains('selected')) match.click(); nameEl.value = ''; match.focus(); return; }
 
-    customInclusions.push({ name: name, price: price });
+    customInclusions.push({ name: name, price: 0 });
 
-    // Render the chip
     var chip = document.createElement('div');
     chip.className = 'custom-inc-item';
-    var idx = customInclusions.length - 1;
 
     var nm = document.createElement('span');
     nm.className = 'custom-inc-name';
@@ -1007,70 +907,87 @@
 
     var pr = document.createElement('span');
     pr.className = 'custom-inc-price';
-    pr.textContent = price > 0 ? fmt(price) : 'Included';
+    pr.textContent = 'Staff will confirm';
     chip.appendChild(pr);
 
     var rmBtn = document.createElement('button');
     rmBtn.type = 'button';
     rmBtn.className = 'custom-inc-remove';
-    rmBtn.innerHTML = '<i class="fas fa-times"></i>';
-    rmBtn.addEventListener('click', (function (i) {
-      return function () {
-        customInclusions.splice(i, 1);
-        chip.remove();
-        syncHiddenInputs();
-        updateAddonBadge();
-        calcVenuePrice();
-        updateSummary();
-      };
-    })(idx));
+    rmBtn.setAttribute('aria-label', 'Remove ' + name);
+    rmBtn.innerHTML = '<i class="fas fa-times" aria-hidden="true"></i>';
+    var entry = customInclusions[customInclusions.length - 1];
+    rmBtn.addEventListener('click', function () {
+      var i = customInclusions.indexOf(entry);
+      if (i >= 0) customInclusions.splice(i, 1);
+      chip.remove();
+      syncHiddenInputs();
+      updateSummary();
+      nameEl.focus();
+    });
     chip.appendChild(rmBtn);
 
     customListDiv.appendChild(chip);
-    nameEl.value  = '';
-    priceEl.value = '';
+    nameEl.value = '';
     nameEl.focus();
 
     syncHiddenInputs();
-    updateAddonBadge();
-    calcVenuePrice();
     updateSummary();
+  }
+  document.getElementById('addCustomIncBtn').addEventListener('click', addCustomRequest);
+  document.getElementById('customIncName').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); addCustomRequest(); }
   });
 
-  /* ── Step 2: price calc ─────────────────────────────────────────────── */
-  function reportDateValidity(field, message) {
-    if (!field) return true;
-    field.setCustomValidity(field.value && field.min && field.value < field.min ? message : '');
-    return field.reportValidity();
+  /* ── Step 2: validation & price calc ───────────────────────────────── */
+  function checkDateMin(field) {
+    if (field && field.value && field.min && field.value < field.min) return fieldError(field, onwardMessage(field.min));
+    return true;
   }
 
   document.getElementById('prevStep2').addEventListener('click', function () { goTo(1); });
   document.getElementById('nextStep2').addEventListener('click', function () {
     var type = resTypeInput.value;
+    clearFieldErrors(document.getElementById('panel2'));
     if (type === 'room') {
       var rs = document.getElementById('roomSelect');
       var ci = document.getElementById('checkInDate');
       var co = document.getElementById('checkOutDate');
-      if (!rs.value) { notify('Please select a room.', 'warning'); return; }
-      if (!ci.value) { notify('Please select a check-in date.', 'warning'); return; }
-      if (!co.value) { notify('Please select a check-out date.', 'warning'); return; }
-      if (!reportDateValidity(ci, 'Please select a date onward.') || !reportDateValidity(co, 'Please select a date onward.')) return;
-      if (ci.value >= co.value) { notify('Check-out must be after check-in.', 'warning'); return; }
+      if (!rs.value) return fieldError(rs, 'Please choose a room.');
+      if (!ci.value) return fieldError(ci, 'Please choose a check-in date.');
+      if (!checkDateMin(ci)) return;
+      if (!co.value) return fieldError(co, 'Please choose a check-out date.');
+      if (ci.value >= co.value) return fieldError(co, 'Check-out must be after check-in.');
+      if (!checkDateMin(co)) return;
+      checkAvailability();
+      if (roomConflict) return fieldError(ci, 'These nights overlap an existing booking — see the note below the dates.');
     } else if (type === 'cottage') {
       var cs = document.getElementById('cottageSelect');
       var cd = document.getElementById('cottageDate');
       var cst = document.getElementById('cottageStartTime');
       var cet = document.getElementById('cottageEndTime');
-      if (!cs.value) { notify('Please select a cottage.', 'warning'); return; }
-      if (!cd.value) { notify('Please select a booking date.', 'warning'); return; }
-      if (!cst.value) { notify('Please select a time in.', 'warning'); return; }
-      if (!cet.value) { notify('Please select a time out.', 'warning'); return; }
-      if (!reportDateValidity(cd, 'Please select a date onward.') || !cst.reportValidity() || !cet.reportValidity()) return;
-      if (cet.value <= cst.value) { notify('Time out must be after time in.', 'warning'); return; }
+      if (!cs.value) return fieldError(cs, 'Please choose a cottage.');
+      if (!cd.value) return fieldError(cd, 'Please choose a date.');
+      if (!checkDateMin(cd)) return;
+      if (!cst.value) return fieldError(cst, 'Please choose a time in.');
+      if (!cet.value) return fieldError(cet, 'Please choose a time out.');
+      if (cet.value <= cst.value) return fieldError(cet, 'Time out must be after time in.');
+      checkAvailability();
+      if (dayConflict) return fieldError(cd, dayConflict);
     } else {
+      var vs = document.getElementById('venueSelect');
       var ed = document.getElementById('eventDate');
-      if (!ed || !ed.value) { notify('Please select an event date.', 'warning'); return; }
-      if (!reportDateValidity(ed, 'Please select a date onward.')) return;
+      var est = document.getElementById('eventStartTime');
+      var eet = document.getElementById('eventEndTime');
+      if (type === 'venue' && !vs.value) return fieldError(vs, 'Please choose the venue.');
+      if (type === 'event' && !pkgSelect.value && !vs.value) return fieldError(pkgSelect, 'Please choose an event package.');
+      if (!ed || !ed.value) return fieldError(ed, 'Please choose an event date.');
+      if (!checkDateMin(ed)) return;
+      if ((est.value || eet.value) && !(est.value && eet.value && eet.value > est.value)) return fieldError(eet, 'End time must be after start time.');
+      checkAvailability();
+      if (dayConflict) return fieldError(ed, dayConflict);
+    }
+    if (!(parseFloat(totalHid.value) > 0)) {
+      return fieldError(document.getElementById('nextStep2'), 'We could not work out a price for this selection. Please check your choices.', document.querySelector('#panel2 .pt-surface'));
     }
     goTo(3);
   });
@@ -1084,19 +1001,20 @@
 
   function calcRoomPrice() {
     if (!roomSel || !checkIn || !checkOut) return;
-    var price = parseFloat((roomSel.options[roomSel.selectedIndex] || {}).dataset &&
-      roomSel.options[roomSel.selectedIndex].dataset.price || 0);
-    if (checkIn.value && checkOut.value && price > 0) {
-      var nights = Math.ceil((new Date(checkOut.value) - new Date(checkIn.value)) / 86400000);
-      if (nights > 0) {
-        var total = price * nights;
-        totalHid.value = total.toFixed(2);
-        prevText.textContent = nights + ' night(s) × ' + fmt(price) + ' = ' + fmt(total) +
-          ' total. Downpayment: ' + fmt(Math.ceil(total * downpaymentPercent / 100));
-        preview.classList.remove('d-none');
-        updateSummary();
-      }
+    var opt = selOpt(roomSel);
+    var price = parseFloat((opt && opt.dataset && opt.dataset.price) || 0);
+    var nights = (checkIn.value && checkOut.value) ? Math.round((new Date(checkOut.value) - new Date(checkIn.value)) / 86400000) : 0;
+    if (price > 0 && nights > 0) {
+      var total = price * nights;
+      totalHid.value = total.toFixed(2);
+      prevText.innerHTML = nights + ' night' + (nights === 1 ? '' : 's') + ' × ' + fmtPrice(price) + ' = <strong>' + fmt(total) +
+        '</strong> · downpayment ' + fmt(Math.ceil(total * downpaymentPercent / 100));
+      preview.classList.remove('d-none');
+    } else {
+      totalHid.value = '';
+      preview.classList.add('d-none');
     }
+    updateSummary();
   }
   if (checkIn)  checkIn.addEventListener('change', calcRoomPrice);
   if (checkOut) checkOut.addEventListener('change', calcRoomPrice);
@@ -1112,26 +1030,16 @@
 
   function calcCottagePrice() {
     if (!cottageSel || !cottageStartEl || !cottageEndEl) return;
-    var opt = cottageSel.options[cottageSel.selectedIndex];
+    var opt = selOpt(cottageSel);
     var rate = parseFloat((opt && opt.dataset && opt.dataset.price) || 0);
-    var startTime = cottageStartEl.value;
-    var endTime = cottageEndEl.value;
-    var durationHours = 0;
-    if (startTime && endTime && endTime > startTime) {
-      var startMinutes = Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3));
-      var endMinutes = Number(endTime.slice(0, 2)) * 60 + Number(endTime.slice(3));
-      durationHours = (endMinutes - startMinutes) / 60;
+    // The cottage rate is the total; time in/out is kept for scheduling only.
+    var total = rate > 0 ? rate : 0;
+    totalHid.value = total > 0 ? total.toFixed(2) : '';
+    if (cottagePrevTxt && total > 0) {
+      cottagePrevTxt.innerHTML = 'Flat rate for this booking: <strong>' + fmt(total) +
+        '</strong> · downpayment ' + fmt(Math.ceil(total * downpaymentPercent / 100)) + '. The price is the same whatever times you choose.';
     }
-    var wholeDayRate = opt.dataset.rateType === 'day';
-    var total = rate > 0 && (wholeDayRate || durationHours > 0) ? rate * (wholeDayRate ? 1 : durationHours) : 0;
-    totalHid.value = total.toFixed(2);
-    if (cottagePrevTxt) {
-      cottagePrevTxt.textContent = (opt.dataset.name || 'Cottage') + ' — ' +
-        (wholeDayRate ? 'whole-day rate' : durationHours.toFixed(2) + ' hour(s)') +
-        ' × ' + fmt(rate) + ' = ' + fmt(total) +
-        '. Downpayment: ' + fmt(Math.ceil(total * downpaymentPercent / 100));
-    }
-    if (cottagePreview) cottagePreview.classList.remove('d-none');
+    if (cottagePreview) cottagePreview.classList.toggle('d-none', !(total > 0));
     updateSummary();
   }
   if (cottageSel)    cottageSel.addEventListener('change', calcCottagePrice);
@@ -1141,16 +1049,27 @@
 
   var venueSel = document.getElementById('venueSelect');
   function calcVenuePrice() {
-    var vPrice = venueSel ? parseFloat((venueSel.options[venueSel.selectedIndex] || {}).dataset &&
-      venueSel.options[venueSel.selectedIndex].dataset.price || 0) : 0;
-    var pPrice = pkgSelect ? parseFloat((pkgSelect.options[pkgSelect.selectedIndex] || {}).dataset &&
-      pkgSelect.options[pkgSelect.selectedIndex].dataset.price || 0) : 0;
-    var addonTotal = getAddonTotal();
-    var total = vPrice + pPrice + addonTotal;
-    if (total > 0) { totalHid.value = total.toFixed(2); }
+    var vo = selOpt(venueSel), po = selOpt(pkgSelect);
+    var vPrice = vo && vo.value ? parseFloat(vo.dataset.price || 0) : 0;
+    var pPrice = po && po.value ? parseFloat(po.dataset.price || 0) : 0;
+    // Same rule as the server: venue + package + each selected priced add-on of that package.
+    var total = vPrice + pPrice + (pPrice > 0 ? getAddonTotal() : 0);
+    totalHid.value = total > 0 ? total.toFixed(2) : '';
     updateSummary();
   }
-  if (venueSel) venueSel.addEventListener('change', function () { calcVenuePrice(); updateSummary(); });
+  if (venueSel) venueSel.addEventListener('change', function () { calcVenuePrice(); });
+  ['eventDate','eventStartTime','eventEndTime'].forEach(function (id) {
+    var el = document.getElementById(id); if (el) el.addEventListener('change', updateSummary);
+  });
+
+  // One entry point: recompute the total for whatever type is selected.
+  function recalcTotal() {
+    var t = resTypeInput.value;
+    if (t === 'room') calcRoomPrice();
+    else if (t === 'cottage') calcCottagePrice();
+    else if (t === 'venue' || t === 'event') calcVenuePrice();
+    else { totalHid.value = ''; updateSummary(); }
+  }
 
   /* ── Step 3 ─────────────────────────────────────────────────────────── */
   document.getElementById('prevStep3').addEventListener('click', function () { goTo(2); });
@@ -1161,10 +1080,35 @@
     var value = this.value.trim();
     this.setCustomValidity(value && !contactPhonePattern.test(value) ? contactPhoneMessage : '');
   });
+
+  function activeResource() {
+    var t = resTypeInput.value;
+    var sel = t === 'room' ? roomSel : t === 'cottage' ? cottageSel : (t === 'venue' || t === 'event') ? venueSel : null;
+    var o = selOpt(sel);
+    return o && o.value ? { name: o.dataset.name || o.text, cap: parseInt(o.dataset.cap || '0', 10) } : null;
+  }
+  function updateCapHint() {
+    var hint = document.getElementById('guestCapHint');
+    if (!hint) return;
+    var r = activeResource();
+    hint.textContent = r && r.cap ? r.name + ' fits up to ' + r.cap + ' guests.' : '';
+  }
+  var numGuestsEl = document.getElementById('numGuests');
+  if (numGuestsEl) numGuestsEl.addEventListener('input', updateSummary);
+
   document.getElementById('nextStep3').addEventListener('click', function () {
-    var ng = document.getElementById('numGuests');
-    if (!ng.value || parseInt(ng.value) < 1) { notify('Please enter the number of guests.', 'warning'); return; }
-    if (contactPhoneInput && !contactPhoneInput.reportValidity()) return;
+    clearFieldErrors(document.getElementById('panel3'));
+    var ng = numGuestsEl;
+    var n = parseInt(ng.value, 10);
+    if (!ng.value || !(n >= 1)) return fieldError(ng, 'Please enter the number of guests (at least 1).');
+    if (n > 500) return fieldError(ng, 'Online bookings take up to 500 guests.');
+    var r = activeResource();
+    if (r && r.cap && n > r.cap) return fieldError(ng, r.name + ' fits up to ' + r.cap + ' guests. Lower the number or choose a larger option.');
+    if (contactPhoneInput) {
+      var v = contactPhoneInput.value.trim();
+      if (!v) return fieldError(contactPhoneInput, 'Please enter your mobile number.');
+      if (!contactPhonePattern.test(v)) return fieldError(contactPhoneInput, contactPhoneMessage);
+    }
     updateSummary();
     goTo(4);
   });
@@ -1177,183 +1121,260 @@
   var instrBox  = document.getElementById('paymentInstructions');
   var instrText = document.getElementById('payInstrText');
 
-  var instructions = {
-    gcash:         'Send payment to GCash number <strong><a href="tel:<%= paymentInfo.gcash_number.replace(/[^0-9]/g,"") %>"><%= paymentInfo.gcash_number %></a></strong> (<%= paymentInfo.gcash_name %>). Use your booking reference as the message. Take a screenshot of your receipt.',
-    bank_transfer: 'Transfer to <strong>BDO Account: <%= paymentInfo.bank_bdo %></strong> or <strong>BPI Account: <%= paymentInfo.bank_bpi %></strong> (Account name: <%= paymentInfo.bank_name %>). Use your booking reference as the reference.',
-    maya:          'Send payment to Maya number <strong><a href="tel:<%= paymentInfo.maya_number.replace(/[^0-9]/g,"") %>"><%= paymentInfo.maya_number %></a></strong> (<%= paymentInfo.maya_name %>). Include your booking reference in the message. Save your receipt.',
-    cash:          'You may pay in person at our <strong>Front Desk</strong> upon arrival. Reservations without payment may be released after 48 hours.',
-  };
-
   payRadios.forEach(function (radio) {
     radio.addEventListener('change', function () {
       payCards.forEach(function (c) { c.classList.remove('selected'); c.querySelector('.check-icon').classList.add('d-none'); });
       this.closest('.pay-card').classList.add('selected');
       this.closest('.pay-card').querySelector('.check-icon').classList.remove('d-none');
-      instrText.innerHTML = instructions[this.value] || '';
+      var tpl = document.getElementById('payInfo-' + this.value);
+      instrText.innerHTML = tpl ? tpl.innerHTML : '';
+      var method = this.value;
+      document.querySelectorAll('[data-pay-qr]').forEach(function (qr) {
+        qr.classList.toggle('d-none', qr.getAttribute('data-pay-qr') !== method);
+      });
       instrBox.classList.remove('d-none');
+      var pe = document.getElementById('paymentMethodsErr'); if (pe) pe.remove();
       updateSummary();
     });
     if (radio.checked) radio.dispatchEvent(new Event('change'));
   });
 
+  // Copy account numbers (falls back to a hidden textarea on plain-http LAN links).
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-copy]');
+    if (!b) return;
+    var text = b.getAttribute('data-copy');
+    function done() {
+      if (b.classList.contains('is-copied')) return; var label = b.innerHTML;
+      b.textContent = 'Copied'; b.classList.add('is-copied');
+      setTimeout(function () { b.innerHTML = label; b.classList.remove('is-copied'); }, 1800);
+    }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) { notify('Copy failed — please select the number manually.', 'warning'); }
+      ta.remove();
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback);
+    else fallback();
+  });
+
   /* ═══════════════════════════════════════════════════════════════════════
-     SUMMARY BUILDER — Task 7
-     Shows inclusions as line items with prices
+     SUMMARY BUILDER
+     Item, dates, guests, package inclusions, then total / downpayment / balance.
      ═══════════════════════════════════════════════════════════════════════ */
+  function row(label, value, cls) {
+    return '<div class="sum-row' + (cls ? ' ' + cls : '') + '"><span>' + label + '</span><span>' + value + '</span></div>';
+  }
   function updateSummary() {
     var type   = resTypeInput.value;
     var total  = parseFloat(totalHid.value) || 0;
     var dp     = Math.ceil(total * downpaymentPercent / 100);
     var method = document.querySelector('.pay-card input:checked');
-    var ng     = parseInt((document.getElementById('numGuests') || {}).value || 1);
-
+    var ng     = parseInt((numGuestsEl || {}).value || 1, 10) || 1;
     var html = '';
+    var item = '', sub = '';
+
+    if (!type) {
+      document.getElementById('summaryContent').innerHTML = '<div class="sum-empty">Choose what to book to see your total.</div>';
+      setMini(0);
+      return;
+    }
 
     if (type === 'room') {
-      var rs = document.getElementById('roomSelect');
-      var ci = (document.getElementById('checkInDate')  || {}).value || '';
-      var co = (document.getElementById('checkOutDate') || {}).value || '';
-      if (rs && rs.value) {
-        var opt = rs.options[rs.selectedIndex];
-        html += '<div class="summary-row"><span class="text-muted">Room</span><span class="fw-medium">' + (opt.dataset.name || opt.text) + '</span></div>';
-        if (opt.dataset.price) html += '<div class="summary-row"><span class="text-muted">Rate</span><span>' + fmt(opt.dataset.price) + '/night</span></div>';
-      }
-      if (ci) html += '<div class="summary-row"><span class="text-muted">Check-in</span><span>' + ci + '</span></div>';
-      if (co) html += '<div class="summary-row"><span class="text-muted">Check-out</span><span>' + co + '</span></div>';
-      if (ci && co) {
-        var nights2 = Math.ceil((new Date(co) - new Date(ci)) / 86400000);
-        if (nights2 > 0) html += '<div class="summary-row"><span class="text-muted">Nights</span><span>' + nights2 + '</span></div>';
+      var opt = selOpt(roomSel);
+      var ci = (checkIn || {}).value || '', co = (checkOut || {}).value || '';
+      if (opt && opt.value) { item = opt.dataset.name || opt.text; sub = 'Room · sleeps up to ' + opt.dataset.cap; }
+      html += item ? '<div class="sum-item"><div class="sum-item-name">' + esc(item) + '</div><div class="sum-item-sub">' + esc(sub) + '</div></div>' : row('Type', 'Room');
+      if (ci) html += row('Check-in', esc(fmtDate(ci)));
+      if (co) html += row('Check-out', esc(fmtDate(co)));
+      var nights2 = ci && co ? Math.round((new Date(co) - new Date(ci)) / 86400000) : 0;
+      if (opt && opt.value && opt.dataset.price) {
+        html += nights2 > 0
+          ? row(fmtPrice(opt.dataset.price) + ' × ' + nights2 + ' night' + (nights2 === 1 ? '' : 's'), fmt(parseFloat(opt.dataset.price) * nights2), 'sum-line')
+          : row('Rate', fmtPrice(opt.dataset.price) + ' / night');
       }
 
     } else if (type === 'cottage') {
-      var cs2 = document.getElementById('cottageSelect');
-      var cd2 = (document.getElementById('cottageDate') || {}).value || '';
-      var cst2 = (document.getElementById('cottageStartTime') || {}).value || '';
-      var cet2 = (document.getElementById('cottageEndTime') || {}).value || '';
-      if (cs2 && cs2.value) {
-        var copt = cs2.options[cs2.selectedIndex];
-        html += '<div class="summary-row"><span class="text-muted">Cottage</span><span class="fw-medium">' + (copt.dataset.name || copt.text) + '</span></div>';
-        if (copt.dataset.cap)   html += '<div class="summary-row"><span class="text-muted">Capacity</span><span>' + copt.dataset.cap + ' pax</span></div>';
-        if (copt.dataset.price) html += '<div class="summary-row"><span class="text-muted">Hourly rate</span><span>' + fmt(copt.dataset.price) + '</span></div>';
-      }
-      if (cd2) html += '<div class="summary-row"><span class="text-muted">Booking date</span><span>' + cd2 + '</span></div>';
-      if (cst2 && cet2) {
-        html += '<div class="summary-row"><span class="text-muted">Time</span><span>' + cst2 + ' – ' + cet2 + '</span></div>';
-      }
+      var copt = selOpt(cottageSel);
+      var cd2 = (cottageDateEl || {}).value || '';
+      var cst2 = (cottageStartEl || {}).value || '', cet2 = (cottageEndEl || {}).value || '';
+      if (copt && copt.value) { item = copt.dataset.name || copt.text; sub = 'Cottage · up to ' + copt.dataset.cap + ' guests'; }
+      html += item ? '<div class="sum-item"><div class="sum-item-name">' + esc(item) + '</div><div class="sum-item-sub">' + esc(sub) + '</div></div>' : row('Type', 'Cottage');
+      if (cd2) html += row('Date', esc(fmtDate(cd2)));
+      if (cst2 && cet2) html += row('Time', esc(fmtTime(cst2) + ' – ' + fmtTime(cet2)));
+      if (copt && copt.value && copt.dataset.price) html += row('Flat rate (any hours)', fmt(copt.dataset.price), 'sum-line');
 
     } else {
-      // Venue
-      var vs = document.getElementById('venueSelect');
-      if (vs && vs.value) {
-        var vopt = vs.options[vs.selectedIndex];
-        html += '<div class="summary-row"><span class="text-muted">Venue</span><span class="fw-medium">' + (vopt.dataset.name || vopt.text) + '</span></div>';
-        if (vopt.dataset.price && parseFloat(vopt.dataset.price) > 0) {
-          html += '<div class="summary-row"><span class="text-muted">Venue fee</span><span>' + fmt(vopt.dataset.price) + '</span></div>';
-        }
+      var vopt = selOpt(venueSel), popt = selOpt(pkgSelect);
+      var hasPkg = popt && popt.value, hasVenue = vopt && vopt.value;
+      if (hasPkg) { item = popt.dataset.name || popt.text; sub = 'Event package'; }
+      else if (hasVenue) { item = vopt.dataset.name || vopt.text; sub = 'Venue'; }
+      html += item ? '<div class="sum-item"><div class="sum-item-name">' + esc(item) + '</div><div class="sum-item-sub">' + esc(sub) + '</div></div>' : row('Type', TYPE_LABEL[type] || 'Event');
+      if (hasVenue) {
+        html += hasPkg
+          ? row('Venue', esc(vopt.dataset.name || '') + ' · ' + fmtPrice(vopt.dataset.price || 0))
+          : row('Venue fee (flat rate)', fmt(vopt.dataset.price || 0), 'sum-line');
       }
-
-      // Package
-      var ps = pkgSelect;
-      if (ps && ps.value) {
-        var popt = ps.options[ps.selectedIndex];
-        var basePkg = parseFloat(popt.dataset.price) || 0;
-        html += '<div class="summary-row"><span class="text-muted">Package</span><span class="fw-medium">' + (popt.dataset.name || popt.text) + '</span></div>';
-        if (basePkg > 0) {
-          html += '<div class="summary-row"><span class="text-muted" style="padding-left:.75rem;">Base price</span><span>' + fmt(basePkg) + '</span></div>';
-        }
-
-        // Inclusions breakdown
-        var pkg = pkgData[String(ps.value)];
+      if (hasPkg) {
+        html += row('Package price', fmt(parseFloat(popt.dataset.price) || 0), 'sum-line');
+        var pkg = pkgData[String(pkgSelect.value)];
         if (pkg) {
-          var hasInclusions = false;
-
-          // Default inclusions (not removed)
           var activeDefaults = (pkg.defaults || []).filter(function (inc) { return !removedDefaults[inc.name]; });
           if (activeDefaults.length > 0) {
-            html += '<div class="summary-section-lbl" style="padding-left:.75rem;">Included</div>';
-            activeDefaults.forEach(function (inc) {
-              html += '<div class="summary-inclusion"><span>' + inc.name + '</span><span style="color:#10b981;font-size:.75rem;">✓ Included</span></div>';
-            });
-            hasInclusions = true;
+            html += row('Included in the price', activeDefaults.length + ' item' + (activeDefaults.length === 1 ? '' : 's'));
           }
-
-          // Removed defaults
           var removedKeys = Object.keys(removedDefaults);
           if (removedKeys.length > 0) {
-            html += '<div class="summary-section-lbl" style="padding-left:.75rem;color:#ef4444;">Removed</div>';
-            removedKeys.forEach(function (name) {
-              html += '<div class="summary-inclusion" style="opacity:.5;text-decoration:line-through;"><span>' + name + '</span><span>—</span></div>';
-            });
+            html += '<p class="sum-label">Removed (no price change)</p>';
+            removedKeys.forEach(function (name) { html += '<div class="summary-inclusion is-removed"><span>' + esc(name) + '</span><span></span></div>'; });
           }
-
-          // Add-on inclusions selected
           var addonKeys = Object.keys(selectedAddons);
           if (addonKeys.length > 0) {
-            html += '<div class="summary-section-lbl" style="padding-left:.75rem;">Add-ons</div>';
-            addonKeys.forEach(function (name) {
-              html += '<div class="summary-inclusion"><span>' + name + '</span><span style="color:var(--oc-teal);font-weight:700;">+' + fmt(selectedAddons[name]) + '</span></div>';
-            });
-            hasInclusions = true;
+            html += '<p class="sum-label">Add-ons (added to the total)</p>';
+            addonKeys.forEach(function (name) { html += '<div class="summary-inclusion sum-line"><span>' + esc(name) + '</span><span>+' + fmt(selectedAddons[name]) + '</span></div>'; });
           }
         }
       }
-
-      // Custom inclusions
       if (customInclusions.length > 0) {
-        html += '<div class="summary-section-lbl" style="padding-left:.75rem;">Custom requests</div>';
-        customInclusions.forEach(function (ci2) {
-          html += '<div class="summary-inclusion"><span>' + ci2.name + '</span><span style="color:var(--oc-teal);font-weight:700;">' + (ci2.price > 0 ? '+' + fmt(ci2.price) : 'Noted') + '</span></div>';
-        });
+        html += '<p class="sum-label">Your requests (staff will confirm)</p>';
+        customInclusions.forEach(function (ci2) { html += '<div class="summary-inclusion"><span>' + esc(ci2.name) + '</span><span>Noted</span></div>'; });
       }
-
       var ed = (document.getElementById('eventDate') || {}).value || '';
-      if (ed) html += '<div class="summary-row"><span class="text-muted">Event Date</span><span>' + ed + '</span></div>';
+      var est2 = (document.getElementById('eventStartTime') || {}).value || '', eet2 = (document.getElementById('eventEndTime') || {}).value || '';
+      if (ed) html += row('Event date', esc(fmtDate(ed)));
+      if (est2 && eet2) html += row('Time', esc(fmtTime(est2) + ' – ' + fmtTime(eet2)));
     }
 
-    html += '<div class="summary-row"><span class="text-muted">Guests</span><span>' + ng + '</span></div>';
+    html += row('Guests', String(ng));
+    if (method) html += row('Payment', { gcash: 'GCash', maya: 'Maya', bank_transfer: 'Bank transfer' }[method.value] || esc(method.value));
 
     if (total > 0) {
-      html += '<hr class="my-2" />';
-      html += '<div class="summary-row"><span class="text-muted fw-bold">Total Amount</span><span class="fw-bold" style="color:var(--oc-teal);">' + fmt(total) + '</span></div>';
-      html += '<div class="summary-row" style="color:#d97706;"><span class="fw-bold">Downpayment Due (' + downpaymentPercent + '%)</span><span class="fw-bold">' + fmt(dp) + '</span></div>';
-      html += '<div class="summary-row text-success"><span class="text-muted">Balance After Downpayment</span><span>' + fmt(total - dp) + '</span></div>';
+      html += '<div class="sum-totals">';
+      html += row('Total', fmt(total), 'sum-total');
+      html += row('Downpayment to pay (' + downpaymentPercent + '%)', fmt(dp), 'sum-dp');
+      html += row('Balance at the resort', fmt(total - dp));
+      html += '<p class="sum-pay-note">Paid by GCash, Maya or bank transfer after you submit. Staff verify your proof before the booking is confirmed.</p>';
+      html += '</div>';
+    } else {
+      html += '<div class="sum-empty">Your total appears once you choose an option' + (type === 'room' ? ' and dates' : '') + '.</div>';
     }
 
-    if (method) {
-      html += '<div class="summary-row"><span class="text-muted">Payment</span><span class="badge bg-light text-dark">' + method.value.replace(/_/g, ' ') + '</span></div>';
-    }
+    var ao = selOpt(type === 'room' ? roomSel : type === 'cottage' ? cottageSel : venueSel);
+    var aImgs = [];
+    try { aImgs = JSON.parse(decodeURIComponent((ao && ao.value && ao.dataset.images) || '%5B%5D')); } catch (e) { aImgs = []; }
+    if (aImgs && aImgs.length) html = '<div class="sum-photo pt-photo"><img src="' + esc(aImgs[0]) + '" alt="" /></div>' + html;
 
-    document.getElementById('summaryContent').innerHTML = html ||
-      '<div class="text-muted small text-center py-2">Complete the form to see summary</div>';
+    document.getElementById('summaryContent').innerHTML = html;
+    setMini(total, dp);
+    checkAvailability();
+    document.querySelectorAll('[data-sum="dp"]').forEach(function (el) { el.textContent = total > 0 ? fmt(dp) : 'shown in the summary'; });
+  }
+  function setMini(total, dp) {
+    var mini = document.getElementById('summaryTotalMini');
+    if (mini) mini.innerHTML = total > 0 ? '<span>Total ' + fmt(total) + '</span><span class="pt-meta">' + fmt(dp) + ' downpayment</span>' : 'No total yet';
+  }
+
+  /* ── Availability: the selected item's booked periods (the same data the date picker shows).
+     Explained next to the calendar; the server checks again when the booking is submitted. */
+  var roomConflict = '', dayConflict = '';
+  function blockedOf(sel) {
+    var o = selOpt(sel);
+    if (!o || !o.value) return [];
+    try { return JSON.parse(o.getAttribute('data-blocked') || '[]'); } catch (e) { return []; }
+  }
+  function periodText(b, withTimes) {
+    var d = b.end && b.end !== b.start ? fmtDate(b.start) + ' – ' + fmtDate(b.end) : fmtDate(b.start);
+    return withTimes ? d + (b.from && b.to ? ', ' + fmtTime(b.from) + ' – ' + fmtTime(b.to) : ' (whole day)') : d;
+  }
+  function checkAvailability() {
+    var old = document.getElementById('availWarn'); if (old) old.remove();
+    roomConflict = ''; dayConflict = '';
+    var t = resTypeInput.value, o, msg = '', anchor = null, ok = false;
+    if (t === 'room') {
+      o = selOpt(roomSel);
+      var ci = checkIn && checkIn.value, co = checkOut && checkOut.value;
+      if (!o || !o.value || !ci || !co || co <= ci) return;
+      var hits = blockedOf(roomSel).filter(function (b) { return b.start < co && b.end > ci; });
+      if (!hits.length) return;
+      roomConflict = (o.dataset.name || 'This room') + ' is already booked for some of these nights. Choose other dates or another room.';
+      msg = roomConflict + ' Booked: ' + hits.map(function (b) { return periodText(b, false); }).join('; ') + '.';
+      anchor = document.getElementById('roomCal');
+    } else if (t === 'cottage' || t === 'venue' || t === 'event') {
+      var sel = t === 'cottage' ? cottageSel : venueSel;
+      var dEl = t === 'cottage' ? cottageDateEl : document.getElementById('eventDate');
+      var sEl = t === 'cottage' ? cottageStartEl : document.getElementById('eventStartTime');
+      var eEl = t === 'cottage' ? cottageEndEl : document.getElementById('eventEndTime');
+      o = selOpt(sel);
+      if (!o || !o.value || !dEl || !dEl.value) return;
+      var d = dEl.value, st = sEl ? sEl.value : '', en = eEl ? eEl.value : '';
+      var same = blockedOf(sel).filter(function (b) { return b.start <= d && d <= (b.end || b.start); });
+      if (!same.length) return;
+      // Same rule as the server: no times on either side means the whole day overlaps.
+      var clash = same.filter(function (b) { return !(b.from && b.to) || !(st && en) || (b.from < en && b.to > st); });
+      var list = same.map(function (b) { return b.from && b.to ? fmtTime(b.from) + ' – ' + fmtTime(b.to) : 'the whole day'; }).join(', ');
+      if (clash.length) {
+        dayConflict = (o.dataset.name || 'This place') + ' is already booked on ' + fmtDate(d) + ' (' + list + '). Choose hours that don’t overlap, or another date.';
+        msg = dayConflict;
+      } else {
+        ok = true;
+        msg = (o.dataset.name || 'This place') + ' has other bookings on ' + fmtDate(d) + ' (' + list + '). Your hours don’t overlap them.';
+      }
+      anchor = document.getElementById(t === 'cottage' ? 'cottageCal' : 'eventCal');
+    }
+    if (!msg || !anchor) return;
+    var box = document.createElement('div');
+    box.id = 'availWarn'; box.className = ok ? 'field-warn field-ok' : 'field-warn'; box.setAttribute('role', 'status');
+    box.innerHTML = '<i class="fas ' + (ok ? 'fa-circle-info' : 'fa-exclamation-triangle') + '" aria-hidden="true"></i><span>' + esc(msg) + '</span>';
+    anchor.insertAdjacentElement('afterend', box);
   }
 
   /* ── Item photo gallery ─────────────────────────────────────────────── */
   var galleryWrap   = document.getElementById('itemGallery');
   var galleryThumbs = document.getElementById('itemGalleryThumbs');
+  var itemCard = document.getElementById('itemCard');
+  function renderItemCard(selectEl, imgs) {
+    if (!itemCard) return;
+    var opt = selOpt(selectEl);
+    if (!opt || !opt.value) { itemCard.hidden = true; itemCard.innerHTML = ''; return; }
+    var t = resTypeInput.value, cap = opt.dataset.cap;
+    var photo = imgs && imgs.length
+      ? '<img src="' + esc(imgs[0]) + '" alt="' + esc(opt.dataset.name || '') + '" />'
+      : '<div class="photo-pending"><i class="far fa-image" aria-hidden="true"></i>Photos coming soon</div>';
+    itemCard.innerHTML = '<div class="sel-item-photo pt-photo">' + photo + '</div>' +
+      '<div class="sel-item-body"><p class="sel-item-name">' + esc(opt.dataset.name || opt.text) + '</p>' +
+      '<p class="sel-item-facts">' + (cap ? (t === 'room' ? 'Sleeps ' + esc(cap) : 'Up to ' + esc(cap) + ' guests') + ' · ' : '') +
+      '<strong>' + fmtPrice(opt.dataset.price) + '</strong> ' + (t === 'room' ? 'per night' : 'per booking') + '</p>' +
+      (t === 'cottage' ? '<p class="pt-meta mb-0">Flat rate — the same whatever times you choose.</p>' : '') + '</div>';
+    itemCard.hidden = false;
+  }
   function renderGallery(selectEl) {
-    if (!galleryWrap || !galleryThumbs || !selectEl) return;
-    var opt = selectEl.options[selectEl.selectedIndex];
+    if (!galleryWrap || !galleryThumbs) return;
+    var opt = selOpt(selectEl);
     var imgs = [];
-    try { imgs = JSON.parse(decodeURIComponent((opt && opt.dataset && opt.dataset.images) || '%5B%5D')); } catch (e) { imgs = []; }
-    if (!imgs || imgs.length === 0) { galleryWrap.classList.add('d-none'); galleryThumbs.innerHTML = ''; return; }
-    galleryThumbs.innerHTML = imgs.map(function (src) {
-      return '<img src="' + src + '" alt="Photo" loading="lazy" ' +
-        'style="width:96px;height:72px;object-fit:cover;border-radius:.5rem;border:1px solid #e5e7eb;cursor:zoom-in;" ' +
-        'onclick="openBookLightbox(\'' + src.replace(/'/g, "\\'") + '\')" />';
+    try { imgs = JSON.parse(decodeURIComponent((opt && opt.value && opt.dataset && opt.dataset.images) || '%5B%5D')); } catch (e) { imgs = []; }
+    renderItemCard(selectEl, imgs);
+    if (!imgs || imgs.length < 2) { galleryWrap.classList.add('d-none'); galleryThumbs.innerHTML = ''; return; }
+    var name = opt.dataset.name || '';
+    galleryThumbs.innerHTML = imgs.map(function (src, i) {
+      return '<button type="button" data-book-photo="' + esc(src) + '" aria-label="Enlarge photo ' + (i + 1) + ' of ' + esc(name) + '">' +
+        '<img src="' + esc(src) + '" alt="" loading="lazy" /></button>';
     }).join('');
     galleryWrap.classList.remove('d-none');
   }
+  function renderGalleryForType() {
+    var t = resTypeInput.value;
+    renderGallery(t === 'room' ? roomSel : t === 'cottage' ? cottageSel : (t === 'venue' || t === 'event') ? venueSel : null);
+  }
   ['roomSelect','cottageSelect','venueSelect'].forEach(function (id) {
     var sel = document.getElementById(id);
-    if (sel) sel.addEventListener('change', function () { renderGallery(sel); });
+    if (sel) sel.addEventListener('change', function () { renderGallery(sel); updateCapHint(); });
   });
-  // Render gallery for any pre-selected item on load.
-  (function () {
-    var pre = document.getElementById('roomSelect');
-    if (pre && pre.value) renderGallery(pre);
-    var preC = document.getElementById('cottageSelect');
-    if (preC && preC.value) renderGallery(preC);
-  })();
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-book-photo]');
+    if (b) openBookLightbox(b.getAttribute('data-book-photo'));
+  });
 
   /* ── Form submit guard + confirmation modal ─────────────────────────── */
   var bookingForm = document.getElementById('bookingForm');
@@ -1363,16 +1384,32 @@
 
   // Validate Step-4 fields. Returns true when the booking is ready to submit.
   function validateBooking() {
-    if (!document.getElementById('agreeTerms').checked) {
-      notify('Please agree to the terms and conditions.', 'warning'); return false;
-    }
+    clearFieldErrors(document.getElementById('panel4'));
     if (!document.querySelector('.pay-card input:checked')) {
-      notify('Please select a payment method.', 'warning'); return false;
+      return fieldError(document.getElementById('paymentMethods'), 'Please choose a payment method.');
+    }
+    var agree = document.getElementById('agreeTerms');
+    if (!agree.checked) {
+      return fieldError(agree, 'Please agree to the booking terms to continue.', agree.closest('.form-check'));
     }
     if (!totalHid.value || parseFloat(totalHid.value) <= 0) {
-      notify('Could not calculate booking total. Please go back and select your dates.', 'warning'); return false;
+      notify('We could not work out the booking total. Please go back and check your selection and dates.', 'warning');
+      return false;
     }
     return true;
+  }
+
+  // Keep entries if the server sends the guest back with an error (e.g. dates just taken).
+  var DRAFT_KEY = 'br-book-draft';
+  var DRAFT_FIELDS = ['reservationType','roomSelect','checkInDate','checkOutDate','cottageSelect','cottageDate','cottageStartTime','cottageEndTime',
+                      'venueSelect','packageSelect','eventDate','eventStartTime','eventEndTime','numGuests','contactPhone','specialRequests'];
+  function saveDraft() {
+    try {
+      var d = {};
+      DRAFT_FIELDS.forEach(function (id) { var el = document.getElementById(id); if (el) d[id] = el.value; });
+      var m = document.querySelector('.pay-card input:checked'); d.payment_method = m ? m.value : '';
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(d));
+    } catch (e) { /* storage unavailable */ }
   }
 
   // Consolidate per-section fields into the canonical POST fields, then submit.
@@ -1381,14 +1418,37 @@
   function finalizeAndSubmit() {
     var type = resTypeInput.value;
     var form = bookingForm;
+    saveDraft();
 
     function setHidden(name, value) {
       var el = form.querySelector('input[type=hidden][name="' + name + '"]');
       if (!el) { el = document.createElement('input'); el.type = 'hidden'; el.name = name; form.appendChild(el); }
       el.value = value || '';
     }
+    // Fields of the types NOT being booked must not post (a stale room id or package would change the booking).
+    function disableWithin(id) {
+      var box = document.getElementById(id);
+      if (box) box.querySelectorAll('input, select, textarea').forEach(function (f) { f.disabled = true; });
+    }
 
-    if (type === 'cottage') {
+    // Package requests and removed inclusions go to the special requests so staff see them.
+    var notes = [];
+    if ((type === 'venue' || type === 'event') && pkgSelect && pkgSelect.value) {
+      var removed = Object.keys(removedDefaults);
+      if (removed.length) notes.push('Remove from package: ' + removed.join(', '));
+      if (customInclusions.length) notes.push('Package requests: ' + customInclusions.map(function (c) { return c.name; }).join(', '));
+    } else if ((type === 'venue' || type === 'event') && customInclusions.length) {
+      notes.push('Event requests: ' + customInclusions.map(function (c) { return c.name; }).join(', '));
+    }
+    if (notes.length) {
+      var sr = document.getElementById('specialRequests');
+      sr.value = (sr.value ? sr.value.trim() + '\n' : '') + notes.join('\n');
+    }
+
+    if (type === 'room') {
+      disableWithin('cottageFields');
+      disableWithin('venueFields');
+    } else if (type === 'cottage') {
       var cs = document.getElementById('cottageSelect');
       var cd = document.getElementById('cottageDate');
       var cst = document.getElementById('cottageStartTime');
@@ -1397,40 +1457,43 @@
       setHidden('check_in_date',  cd ? cd.value : '');
       setHidden('start_time',     cst ? cst.value : '');
       setHidden('end_time',       cet ? cet.value : '');
-      if (cs)  cs.disabled  = true;
-      if (cd)  cd.disabled  = true;
-      if (cst) cst.disabled = true;
-      if (cet) cet.disabled = true;
+      disableWithin('roomFields');
+      disableWithin('venueFields');
+      disableWithin('cottageFields');
     } else if (type === 'venue' || type === 'event') {
       var vs = document.getElementById('venueSelect');
       var ed = document.getElementById('eventDate');
       setHidden('item_id',     vs ? vs.value : '');
       setHidden('event_date',  ed ? ed.value : '');
       if (vs) vs.disabled = true;
+      disableWithin('roomFields');
+      disableWithin('cottageFields');
     }
 
-    syncHiddenInputs();
+    if (type === 'venue' || type === 'event') syncHiddenInputs();
+    else hiddenInputsDiv.innerHTML = '';
 
     var btn = document.getElementById('submitBooking');
-    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Processing…'; }
+    if (btn) { btn.disabled = true; btn.setAttribute('aria-busy', 'true'); btn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true"></span>Submitting…'; }
 
     form.submit();   // native submit — does NOT re-fire the submit event
   }
 
-  // The visible "Confirm Booking" button first validates, then opens the modal.
+  // The visible "Submit booking" button first validates, then opens the modal.
   bookingForm.addEventListener('submit', function (e) {
     e.preventDefault();          // never submit directly from the form button
+    if (currentStep !== 4) return;
     if (!validateBooking()) return;
     showBookingConfirm();
   });
 
   /* ── Min dates ──────────────────────────────────────────────────────── */
-  var today = new Date().toISOString().slice(0, 10);
+  var today = localToday();
   ['checkInDate','checkOutDate','eventDate','cottageDate'].forEach(function (id) {
     var el = document.getElementById(id); if (el) el.min = today;
   });
   if (checkIn) checkIn.addEventListener('change', function () {
-    if (checkOut) { checkOut.min = this.value; if (checkOut.value && checkOut.value <= this.value) checkOut.value = ''; }
+    if (checkOut) { checkOut.min = this.value || today; if (checkOut.value && checkOut.value <= this.value) checkOut.value = ''; calcRoomPrice(); }
   });
 
   /* ── Booking confirmation modal ─────────────────────────────────────── */
@@ -1444,9 +1507,9 @@
       bootstrap.Modal.getOrCreateInstance(modalEl).show();
     } else if (window.confirmModal) {
       // Fallback: professional confirm modal from main.js
-      window.confirmModal({ title: 'Confirm Your Booking', message: 'Submit this booking? A downpayment will be required to confirm your reservation.', okText: 'Confirm & Submit' })
+      window.confirmModal({ title: 'Submit your booking?', message: 'Your booking is confirmed only after you pay the downpayment and staff verify your proof.', okText: 'Submit booking' })
         .then(function (ok) { if (ok) finalizeAndSubmit(); });
-    } else if (confirm('Confirm this booking?')) {
+    } else if (confirm('Submit this booking?')) {
       finalizeAndSubmit();
     }
   };
@@ -1462,10 +1525,10 @@
       finalizeAndSubmit();
       return;
     }
-    // "I Understand & Agree" in the Terms modal ticks the agreement checkbox.
+    // "I understand and agree" in the Terms modal ticks the agreement checkbox.
     if (e.target.closest('#termsAgreeBtn')) {
       var cb = document.getElementById('agreeTerms');
-      if (cb) cb.checked = true;
+      if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
     }
   });
 
@@ -1474,40 +1537,103 @@
     var lb = document.getElementById('bookLightbox');
     if (!lb) return;
     document.getElementById('bookLightboxImg').src = src;
-    lb.classList.add('open');
+    lb.classList.add('open'); lb.hidden = false;
     document.body.style.overflow = 'hidden';
+    var c = document.getElementById('bookLightboxClose'); if (c) c.focus();
   };
   window.closeBookLightbox = function () {
     var lb = document.getElementById('bookLightbox');
-    if (!lb) return;
-    lb.classList.remove('open');
+    if (!lb || lb.hidden) return;
+    lb.classList.remove('open'); lb.hidden = true;
     document.getElementById('bookLightboxImg').src = '';
     document.body.style.overflow = '';
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeBookLightbox(); });
+  document.addEventListener('click', function (e) {
+    if (e.target.closest('#bookLightboxClose') || e.target.id === 'bookLightbox') closeBookLightbox();
+  });
 
+  /* ── Initial state ──────────────────────────────────────────────────── */
+  var flashError = document.querySelector('#portalFlash .alert-danger');
+  var draft = null;
+  try { draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { draft = null; }
+  if (flashError && draft && !sp.get('type') && !sp.get('item_id')) {
+    // Server sent us back with an error: restore what the guest entered.
+    DRAFT_FIELDS.forEach(function (id) { var el = document.getElementById(id); if (el && draft[id] != null) el.value = draft[id]; });
+    if (draft.payment_method) {
+      var r = document.querySelector('.pay-card input[value="' + draft.payment_method + '"]');
+      if (r) { r.checked = true; r.dispatchEvent(new Event('change')); }
+    }
+    if (pkgSelect && pkgSelect.value) renderInclusionsPanel(pkgSelect.value);
+  }
+  try { sessionStorage.removeItem(DRAFT_KEY); } catch (e) {}
+
+  /* ── Date pickers: write into the native date inputs (names / ids unchanged) ── */
+  var pickers = {};
+  if (window.BrDatePicker) {
+    pickers.room = BrDatePicker.create(document.getElementById('roomCal'), {
+      start: checkIn, end: checkOut, nightly: true, blocked: blockedOf(roomSel), min: today
+    });
+    pickers.cottage = BrDatePicker.create(document.getElementById('cottageCal'), {
+      start: cottageDateEl, blocked: blockedOf(cottageSel), min: today
+    });
+    pickers.event = BrDatePicker.create(document.getElementById('eventCal'), {
+      start: document.getElementById('eventDate'), blocked: blockedOf(venueSel), min: today,
+      note: 'Event packages on their own aren’t tied to one room; booked days shown are for the venue you choose.'
+    });
+    if (roomSel) roomSel.addEventListener('change', function () { if (pickers.room) pickers.room.setBlocked(blockedOf(roomSel)); });
+    if (cottageSel) cottageSel.addEventListener('change', function () { if (pickers.cottage) pickers.cottage.setBlocked(blockedOf(cottageSel)); });
+    if (venueSel) venueSel.addEventListener('change', function () { if (pickers.event) pickers.event.setBlocked(blockedOf(venueSel)); });
+  }
+  ['cottageStartTime', 'cottageEndTime'].forEach(function (id) { var el = document.getElementById(id); if (el) el.addEventListener('change', checkAvailability); });
+
+  /* ── Add-ons chosen on the package page (?addon=Name&addon=Name) ────────── */
+  var addonsApplied = false;
+  function addonsFromUrl() {
+    if (addonsApplied) return false;
+    addonsApplied = true;
+    var names = sp.getAll('addon');
+    if (!names.length || !pkgSelect || !pkgSelect.value) return false;
+    var n = 0;
+    addonGrid.querySelectorAll('.addon-item').forEach(function (card) {
+      if (names.indexOf(card.dataset.name) !== -1 && !card.classList.contains('selected')) { card.click(); n++; }
+    });
+    return n > 0;
+  }
+
+  var initialType = resTypeInput.value;
+  if (initialType) {
+    typeCards.forEach(function (c) {
+      var on = c.dataset.type === initialType;
+      c.classList.toggle('selected', on); c.setAttribute('aria-pressed', on ? 'true' : 'false');
+    });
+    if (pkgSelect && pkgSelect.value && !inclusionsPanel.classList.contains('visible')) renderInclusionsPanel(pkgSelect.value);
+    updateStep2Fields(initialType);
+    updateCapHint();
+    if (flashError && draft) goTo(2);
+    else if (addonsFromUrl()) goTo(2);
+    else if (selectionLocked || (initialType === 'event' && pkgSelect && pkgSelect.value)) goTo(2);
+  } else {
+    updateSummary();
+  }
 })();
 </script>
 
 <%# ── Booking confirmation modal ──────────────────────────────────────── %>
-<div class="modal fade" id="bookingConfirmModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog modal-dialog-centered">
+<div class="modal fade" id="bookingConfirmModal" tabindex="-1" aria-labelledby="bookingConfirmTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
     <div class="modal-content">
-      <div class="modal-header bg-success bg-opacity-10">
-        <h5 class="modal-title"><i class="fas fa-check-circle text-success me-2"></i>Confirm Your Booking</h5>
+      <div class="modal-header">
+        <h2 class="modal-title" id="bookingConfirmTitle">Submit this booking?</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
-        <p class="text-muted small mb-3">Please review your booking details before submitting. A downpayment will be required to confirm your reservation.</p>
-        <div id="bookingConfirmBody" class="border rounded p-3 bg-light small"></div>
+        <div id="bookingConfirmBody" class="mb-3"></div>
+        <p class="pt-small mb-0">Your booking will be saved as <strong>Awaiting payment</strong> with a BK-YYYY-NNNN reference. It is not paid or confirmed yet — pay the downpayment, upload your proof on the booking page, and staff verify it.</p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-          <i class="fas fa-pen me-1"></i>Review Again
-        </button>
-        <button type="button" class="btn btn-success" id="bookingConfirmProceed">
-          <i class="fas fa-check me-1"></i>Confirm &amp; Submit Booking
-        </button>
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Keep editing</button>
+        <button type="button" class="btn btn-primary" id="bookingConfirmProceed">Yes, submit booking</button>
       </div>
     </div>
   </div>
@@ -1518,55 +1644,47 @@
   <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
     <div class="modal-content">
       <div class="modal-header">
-        <h5 class="modal-title" id="termsModalLabel"><i class="fas fa-file-contract text-primary me-2"></i>Booking Terms &amp; Conditions</h5>
+        <h2 class="modal-title" id="termsModalLabel">Booking terms and conditions</h2>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
-      <div class="modal-body small" style="line-height:1.6;">
+      <div class="modal-body pt-small" style="line-height:1.6;">
         <p class="text-muted">These terms apply to all reservations made with <strong><%= terms.resortName %></strong>. Please read them carefully before confirming your booking.</p>
 
-        <h6 class="fw-bold mt-3">1. Reservation &amp; Downpayment</h6>
+        <h3 class="pt-h3 mt-3">1. Reservation &amp; downpayment</h3>
         <p>A reservation is only confirmed once the required downpayment of <strong><%= terms.downpaymentPercent %>%</strong> of the total amount has been paid and verified by our staff. Bookings without a submitted downpayment may be released after 48 hours.</p>
 
-        <h6 class="fw-bold mt-3">2. Payment</h6>
-        <p>Downpayments may be paid via GCash, Maya, bank transfer, or cash at the front desk. For online payments, you must upload a clear screenshot of your payment receipt. The remaining balance must be settled on or before check-in.</p>
+        <h3 class="pt-h3 mt-3">2. Payment</h3>
+        <p>Downpayments may be paid via GCash, Maya, or bank transfer. For online payments, you must upload a clear screenshot of your payment receipt. The remaining balance must be settled on or before check-in.</p>
 
-        <h6 class="fw-bold mt-3">3. Check-in &amp; Check-out</h6>
+        <h3 class="pt-h3 mt-3">3. Check-in &amp; check-out</h3>
         <p>Standard check-in time is <strong><%= terms.checkInTime %></strong> and check-out time is <strong><%= terms.checkOutTime %></strong>. Early check-in or late check-out is subject to availability and may incur additional charges.</p>
 
-        <h6 class="fw-bold mt-3">4. Cancellation &amp; Refund Policy</h6>
+        <h3 class="pt-h3 mt-3">4. Cancellation &amp; refund policy</h3>
         <p><%= terms.cancellationPolicy %></p>
         <p>Approved refunds are processed to your nominated GCash account or through the original payment method, subject to staff review.</p>
 
-        <h6 class="fw-bold mt-3">5. Guest Responsibilities</h6>
+        <h3 class="pt-h3 mt-3">5. Guest responsibilities</h3>
         <ul class="mb-2">
           <li>The number of guests must not exceed the stated capacity of the room, cottage, or venue.</li>
           <li>Guests are responsible for any damage to property or facilities during their stay.</li>
           <li>Valid identification may be required upon check-in.</li>
         </ul>
 
-        <h6 class="fw-bold mt-3">6. Liability</h6>
+        <h3 class="pt-h3 mt-3">6. Liability</h3>
         <p>The resort is not liable for loss of personal belongings. Guests are advised to secure their valuables. Management reserves the right to refuse service or cancel a reservation for violations of these terms.</p>
 
         <p class="text-muted mt-3 mb-0">By checking the agreement box, you acknowledge that you have read, understood, and agreed to these terms and conditions.</p>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-        <button type="button" class="btn btn-primary" id="termsAgreeBtn" data-bs-dismiss="modal">
-          <i class="fas fa-check me-1"></i>I Understand &amp; Agree
-        </button>
+        <button type="button" class="btn btn-primary" id="termsAgreeBtn" data-bs-dismiss="modal">I understand and agree</button>
       </div>
     </div>
   </div>
 </div>
 
 <%# ── Booking-page image lightbox ─────────────────────────────────────── %>
-<div id="bookLightbox" class="book-lb-overlay" onclick="closeBookLightbox()">
-  <span class="book-lb-close">&times;</span>
-  <img id="bookLightboxImg" src="" alt="Photo" onclick="event.stopPropagation()" />
+<div id="bookLightbox" class="lb-overlay" role="dialog" aria-modal="true" aria-label="Photo" hidden>
+  <button type="button" class="lb-close" id="bookLightboxClose" aria-label="Close photo"><i class="fas fa-times" aria-hidden="true"></i></button>
+  <div class="lb-content"><img id="bookLightboxImg" src="" alt="Enlarged photo" /></div>
 </div>
-<style>
-  .book-lb-overlay { display:none; position:fixed; inset:0; z-index:10600; background:rgba(2,12,24,.94); backdrop-filter:blur(3px); align-items:center; justify-content:center; }
-  .book-lb-overlay.open { display:flex; }
-  .book-lb-overlay img { max-width:92vw; max-height:88vh; object-fit:contain; border-radius:.5rem; box-shadow:0 10px 40px rgba(0,0,0,.5); }
-  .book-lb-close { position:fixed; top:18px; right:26px; color:#fff; font-size:2.2rem; cursor:pointer; line-height:1; }
-</style>

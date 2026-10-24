@@ -1,135 +1,153 @@
 <% layout('layouts/main') %>
+<%
+  const pendingList = (requests || []).filter(r => r.status === 'pending');
+  const doneList    = (requests || []).filter(r => r.status !== 'pending');
+  const PAYOUT      = { gcash: 'GCash', cash: 'Cash', bank: 'Bank transfer', bank_transfer: 'Bank transfer', maya: 'Maya' };
+  const typeLabel   = (t) => { const s = String(t || '').replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); };
+%>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
-      <li class="breadcrumb-item"><a href="/payments">Payments</a></li>
-      <li class="breadcrumb-item active">Refund Requests</li>
-    </ol></nav>
-    <h3 class="mb-0"><i class="fas fa-hand-holding-usd me-2 text-warning"></i>Refund Requests</h3>
+<!--page-head-->
+<a href="/payments" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Payments</a>
+<h1 class="ph-title">Refund requests</h1>
+<!--/page-head-->
+<p class="page-intro">Guests ask for a refund after cancelling. Send the payout first, then approve with its reference and receipt — or reject with a reason.</p>
+
+<nav class="ap-tabs" aria-label="Refund request status">
+  <% for (const [key, label] of [['pending','Pending'],['approved','Approved'],['rejected','Rejected']]) { %>
+  <a href="/payments/refunds/requests?status=<%= key %>" class="<%= filter === key ? 'active' : '' %>" <%= filter === key ? 'aria-current="page"' : '' %>>
+    <%= label %> <span class="rr-count"><%= counts[key] || 0 %></span>
+  </a>
+  <% } %>
+</nav>
+
+<% if (!requests || requests.length === 0) { %>
+<div class="ap-panel">
+  <div class="ap-empty">
+    <strong>No <%= filter %> refund requests</strong>
+    <%= filter === 'pending' ? 'New requests from guests will appear here for review.' : 'Requests you review will be listed here.' %>
   </div>
 </div>
+<% } %>
 
-<%# Status filter tabs %>
-<ul class="nav nav-pills mb-3 gap-2 refund-tabs">
-  <% for (const [key, label] of [['pending','Pending'],['approved','Approved'],['rejected','Rejected']]) { %>
-  <li class="nav-item">
-    <a class="nav-link <%= filter === key ? 'active' : '' %>" href="/payments/refunds/requests?status=<%= key %>">
-      <span class="refund-tab-label"><%= label %></span>
-      <span class="badge <%= filter === key ? 'bg-light text-dark' : 'bg-secondary' %> ms-1"><%= counts[key] || 0 %></span>
-    </a>
-  </li>
+<% if (pendingList.length > 0) { %>
+<div class="rr-list">
+  <% for (const rr of pendingList) { %>
+  <article class="ap-panel rr-item" aria-labelledby="rr-<%= rr.id %>-title">
+    <div class="rr-summary">
+      <div class="rr-summary-head">
+        <h2 id="rr-<%= rr.id %>-title" class="rr-title">
+          <a href="/reservations/<%= rr.reservation_id %>" class="ap-code"><%= rr.booking_ref %></a>
+          <span class="ap-meta"><%= typeLabel(rr.reservation_type) %></span>
+        </h2>
+        <%- statusBadge(rr.status) %>
+      </div>
+      <div class="rr-amount">
+        <span class="ap-meta">Requested refund</span>
+        <span class="pay-amount pay-amount-lg"><%= formatPeso(rr.amount) %></span>
+      </div>
+      <dl class="ap-dl">
+        <dt>Guest</dt><dd><%= rr.customer_name || '—' %><% if (rr.customer_email) { %><span class="d-block ap-meta"><%= rr.customer_email %></span><% } %></dd>
+        <dt>Requested</dt><dd><%= formatDate(rr.created_at) %></dd>
+        <% if (rr.total_amount != null) { %><dt>Booking total</dt><dd><%= formatPeso(rr.total_amount) %> <% if (rr.payment_status) { %>· <%- statusBadge(rr.payment_status) %><% } %></dd><% } %>
+        <% if (rr.gcash_number) { %><dt>Pay out to</dt><dd>GCash <span class="ap-code rr-gcash"><%= rr.gcash_number %></span></dd><% } %>
+        <dt>Reason</dt><dd class="rr-reason"><%= rr.reason || '—' %></dd>
+      </dl>
+    </div>
+
+    <div class="rr-review">
+      <form action="/payments/refunds/requests/<%= rr.id %>/review" method="POST" enctype="multipart/form-data" class="rr-approve">
+        <input type="hidden" name="action" value="approve" />
+        <h3 class="rr-review-title">Approve and record payout</h3>
+        <div class="row g-2">
+          <div class="col-sm-5">
+            <label class="form-label" for="rr-<%= rr.id %>-method">Payout method</label>
+            <select name="payout_method" id="rr-<%= rr.id %>-method" class="form-select">
+              <option value="gcash">GCash</option>
+              <option value="cash">Cash</option>
+              <option value="bank">Bank Transfer</option>
+            </select>
+          </div>
+          <div class="col-sm-7">
+            <label class="form-label" for="rr-<%= rr.id %>-ref">Payout reference</label>
+            <input type="text" name="payout_ref" id="rr-<%= rr.id %>-ref" class="form-control" placeholder="Transaction / reference no." aria-describedby="rr-<%= rr.id %>-refhelp" />
+            <div class="form-text" id="rr-<%= rr.id %>-refhelp">Required for GCash and bank transfer.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="rr-<%= rr.id %>-proof">Payout receipt</label>
+            <input type="file" name="payout_proof" id="rr-<%= rr.id %>-proof" class="form-control" accept="image/*,.pdf" aria-describedby="rr-<%= rr.id %>-proofhelp" />
+            <div class="form-text" id="rr-<%= rr.id %>-proofhelp">Screenshot or PDF of the transfer. Only staff can open it.</div>
+          </div>
+          <div class="col-12">
+            <label class="form-label" for="rr-<%= rr.id %>-note">Note <span class="ap-meta fw-normal">(optional)</span></label>
+            <input type="text" name="admin_note" id="rr-<%= rr.id %>-note" class="form-control" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-primary mt-3"
+          data-confirm="Approve this refund of <%= formatPeso(rr.amount) %> for <%= rr.booking_ref %>? Make sure you have sent the payout and attached the receipt screenshot. This marks the booking refunded."
+          data-confirm-title="Approve Refund"
+          data-confirm-ok="Approve &amp; Refund">
+          <i class="fas fa-check" aria-hidden="true"></i>Approve refund
+        </button>
+      </form>
+
+      <form action="/payments/refunds/requests/<%= rr.id %>/review" method="POST" class="rr-reject">
+        <input type="hidden" name="action" value="reject" />
+        <h3 class="rr-review-title mt-1">Or decline the request</h3>
+        <label class="form-label" for="rr-<%= rr.id %>-reject">Reason, shown to the guest</label>
+        <div class="rr-reject-row">
+          <input type="text" name="admin_note" id="rr-<%= rr.id %>-reject" class="form-control" placeholder="Why the refund is declined" required />
+          <button type="submit" class="btn btn-outline-danger"
+            data-confirm="Decline the <%= formatPeso(rr.amount) %> refund request for <%= rr.booking_ref %>? The guest is notified with your reason. No money is sent."
+            data-confirm-title="Decline refund"
+            data-confirm-type="danger"
+            data-confirm-ok="Decline request">Decline</button>
+        </div>
+      </form>
+    </div>
+  </article>
   <% } %>
-</ul>
+</div>
+<% } %>
 
-<style>
-  /* Inactive pill tabs: dark, readable text on the light page background.
-     Use !important + explicit label colour to beat Bootstrap/theme overrides. */
-  .refund-tabs .nav-link {
-    color: #334155 !important;
-    border: 1px solid #e2e8f0;
-    background: #fff;
-  }
-  .refund-tabs .nav-link .refund-tab-label { color: #334155; font-weight: 600; }
-  .refund-tabs .nav-link:hover { color: #0f172a !important; background: #f1f5f9; }
-  .refund-tabs .nav-link:hover .refund-tab-label { color: #0f172a; }
-  .refund-tabs .nav-link.active,
-  .refund-tabs .nav-link.active .refund-tab-label { color: #fff !important; }
-  .refund-tabs .nav-link.active { background: #4f46e5; border-color: #4f46e5; }
-</style>
-
-<div class="card">
-  <div class="card-body p-0">
-    <% if (!requests || requests.length === 0) { %>
-    <div class="empty-state py-5 text-center">
-      <i class="fas fa-inbox text-muted" style="font-size:2.5rem;"></i>
-      <p class="text-muted mt-2 mb-0">No <%= filter %> refund requests.</p>
-    </div>
-    <% } else { %>
-    <div class="table-responsive">
-      <table class="table table-hover mb-0 align-middle">
-        <thead>
-          <tr>
-            <th>Booking</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Requested</th><th>Status</th><th class="text-end">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% for (const rr of requests) { %>
-          <tr>
-            <td>
-              <a href="/reservations/<%= rr.reservation_id %>"><code class="small"><%= rr.booking_ref %></code></a>
-              <div class="small text-muted text-capitalize"><%= rr.reservation_type %></div>
-            </td>
-            <td>
-              <div class="fw-medium small"><%= rr.customer_name || '—' %></div>
-              <div class="small text-muted"><%= rr.customer_email || '' %></div>
-            </td>
-            <td class="fw-bold text-danger"><%= formatPeso(rr.amount) %></td>
-            <td class="small" style="max-width:260px;white-space:pre-wrap;">
-              <%= rr.reason || '—' %>
-              <% if (rr.gcash_number) { %><div class="text-muted mt-1"><i class="fas fa-mobile-alt me-1"></i>Refund to GCash: <code><%= rr.gcash_number %></code></div><% } %>
-            </td>
-            <td class="small text-nowrap"><%= formatDate(rr.created_at) %></td>
-            <td>
-              <% if (rr.status === 'pending') { %>
-                <span class="badge bg-warning text-dark"><i class="fas fa-clock me-1"></i>Pending</span>
-              <% } else if (rr.status === 'approved') { %>
-                <span class="badge bg-success"><i class="fas fa-check me-1"></i>Approved</span>
-              <% } else { %>
-                <span class="badge bg-danger"><i class="fas fa-times me-1"></i>Rejected</span>
-              <% } %>
-              <% if (rr.reviewed_by_name) { %><div class="small text-muted mt-1">by <%= rr.reviewed_by_name %></div><% } %>
-              <% if (rr.payout_method) { %><div class="small text-muted">Payout: <strong><%= rr.payout_method.toUpperCase() %></strong><% if (rr.payout_ref) { %> &middot; <code><%= rr.payout_ref %></code><% } %></div><% } %>
-              <% if (rr.payout_proof) { %>
-              <div class="mt-1">
-                <a href="/payments/refunds/requests/<%= rr.id %>/proof"
-                   data-lightbox="/payments/refunds/requests/<%= rr.id %>/proof"
-                   data-lightbox-title="Refund Proof — <%= rr.booking_ref %>"
-                   class="small text-primary" style="cursor:zoom-in;">
-                  <i class="fas fa-receipt me-1"></i>View Refund Proof
-                </a>
-              </div>
-              <% } %>
-              <% if (rr.admin_note) { %><div class="small text-muted fst-italic">"<%= rr.admin_note %>"</div><% } %>
-            </td>
-            <td class="text-end">
-              <% if (rr.status === 'pending') { %>
-              <div class="d-flex flex-column gap-1" style="min-width:210px;">
-                <form action="/payments/refunds/requests/<%= rr.id %>/review" method="POST" enctype="multipart/form-data" class="d-flex flex-column gap-1">
-                  <input type="hidden" name="action" value="approve" />
-                  <select name="payout_method" class="form-select form-select-sm">
-                    <option value="gcash">GCash</option>
-                    <option value="cash">Cash</option>
-                    <option value="bank">Bank Transfer</option>
-                  </select>
-                  <input type="text" name="payout_ref" class="form-control form-control-sm" placeholder="Payout ref (req. for GCash/bank)" />
-                  <input type="text" name="admin_note" class="form-control form-control-sm" placeholder="Note (optional)" />
-                  <label class="form-label small mb-0 mt-1">Refund proof screenshot</label>
-                  <input type="file" name="payout_proof" class="form-control form-control-sm" accept="image/*,.pdf" />
-                  <button type="submit" class="btn btn-sm btn-success"
-                    data-confirm="Approve this refund of <%= formatPeso(rr.amount) %> for <%= rr.booking_ref %>? Make sure you have sent the payout and attached the receipt screenshot. This marks the booking refunded."
-                    data-confirm-title="Approve Refund"
-                    data-confirm-ok="Approve &amp; Refund">
-                    <i class="fas fa-check me-1"></i>Approve
-                  </button>
-                </form>
-                <form action="/payments/refunds/requests/<%= rr.id %>/review" method="POST" class="d-flex flex-column gap-1">
-                  <input type="hidden" name="action" value="reject" />
-                  <input type="text" name="admin_note" class="form-control form-control-sm" placeholder="Reason (required)" required />
-                  <button type="submit" class="btn btn-sm btn-outline-danger">
-                    <i class="fas fa-times me-1"></i>Reject
-                  </button>
-                </form>
-              </div>
-              <% } else { %>
-                <span class="text-muted small"><%= rr.reviewed_at ? formatDate(rr.reviewed_at) : '' %></span>
-              <% } %>
-            </td>
-          </tr>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
-    <% } %>
+<% if (doneList.length > 0) { %>
+<section class="ap-panel" aria-labelledby="rrDoneHeading">
+  <div class="ap-panel-head"><h2 id="rrDoneHeading">Reviewed requests <span class="ap-meta"><%= doneList.length %></span></h2></div>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr><th scope="col">Booking</th><th scope="col">Guest</th><th scope="col">Reason</th><th scope="col">Requested</th><th scope="col">Payout</th><th scope="col">Decision</th><th scope="col" class="num">Amount</th></tr>
+      </thead>
+      <tbody>
+        <% for (const rr of doneList) { %>
+        <tr>
+          <td class="ap-cell-title"><a href="/reservations/<%= rr.reservation_id %>" class="ap-code ap-name"><%= rr.booking_ref %></a><span class="ap-line2"><%= typeLabel(rr.reservation_type) %></span></td>
+          <td data-label="Guest"><%= rr.customer_name || '—' %><% if (rr.customer_email) { %><span class="ap-line2"><%= rr.customer_email %></span><% } %></td>
+          <td data-label="Reason" class="ap-wide rr-reason-cell"><%= rr.reason || '—' %><% if (rr.gcash_number) { %><span class="ap-line2">Refund to GCash <span class="ap-code"><%= rr.gcash_number %></span></span><% } %></td>
+          <td data-label="Requested" class="text-nowrap"><%= formatDate(rr.created_at) %></td>
+          <td data-label="Payout">
+            <% if (rr.payout_method) { %><%= PAYOUT[rr.payout_method] || rr.payout_method.toUpperCase() %><% if (rr.payout_ref) { %><span class="ap-line2 ap-code"><%= rr.payout_ref %></span><% } %><% } else { %>—<% } %>
+            <% if (rr.payout_proof) { %>
+            <a href="/payments/refunds/requests/<%= rr.id %>/proof"
+               data-lightbox="/payments/refunds/requests/<%= rr.id %>/proof"
+               data-lightbox-title="Refund Proof — <%= rr.booking_ref %>"
+               class="rr-proof-link">
+              <i class="fas fa-receipt" aria-hidden="true"></i>View receipt
+            </a>
+            <% } %>
+          </td>
+          <td class="ap-cell-status">
+            <%- statusBadge(rr.status) %>
+            <span class="ap-line2"><%= rr.reviewed_by_name ? 'by ' + rr.reviewed_by_name : '' %><%= rr.reviewed_at ? (rr.reviewed_by_name ? ', ' : '') + formatDate(rr.reviewed_at) : '' %></span>
+            <% if (rr.admin_note) { %><span class="ap-line2 rr-note">“<%= rr.admin_note %>”</span><% } %>
+          </td>
+          <td class="num" data-label="Amount"><span class="pay-amount"><%= formatPeso(rr.amount) %></span></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
   </div>
+</section>
+<% } %>
+
 </div>

@@ -1,35 +1,76 @@
 <% layout('layouts/main') %>
-<div class="page-header"><div><nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/crm">Customers</a></li><li class="breadcrumb-item active">Add Customer</li></ol></nav><h3 class="mb-0">Add New Customer</h3></div></div>
-<% if (errors && errors.length > 0) { %><div class="alert alert-danger"><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div><% } %>
-<div class="row"><div class="col-lg-7"><div class="card"><div class="card-body">
-<form action="/crm/customers" method="POST">
-  <div class="row g-3">
-    <div class="col-md-6"><label class="form-label required">First Name</label><input type="text" name="first_name" class="form-control" value="<%= old.first_name || '' %>" required /></div>
-    <div class="col-md-6"><label class="form-label required">Last Name</label><input type="text" name="last_name" class="form-control" value="<%= old.last_name || '' %>" required /></div>
-    <div class="col-md-6"><label class="form-label">Email</label><input type="email" name="email" class="form-control" value="<%= old.email || '' %>" /></div>
-    <div class="col-md-6"><label class="form-label">Phone</label><input type="text" name="phone" class="form-control" value="<%= old.phone || '' %>" /></div>
-    <div class="col-12"><label class="form-label">Address</label><input type="text" name="address" class="form-control" value="<%= old.address || '' %>" /></div>
-    <div class="col-md-6"><label class="form-label">Customer Type</label><select name="customer_type" class="form-select"><option value="regular">Regular</option><option value="vip">VIP</option><option value="corporate">Corporate</option></select></div>
-    <div class="col-md-6"><label class="form-label">Preferred Contact</label><select name="preferred_contact" class="form-select"><option value="email">Email</option><option value="phone">Phone</option><option value="sms">SMS</option></select></div>
-    <div class="col-12"><label class="form-label">Notes</label><textarea name="notes" class="form-control" rows="2"><%= old.notes || '' %></textarea></div>
+<% const sel = (k, v, d) => ((old[k] || d) === v ? 'selected' : ''); %>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/crm" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Customers</a>
+<h1 class="ph-title">Add customer</h1>
+<!--/page-head-->
+
+<% if (errors && errors.length > 0) { %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
+</div>
+<% } %>
+
+<form data-guard="this customer" action="/crm/customers" method="POST" class="ap-form">
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Contact details</h2>
+      <p>How the resort reaches this guest. An email is needed if you also create a portal login below.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label required" for="cFirst">First name</label><input type="text" id="cFirst" name="first_name" class="form-control" value="<%= old.first_name || '' %>" required autocomplete="off" /></div>
+        <div class="col-md-6"><label class="form-label required" for="cLast">Last name</label><input type="text" id="cLast" name="last_name" class="form-control" value="<%= old.last_name || '' %>" required autocomplete="off" /></div>
+        <div class="col-md-6"><label class="form-label" for="cEmail">Email</label><input type="email" id="cEmail" name="email" class="form-control" value="<%= old.email || '' %>" autocomplete="off" /></div>
+        <div class="col-md-6"><label class="form-label" for="cPhone">Mobile number</label><input type="text" id="cPhone" name="phone" class="form-control" value="<%= old.phone || '' %>" placeholder="09XX XXX XXXX" inputmode="tel" /></div>
+        <div class="col-12"><label class="form-label" for="cAddress">Address</label><input type="text" id="cAddress" name="address" class="form-control" value="<%= old.address || '' %>" /></div>
+      </div>
+    </div>
   </div>
 
-  <%# ── Portal Login Access (optional) ──────────────────────────────── %>
-  <hr class="my-4" />
-  <div class="d-flex align-items-center justify-content-between mb-2">
-    <h6 class="mb-0"><i class="fas fa-key me-2 text-primary"></i>Portal Login Access <span class="text-muted fw-normal small">(optional)</span></h6>
-  </div>
-  <p class="text-muted small mb-3">Set a password to give this customer a login account for the online portal. The email above becomes their username. Leave blank to create a customer record with no login.</p>
-  <div class="row g-3">
-    <div class="col-md-6">
-      <label class="form-label">Login Password</label>
-      <input type="password" name="login_password" class="form-control" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" value="<%= old.login_password || '' %>" />
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Customer profile</h2>
+      <p>Used to group guests in the list and to note anything staff should know.</p>
     </div>
-    <div class="col-md-6">
-      <label class="form-label">Confirm Password</label>
-      <input type="password" name="login_password_confirm" class="form-control" minlength="8" autocomplete="new-password" placeholder="Re-enter password" value="<%= old.login_password_confirm || '' %>" />
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6"><label class="form-label" for="cType">Customer type</label><select id="cType" name="customer_type" class="form-select"><option value="regular" <%= sel('customer_type','regular','regular') %>>Regular</option><option value="vip" <%= sel('customer_type','vip','regular') %>>VIP</option><option value="corporate" <%= sel('customer_type','corporate','regular') %>>Corporate</option></select></div>
+        <div class="col-md-6"><label class="form-label" for="cContact">Preferred contact</label><select id="cContact" name="preferred_contact" class="form-select"><option value="email" <%= sel('preferred_contact','email','email') %>>Email</option><option value="phone" <%= sel('preferred_contact','phone','email') %>>Phone</option><option value="sms" <%= sel('preferred_contact','sms','email') %>>SMS</option></select></div>
+        <div class="col-12"><label class="form-label" for="cNotes">Internal notes</label><textarea id="cNotes" name="notes" class="form-control" rows="3" aria-describedby="cNotesHelp"><%= old.notes || '' %></textarea><div class="form-text" id="cNotesHelp">Staff only — not shown to the guest.</div></div>
+      </div>
     </div>
   </div>
-  <div class="d-flex gap-2 mt-4"><button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Add Customer</button><a href="/crm" class="btn btn-outline-secondary">Cancel</a></div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Portal login <span class="ap-meta fw-normal">(optional)</span></h2>
+      <p>Set a password to give this customer an online portal account. The email above becomes their username. Leave blank for a record without a login.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label" for="cPass">Login password</label>
+          <input type="password" id="cPass" name="login_password" class="form-control" minlength="8" autocomplete="new-password" aria-describedby="cPassHelp" value="<%= old.login_password || '' %>" />
+          <div class="form-text" id="cPassHelp">At least 8 characters.</div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="cPass2">Confirm password</label>
+          <input type="password" id="cPass2" name="login_password_confirm" class="form-control" minlength="8" autocomplete="new-password" value="<%= old.login_password_confirm || '' %>" />
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note"><span class="text-danger">*</span> Required</span>
+    <a href="/crm" class="btn btn-outline-secondary">Cancel</a>
+    <button type="submit" class="btn btn-primary">Add customer</button>
+  </div>
 </form>
-</div></div></div></div>
+
+</div>

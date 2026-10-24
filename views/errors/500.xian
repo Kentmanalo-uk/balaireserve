@@ -1,16 +1,18 @@
-<div class="error-container" style="max-width: 600px; margin: 100px auto; padding: 40px; text-align: center;">
-  <h1 style="font-size: 72px; color: #e74c3c; margin: 0;">500</h1>
-  <h2 style="color: #2c3e50;">Internal Server Error</h2>
-  <p style="color: #7f8c8d; margin: 20px 0;">{{error}}</p>
-  
-  {{#if stack}}
-  <details style="margin-top: 20px; text-align: left; background: #f8f9fa; padding: 20px; border-radius: 4px;">
-    <summary style="cursor: pointer; font-weight: bold; margin-bottom: 10px;">Stack Trace</summary>
-    <pre style="overflow-x: auto; font-size: 12px;">{{stack}}</pre>
-  </details>
-  {{/if}}
-  
-  <a href="/dashboard" style="display: inline-block; margin-top: 30px; padding: 12px 24px; background: #3498db; color: white; text-decoration: none; border-radius: 4px;">
-    ← Back to Dashboard
-  </a>
-</div>
+<% layout('layouts/main') %>
+<%
+  const isStaffUser = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const homeHref  = isStaffUser ? '/dashboard' : (currentUser ? '/portal' : '/');
+  const homeLabel = isStaffUser ? 'Back to dashboard' : (currentUser ? 'Back to my bookings' : 'Back to the resort site');
+%>
+<section class="error-page" aria-labelledby="errTitle">
+  <div class="error-code">Error 500</div>
+  <h1 id="errTitle">Something went wrong on our side</h1>
+  <p>The page couldn't be loaded. If you were saving a form, check whether the change went through before trying again.</p>
+  <% if (typeof message !== 'undefined' && message) { %>
+  <div class="error-detail"><strong>Details:</strong> <%= message %></div>
+  <% } %>
+  <div class="error-actions">
+    <a href="<%= homeHref %>" class="btn btn-primary"><%= homeLabel %></a>
+    <button type="button" onclick="location.reload()" class="btn btn-outline-secondary">Try again</button>
+  </div>
+</section>

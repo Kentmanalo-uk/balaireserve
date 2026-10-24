@@ -1,173 +1,233 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/crm">Customers</a></li><li class="breadcrumb-item active"><%= customer.first_name %> <%= customer.last_name %></li></ol></nav>
-    <h3 class="mb-0"><%= customer.first_name %> <%= customer.last_name %></h3>
-  </div>
-  <div class="page-header-actions">
-    <span class="badge <%= customer.customer_type === 'vip' ? 'bg-warning text-dark' : customer.customer_type === 'corporate' ? 'bg-primary' : 'bg-light text-dark' %>"><%= customer.customer_type %></span>
-    <%- statusBadge(customer.status) %>
-  </div>
-</div>
-<div class="row g-3">
-  <!-- Profile Summary -->
-  <div class="col-lg-3">
-    <div class="card mb-3">
-      <div class="card-body text-center">
-        <div class="customer-avatar-lg mb-2"><%= customer.first_name.charAt(0) %><%= customer.last_name.charAt(0) %></div>
-        <div class="fw-bold"><%= customer.first_name %> <%= customer.last_name %></div>
-        <div class="text-muted small mb-3"><code><%= customer.customer_code %></code></div>
-        <table class="table table-sm table-borderless text-start mb-0">
-          <tr><th>Email</th><td class="small"><%= customer.email || '—' %></td></tr>
-          <tr><th>Phone</th><td class="small"><%= customer.phone || '—' %></td></tr>
-          <tr><th>Address</th><td class="small"><%= customer.address || '—' %></td></tr>
-          <tr><th>Contact</th><td class="small"><%= customer.preferred_contact %></td></tr>
-          <tr><th>Total Spent</th><td class="fw-bold text-success small"><%= formatPeso(totalSpent) %></td></tr>
-        </table>
-        <% if (customer.notes) { %><div class="alert alert-light small mt-3 text-start mb-0"><%= customer.notes %></div><% } %>
-      </div>
-      <div class="card-footer">
-        <a href="/reservations/new?customer_id=<%= customer.id %>" class="btn btn-sm btn-primary w-100 mb-2"><i class="fas fa-calendar-plus me-1"></i>New Reservation</a>
-        <button class="btn btn-sm btn-outline-secondary w-100" data-bs-toggle="modal" data-bs-target="#editCustomerModal">Edit Profile</button>
-      </div>
-    </div>
-  </div>
+<%
+  const TYPE_LABELS = { regular: 'Regular', vip: 'VIP', corporate: 'Corporate' };
+  const ACT_LABELS  = { call: 'Call', email: 'Email', chat: 'Chat', follow_up: 'Follow-up', inquiry: 'Inquiry', complaint: 'Complaint', support: 'Support', phone: 'Call' };
+  const cap = (s) => { const t = String(s || '').replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+  const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const fullName = customer.first_name + ' ' + customer.last_name;
+%>
+<div class="ap-page">
 
-  <!-- Main Content -->
-  <div class="col-lg-9">
-    <!-- Nav Tabs -->
-    <ul class="nav nav-tabs mb-3">
-      <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tabActivity">Activity</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabReservations">Reservations (<%= reservations.length %>)</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabFeedback">Feedback (<%= feedback.length %>)</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabCalls">Sales Calls (<%= calls.length %>)</a></li>
-      <li class="nav-item"><a class="nav-link" data-bs-toggle="tab" href="#tabTickets">Tickets (<%= tickets.length %>)</a></li>
-    </ul>
+<!--page-head-->
+<a href="/crm" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Customers</a>
+<h1 class="ph-title"><%= fullName %></h1>
+<% if (canManage) { %>
+  <div class="ph-actions">
+    <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#editCustomerModal"><i class="fas fa-pen" aria-hidden="true"></i>Edit profile</button>
+    <a href="/reservations/new?customer_id=<%= customer.id %>" class="btn btn-primary"><i class="fas fa-calendar-plus" aria-hidden="true"></i>New reservation</a>
+  </div>
+  <% } %>
+<!--/page-head-->
+<div class="page-meta"><span class="ap-code"><%= customer.customer_code %></span> · <%= TYPE_LABELS[customer.customer_type] || cap(customer.customer_type) %> customer · <%- statusBadge(customer.status) %></div>
+
+<div class="crm-split">
+  <aside>
+    <section class="ap-panel" aria-labelledby="crmContactHeading">
+      <div class="ap-panel-head"><h2 id="crmContactHeading">Contact</h2></div>
+      <div class="ap-panel-body">
+        <dl class="ap-dl crm-contact">
+          <dt>Email</dt><dd><% if (customer.email) { %><a href="mailto:<%= customer.email %>"><%= customer.email %></a><% } else { %>—<% } %></dd>
+          <dt>Phone</dt><dd><% if (customer.phone) { %><a href="tel:<%= customer.phone %>"><%= customer.phone %></a><% } else { %>—<% } %></dd>
+          <dt>Address</dt><dd><%= customer.address || '—' %></dd>
+          <dt>Prefers</dt><dd><%= cap(customer.preferred_contact) || '—' %></dd>
+          <dt>Total paid</dt><dd class="crm-spent"><%= formatPeso(totalSpent) %></dd>
+          <% if (customer.created_at) { %><dt>Since</dt><dd><%= formatDate(customer.created_at) %></dd><% } %>
+        </dl>
+        <% if (customer.notes) { %>
+        <div class="crm-notes">
+          <span class="ap-meta">Internal notes</span>
+          <p class="mb-0"><%= customer.notes %></p>
+        </div>
+        <% } %>
+      </div>
+    </section>
+  </aside>
+
+  <div>
+    <nav class="ap-tabs nav" role="tablist" aria-label="Customer records">
+      <button type="button" class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabActivity" role="tab" aria-controls="tabActivity" aria-selected="true">Activity <span class="ap-meta"><%= activities.length %></span></button>
+      <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabReservations" role="tab" aria-controls="tabReservations" aria-selected="false">Reservations <span class="ap-meta"><%= reservations.length %></span></button>
+      <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabFeedback" role="tab" aria-controls="tabFeedback" aria-selected="false">Feedback <span class="ap-meta"><%= feedback.length %></span></button>
+      <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabCalls" role="tab" aria-controls="tabCalls" aria-selected="false">Sales calls <span class="ap-meta"><%= calls.length %></span></button>
+      <button type="button" class="nav-link" data-bs-toggle="tab" data-bs-target="#tabTickets" role="tab" aria-controls="tabTickets" aria-selected="false">Tickets <span class="ap-meta"><%= tickets.length %></span></button>
+    </nav>
+
     <div class="tab-content">
 
-      <!-- Activity Timeline -->
-      <div class="tab-pane fade show active" id="tabActivity">
-        <div class="card">
-          <div class="card-header d-flex justify-content-between">
-            <h6 class="card-title mb-0">Activity History</h6>
-            <button class="btn btn-sm btn-outline-primary" data-bs-toggle="modal" data-bs-target="#addActivityModal">Log Activity</button>
+      <!-- Activity chronology -->
+      <div class="tab-pane fade show active" id="tabActivity" role="tabpanel" tabindex="0">
+        <section class="ap-panel">
+          <div class="ap-panel-head">
+            <h2>Activity log <span class="ap-meta">latest 15, newest first</span></h2>
+            <% if (canManage) { %><button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#addActivityModal"><i class="fas fa-plus" aria-hidden="true"></i>Log activity</button><% } %>
           </div>
-          <div class="card-body">
-            <% if (!activities || activities.length === 0) { %><div class="empty-state"><i class="fas fa-history"></i><p>No activities yet.</p></div>
-            <% } else { %>
-            <div class="timeline">
-              <% for (const a of activities) { %>
-              <div class="timeline-item">
-                <div class="timeline-dot timeline-<%= a.activity_type %>"></div>
-                <div class="timeline-content">
-                  <div class="d-flex justify-content-between"><span class="fw-medium"><%= a.subject || a.activity_type %></span><span class="text-muted small"><%= formatDateTime(a.completed_at || a.created_at) %></span></div>
-                  <% if (a.description) { %><div class="text-muted small"><%= a.description %></div><% } %>
-                  <div class="small mt-1"><span class="badge bg-light text-dark"><%= a.activity_type %></span><% if (a.staff_name) { %> <span class="text-muted">by <%= a.staff_name %></span><% } %></div>
-                  <% if (a.follow_up_at) { %><div class="small text-warning"><i class="fas fa-clock me-1"></i>Follow-up: <%= formatDate(a.follow_up_at) %></div><% } %>
-                </div>
+          <% if (!activities || activities.length === 0) { %>
+          <div class="ap-empty"><strong>No activity logged</strong>Record calls, emails and follow-ups so the next person knows what was discussed.</div>
+          <% } else { %>
+          <ol class="ap-history">
+            <% for (const a of activities) { %>
+            <li>
+              <time><%= formatDateTime(a.completed_at || a.created_at) %></time>
+              <div>
+                <div class="ap-history-title"><span class="crm-act-type"><%= ACT_LABELS[a.activity_type] || cap(a.activity_type) %></span><%= a.subject || '' %></div>
+                <% if (a.description) { %><p class="ap-history-body"><%= a.description %></p><% } %>
+                <div class="ap-history-by"><%= a.staff_name ? 'Logged by ' + a.staff_name : 'Logged automatically' %><% if (a.follow_up_at) { %> · <span class="crm-followup"><i class="fas fa-clock" aria-hidden="true"></i> Follow up <%= formatDate(a.follow_up_at) %></span><% } %></div>
               </div>
-              <% } %>
-            </div>
+            </li>
             <% } %>
-          </div>
-        </div>
+          </ol>
+          <% } %>
+        </section>
       </div>
 
       <!-- Reservations -->
-      <div class="tab-pane fade" id="tabReservations">
-        <div class="card">
-          <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-              <thead><tr><th>Booking Ref</th><th>Type</th><th>Date</th><th>Amount</th><th>Status</th></tr></thead>
+      <div class="tab-pane fade" id="tabReservations" role="tabpanel" tabindex="0">
+        <section class="ap-panel">
+          <div class="ap-panel-head"><h2>Reservations <span class="ap-meta">latest 10</span></h2></div>
+          <% if (!reservations || reservations.length === 0) { %>
+          <div class="ap-empty"><strong>No reservations yet</strong><% if (canManage) { %><div><a href="/reservations/new?customer_id=<%= customer.id %>" class="btn btn-primary btn-sm">New reservation</a></div><% } %></div>
+          <% } else { %>
+          <div class="ap-table-wrap">
+            <table class="table-br ap-table ap-stack">
+              <thead><tr><th scope="col">Booking</th><th scope="col">Type</th><th scope="col">Date</th><th scope="col">Status</th><th scope="col">Payment</th><th scope="col" class="num">Amount</th></tr></thead>
               <tbody>
-                <% if (!reservations || reservations.length === 0) { %><tr><td colspan="5" class="text-center py-4 text-muted">No reservations.</td></tr>
-                <% } else { %>
-                  <% for (const r of reservations) { %>
-                  <tr><td><a href="/reservations/<%= r.id %>"><code class="small"><%= r.booking_ref %></code></a></td><td><span class="badge bg-light text-dark small"><%= r.reservation_type %></span></td><td class="small"><%= formatDate(r.check_in_date || r.event_date) %></td><td><%= formatPeso(r.total_amount) %></td><td><%- statusBadge(r.status) %></td></tr>
-                  <% } %>
+                <% for (const r of reservations) { %>
+                <tr>
+                  <td class="ap-cell-title"><a href="/reservations/<%= r.id %>" class="ap-code ap-name"><%= r.booking_ref %></a></td>
+                  <td data-label="Type"><%= cap(r.reservation_type) %></td>
+                  <td data-label="Date" class="text-nowrap"><%= formatDate(r.check_in_date || r.event_date) %></td>
+                  <td class="ap-cell-status"><%- statusBadge(r.status) %></td>
+                  <td data-label="Payment"><%- statusBadge(r.payment_status) %></td>
+                  <td class="num" data-label="Amount"><%= formatPeso(r.total_amount) %></td>
+                </tr>
                 <% } %>
               </tbody>
             </table>
           </div>
-        </div>
+          <% } %>
+        </section>
       </div>
 
       <!-- Feedback -->
-      <div class="tab-pane fade" id="tabFeedback">
-        <div class="card">
-          <div class="card-body">
-            <% if (!feedback || feedback.length === 0) { %><div class="empty-state"><i class="fas fa-star"></i><p>No feedback yet.</p></div>
-            <% } else { %>
-              <% for (const f of feedback) { %>
-              <div class="feedback-item mb-3 pb-3 border-bottom">
-                <div class="d-flex justify-content-between">
-                  <div class="stars"><% for(let s=1;s<=5;s++){%><i class="fas fa-star <%= s<=f.rating ? 'text-warning' : 'text-muted' %>"></i><%}%></div>
-                  <span class="text-muted small"><%= formatDate(f.created_at) %></span>
-                </div>
-                <div class="small mt-1"><%= f.comments || '—' %></div>
-                <div class="text-muted small"><span class="badge bg-light text-dark"><%= f.category %></span> &nbsp; <a href="/reservations/<%= f.reservation_id %>"><code><%= f.booking_ref %></code></a></div>
+      <div class="tab-pane fade" id="tabFeedback" role="tabpanel" tabindex="0">
+        <section class="ap-panel">
+          <div class="ap-panel-head"><h2>Feedback</h2></div>
+          <% if (!feedback || feedback.length === 0) { %>
+          <div class="ap-empty"><strong>No feedback from this guest</strong></div>
+          <% } else { %>
+          <ul class="fb-list">
+            <% for (const f of feedback) { %>
+            <li class="fb-item">
+              <div class="fb-item-head">
+                <span class="fb-stars" role="img" aria-label="<%= f.rating %> out of 5"><% for (let s = 1; s <= 5; s++) { %><i class="fas fa-star <%= s <= f.rating ? 'is-on' : '' %>" aria-hidden="true"></i><% } %></span>
+                <span class="ap-meta"><%= cap(f.category) %> · <a href="/reservations/<%= f.reservation_id %>" class="ap-code"><%= f.booking_ref %></a> · <%= formatDate(f.created_at) %></span>
+                <a href="/feedback/<%= f.id %>" class="ap-act ms-auto">Open</a>
               </div>
-              <% } %>
+              <p class="fb-comment"><%= f.comments || '—' %></p>
+            </li>
             <% } %>
-          </div>
-        </div>
+          </ul>
+          <% } %>
+        </section>
       </div>
 
-      <!-- Sales Calls -->
-      <div class="tab-pane fade" id="tabCalls">
-        <div class="card">
-          <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-              <thead><tr><th>Date</th><th>Purpose</th><th>Result</th><th>Staff</th><th>Status</th></tr></thead>
+      <!-- Sales calls -->
+      <div class="tab-pane fade" id="tabCalls" role="tabpanel" tabindex="0">
+        <section class="ap-panel">
+          <div class="ap-panel-head"><h2>Sales calls <span class="ap-meta">latest 5</span></h2></div>
+          <% if (!calls || calls.length === 0) { %>
+          <div class="ap-empty"><strong>No calls recorded</strong></div>
+          <% } else { %>
+          <div class="ap-table-wrap">
+            <table class="table-br ap-table ap-stack">
+              <thead><tr><th scope="col">Purpose</th><th scope="col">Date</th><th scope="col">Result</th><th scope="col">Staff</th><th scope="col">Status</th></tr></thead>
               <tbody>
-                <% if (!calls || calls.length === 0) { %><tr><td colspan="5" class="text-center py-4 text-muted">No calls recorded.</td></tr>
-                <% } else { %>
-                  <% for (const c of calls) { %>
-                  <tr><td class="small"><%= formatDate(c.call_date) %></td><td><%= c.purpose %></td><td class="small text-muted"><%= c.result || '—' %></td><td class="small"><%= c.staff_name %></td><td><%- statusBadge(c.status) %></td></tr>
-                  <% } %>
+                <% for (const c of calls) { %>
+                <tr>
+                  <td class="ap-cell-title"><span class="ap-name"><%= c.purpose %></span></td>
+                  <td data-label="Date" class="text-nowrap"><%= formatDate(c.call_date) %></td>
+                  <td data-label="Result" class="ap-wide"><%= c.result || '—' %></td>
+                  <td data-label="Staff"><%= c.staff_name || '—' %></td>
+                  <td class="ap-cell-status"><%- statusBadge(c.status) %></td>
+                </tr>
                 <% } %>
               </tbody>
             </table>
           </div>
-        </div>
+          <% } %>
+        </section>
       </div>
 
-      <!-- Support Tickets -->
-      <div class="tab-pane fade" id="tabTickets">
-        <div class="card">
-          <div class="card-body p-0">
-            <table class="table table-hover mb-0">
-              <thead><tr><th>Ticket #</th><th>Subject</th><th>Priority</th><th>Status</th></tr></thead>
+      <!-- Support tickets -->
+      <div class="tab-pane fade" id="tabTickets" role="tabpanel" tabindex="0">
+        <section class="ap-panel">
+          <div class="ap-panel-head"><h2>Support tickets <span class="ap-meta">latest 5</span></h2></div>
+          <% if (!tickets || tickets.length === 0) { %>
+          <div class="ap-empty"><strong>No support tickets</strong></div>
+          <% } else { %>
+          <div class="ap-table-wrap">
+            <table class="table-br ap-table ap-stack">
+              <thead><tr><th scope="col">Ticket</th><th scope="col">Priority</th><th scope="col">Opened</th><th scope="col">Status</th></tr></thead>
               <tbody>
-                <% if (!tickets || tickets.length === 0) { %><tr><td colspan="4" class="text-center py-4 text-muted">No tickets.</td></tr>
-                <% } else { %>
-                  <% for (const t of tickets) { %>
-                  <tr><td><a href="/crm/tickets"><code class="small"><%= t.ticket_number %></code></a></td><td><%= t.subject %></td><td><%- statusBadge(t.priority) %></td><td><%- statusBadge(t.status) %></td></tr>
-                  <% } %>
+                <% for (const t of tickets) { %>
+                <tr>
+                  <td class="ap-cell-title"><a href="/crm/tickets?search=<%= encodeURIComponent(t.ticket_number) %>" class="ap-name"><%= t.subject %></a><span class="ap-line2 ap-code"><%= t.ticket_number %></span></td>
+                  <td data-label="Priority"><span class="tk-pri tk-pri-<%= t.priority %>"><%= cap(t.priority) %></span></td>
+                  <td data-label="Opened" class="text-nowrap"><%= formatDate(t.created_at) %></td>
+                  <td class="ap-cell-status"><%- statusBadge(t.status) %></td>
+                </tr>
                 <% } %>
               </tbody>
             </table>
           </div>
-        </div>
+          <% } %>
+        </section>
       </div>
 
     </div>
   </div>
 </div>
 
+<% if (canManage) { %>
 <!-- Add Activity Modal -->
-<div class="modal fade" id="addActivityModal" tabindex="-1">
-  <div class="modal-dialog"><div class="modal-content">
-    <div class="modal-header"><h5 class="modal-title">Log Activity</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+<div class="modal fade" id="addActivityModal" tabindex="-1" aria-labelledby="addActivityTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title" id="addActivityTitle">Log activity</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
     <form action="/crm/activities" method="POST">
       <input type="hidden" name="customer_id" value="<%= customer.id %>" />
       <div class="modal-body">
-        <div class="mb-3"><label class="form-label required">Activity Type</label><select name="activity_type" class="form-select"><% for (const t of ['call','email','chat','follow_up','inquiry','complaint','support']) { %><option value="<%= t %>"><%= t.replace(/_/g,' ') %></option><% } %></select></div>
-        <div class="mb-3"><label class="form-label">Subject</label><input type="text" name="subject" class="form-control" /></div>
-        <div class="mb-3"><label class="form-label">Description</label><textarea name="description" class="form-control" rows="3"></textarea></div>
-        <div class="mb-3"><label class="form-label">Follow-up Date</label><input type="date" name="follow_up_at" class="form-control" /></div>
+        <div class="mb-3"><label class="form-label required" for="actType">Activity type</label><select name="activity_type" id="actType" class="form-select"><% for (const t of ['call','email','chat','follow_up','inquiry','complaint','support']) { %><option value="<%= t %>"><%= ACT_LABELS[t] %></option><% } %></select></div>
+        <div class="mb-3"><label class="form-label" for="actSubject">Subject</label><input type="text" name="subject" id="actSubject" class="form-control" placeholder="e.g. Asked about wedding package dates" /></div>
+        <div class="mb-3"><label class="form-label" for="actDesc">What happened</label><textarea name="description" id="actDesc" class="form-control" rows="3"></textarea></div>
+        <div><label class="form-label" for="actFollow">Follow-up date <span class="ap-meta fw-normal">(optional)</span></label><input type="date" name="follow_up_at" id="actFollow" class="form-control" /></div>
       </div>
-      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Log Activity</button></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Log activity</button></div>
     </form>
   </div></div>
+</div>
+
+<!-- Edit Customer Modal -->
+<div class="modal fade" id="editCustomerModal" tabindex="-1" aria-labelledby="editCustomerTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable"><div class="modal-content">
+    <div class="modal-header"><h2 class="modal-title" id="editCustomerTitle">Edit customer</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div>
+    <form action="/crm/customers/<%= customer.id %>/edit" method="POST">
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label required" for="eFirst">First name</label><input type="text" id="eFirst" name="first_name" class="form-control" value="<%= customer.first_name %>" required /></div>
+          <div class="col-md-6"><label class="form-label required" for="eLast">Last name</label><input type="text" id="eLast" name="last_name" class="form-control" value="<%= customer.last_name %>" required /></div>
+          <div class="col-md-6"><label class="form-label" for="eEmail">Email</label><input type="email" id="eEmail" name="email" class="form-control" value="<%= customer.email || '' %>" /></div>
+          <div class="col-md-6"><label class="form-label" for="ePhone">Mobile number</label><input type="text" id="ePhone" name="phone" class="form-control" value="<%= customer.phone || '' %>" inputmode="tel" /></div>
+          <div class="col-12"><label class="form-label" for="eAddress">Address</label><input type="text" id="eAddress" name="address" class="form-control" value="<%= customer.address || '' %>" /></div>
+          <div class="col-md-4"><label class="form-label" for="eType">Customer type</label><select id="eType" name="customer_type" class="form-select"><% for (const t of ['regular','vip','corporate']) { %><option value="<%= t %>" <%= customer.customer_type === t ? 'selected' : '' %>><%= TYPE_LABELS[t] %></option><% } %></select></div>
+          <div class="col-md-4"><label class="form-label" for="eContact">Preferred contact</label><select id="eContact" name="preferred_contact" class="form-select"><% for (const t of ['email','phone','sms']) { %><option value="<%= t %>" <%= customer.preferred_contact === t ? 'selected' : '' %>><%= t === 'sms' ? 'SMS' : cap(t) %></option><% } %></select></div>
+          <div class="col-md-4"><label class="form-label" for="eStatus">Status</label><select id="eStatus" name="status" class="form-select"><% for (const t of ['active','inactive','blacklisted']) { %><option value="<%= t %>" <%= (customer.status || 'active') === t ? 'selected' : '' %>><%= cap(t) %></option><% } %></select></div>
+          <div class="col-12"><label class="form-label" for="eNotes">Internal notes</label><textarea id="eNotes" name="notes" class="form-control" rows="3"><%= customer.notes || '' %></textarea><div class="form-text">Staff only — not shown to the guest.</div></div>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button><button type="submit" class="btn btn-primary">Save changes</button></div>
+    </form>
+  </div></div>
+</div>
+<% } %>
+
 </div>

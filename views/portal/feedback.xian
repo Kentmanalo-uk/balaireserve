@@ -1,60 +1,62 @@
 <% layout('layouts/portal') %>
-<div class="container-lg px-4 py-5">
-  <div class="row justify-content-center">
-    <div class="col-lg-6">
-      <div class="bg-white rounded-3 border shadow-sm p-4">
-        <h4 class="fw-bold mb-1 text-center"><i class="fas fa-star me-2 text-warning"></i>Leave Feedback</h4>
-        <p class="text-muted text-center small mb-4">How was your experience? Booking <code><%= reservation.booking_ref %></code></p>
-
-        <% if (errors && errors.length > 0) { %>
-        <div class="alert alert-danger"><% for(const e of errors){%><div><%= e.msg %></div><%}%></div>
-        <% } %>
-
-        <form action="/portal/feedback/<%= reservation.id %>" method="POST">
-          <div class="mb-4 text-center">
-            <label class="form-label fw-bold required d-block">Overall Rating</label>
-            <div class="star-rating d-flex flex-row-reverse justify-content-center">
-              <% for (let s=5;s>=1;s--) { %>
-              <input type="radio" name="rating" id="star<%= s %>" value="<%= s %>" <%= String(old.rating)===String(s)?'checked':'' %> required />
-              <label for="star<%= s %>"><i class="fas fa-star"></i></label>
-              <% } %>
-            </div>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label required">Category</label>
-            <select name="category" class="form-select">
-              <% for (const [v,l] of [['overall','Overall Experience'],['room','Room & Accommodation'],['service','Staff & Service'],['venue','Venue & Facilities'],['event','Event Management']]) { %>
-              <option value="<%= v %>" <%= (old.category||'overall')===v?'selected':'' %>><%= l %></option>
-              <% } %>
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label class="form-label required">Your Comments</label>
-            <textarea name="comments" class="form-control" rows="4" placeholder="Tell us about your experience…" required><%= old.comments||'' %></textarea>
-          </div>
-
-          <div class="mb-4">
-            <label class="form-label">Suggestions for Improvement <span class="text-muted small">(optional)</span></label>
-            <textarea name="suggestions" class="form-control" rows="2" placeholder="What could we do better?"><%= old.suggestions||'' %></textarea>
-          </div>
-
-          <div class="d-flex gap-3">
-            <button type="submit" class="btn btn-warning flex-fill"><i class="fas fa-paper-plane me-2"></i>Submit Feedback</button>
-            <a href="/portal/my-reservations/<%= reservation.id %>" class="btn btn-outline-secondary">Cancel</a>
-          </div>
-        </form>
-      </div>
+<% const words = ['', 'Poor', 'Fair', 'Good', 'Very good', 'Excellent']; %>
+<div class="pt-page pt-page--narrow">
+  <div class="pt-page-head">
+    <div>
+      <a href="/portal/my-reservations/<%= reservation.id %>" class="pt-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Back to booking <%= reservation.booking_ref %></a>
+      <h1 class="pt-title">How was your visit?</h1>
+      <p class="pt-lede">Feedback for booking <strong><%= reservation.booking_ref %></strong>. The resort may show reviews rated 4 stars or more on its website.</p>
     </div>
   </div>
-</div>
 
-<style>
-/* Star rating RTL trick */
-.star-rating { direction: rtl; }
-.star-rating label { font-size: 2rem; color: #d1d5db; cursor: pointer; margin: 0 .1rem; transition: color .15s; }
-.star-rating input:checked ~ label,
-.star-rating label:hover,
-.star-rating label:hover ~ label { color: #f59e0b; }
-</style>
+  <div class="pt-surface">
+    <% if (errors && errors.length > 0) { %>
+    <div class="alert alert-danger" role="alert"><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div>
+    <% } %>
+
+    <form action="/portal/feedback/<%= reservation.id %>" method="POST">
+      <fieldset class="mb-4">
+        <legend class="form-label">Overall rating</legend>
+        <div class="star-rating" id="starRating">
+          <% for (let s = 1; s <= 5; s++) { %>
+          <input type="radio" name="rating" id="star<%= s %>" value="<%= s %>" <%= String(old.rating) === String(s) ? 'checked' : '' %> required />
+          <label for="star<%= s %>" title="<%= s %> star<%= s > 1 ? 's' : '' %> — <%= words[s] %>"><i class="fas fa-star" aria-hidden="true"></i><span class="br-sr-only"><%= s %> star<%= s > 1 ? 's' : '' %>, <%= words[s] %></span></label>
+          <% } %>
+        </div>
+        <p class="star-word" id="starWord" aria-live="polite"><%= old.rating && words[+old.rating] ? old.rating + ' of 5 — ' + words[+old.rating] : 'Choose 1 to 5 stars' %></p>
+      </fieldset>
+
+      <div class="mb-3">
+        <label class="form-label" for="fbCategory">About</label>
+        <select name="category" id="fbCategory" class="form-select">
+          <% for (const [v, l] of [['overall','Overall experience'],['room','Room and accommodation'],['service','Staff and service'],['venue','Venue and facilities'],['event','Event management']]) { %>
+          <option value="<%= v %>" <%= (old.category || 'overall') === v ? 'selected' : '' %>><%= l %></option>
+          <% } %>
+        </select>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label" for="fbComments">Your comments</label>
+        <textarea name="comments" id="fbComments" class="form-control" rows="4" placeholder="What did you enjoy? What could be better?" required><%= old.comments || '' %></textarea>
+      </div>
+
+      <div class="mb-4">
+        <label class="form-label" for="fbSuggestions">Suggestions <span class="opt">(optional)</span></label>
+        <textarea name="suggestions" id="fbSuggestions" class="form-control" rows="2"><%= old.suggestions || '' %></textarea>
+      </div>
+
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" class="btn btn-primary">Submit feedback</button>
+        <a href="/portal/my-reservations/<%= reservation.id %>" class="btn btn-secondary-quiet">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var box = document.getElementById('starRating'), out = document.getElementById('starWord');
+  if (!box || !out) return;
+  var words = <%- JSON.stringify(words) %>;
+  box.addEventListener('change', function (e) { var v = +e.target.value; if (v) out.textContent = v + ' of 5 — ' + words[v]; });
+})();
+</script>

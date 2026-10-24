@@ -17,6 +17,7 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { notifyAllAdmins, notifyReservationCustomer } = require('../../../utils/notifications');
+const { verifyPayment } = require('../../../utils/paymentVerification');
 
 const router = express.Router();
 
@@ -85,7 +86,9 @@ router.get('/', requireAuth, requireRole('admin', 'staff'), async (req, res) => 
   const summary = await db.prepare(`
     SELECT
       COALESCE(SUM(CASE WHEN p.status != 'refunded' THEN p.amount ELSE 0 END), 0) AS collected,
-      COALESCE(SUM(CASE WHEN p.status = 'refunded'  THEN p.amount ELSE 0 END), 0) AS refunded,
+      -- Money returned = the refund records only. The original payments of a
+      -- refunded booking are also marked 'refunded'; counting them too doubles it.
+      COALESCE(SUM(CASE WHEN p.payment_type = 'refund' THEN p.amount ELSE 0 END), 0) AS refunded,
       COUNT(*)                                                                       AS txn_count
     FROM payments p
     JOIN reservations r ON r.id = p.reservation_id
@@ -153,7 +156,8 @@ router.post('/:id/verify', requireAuth, requireRole('admin'), async (req, res) =
   const payment = await db.prepare(`SELECT * FROM payments WHERE id = ?`).get(req.params.id);
   if (!payment) return res.redirect('/payments');
 
-  await db.prepare(`UPDATE payments SET status = 'verified' WHERE id = ?`).run(payment.id);
+  // Same verification as the reservation page: updates payment status, confirms when fully paid, notifies.
+  await verifyPayment(payment, req.session.user.id);
   await req.audit('verify', 'payments', payment.id, { status: payment.status }, { status: 'verified' });
   req.session.flash = { success: `Payment ${payment.reference_number} marked as verified.` };
   res.redirect(`/payments/${payment.id}`);
@@ -195,7 +199,7 @@ router.post('/:id/refund',
         INSERT INTO payments
           (reservation_id, reference_number, amount, payment_method, payment_date,
            payment_type, status, received_by, notes)
-        VALUES (?, ?, ?, ?, CURDATE(), 'refund', 'refunded', ?, ?)
+        VALUES (?, ?, ?, ?, DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)), 'refund', 'refunded', ?, ?)
       `).run(
         payment.reservation_id,
         refundRef,
@@ -318,7 +322,7 @@ router.post('/refunds/requests/:id/review',
             + (adminNote ? `. ${adminNote}` : '');
           await db.prepare(`
             INSERT INTO payments (reservation_id, reference_number, amount, payment_method, payment_date, payment_type, status, received_by, notes, submitted_by)
-            VALUES (?, ?, ?, ?, CURDATE(), 'refund', 'refunded', ?, ?, 'staff')
+            VALUES (?, ?, ?, ?, DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)), 'refund', 'refunded', ?, ?, 'staff')
           `).run(rr.reservation_id, refundRef, refundAmt, payoutMethod, req.session.user.id, payNote);
 
           // Mark all previously collected payments as refunded so they leave the balance.
@@ -355,7 +359,7 @@ router.post('/refunds/requests/:id/review',
 
         await db.prepare(`
           UPDATE refund_requests
-          SET status = 'approved', admin_note = ?, payout_method = ?, payout_ref = ?, payout_proof = ?, payout_date = CURDATE(),
+          SET status = 'approved', admin_note = ?, payout_method = ?, payout_ref = ?, payout_proof = ?, payout_date = DATE(DATE_ADD(UTC_TIMESTAMP(), INTERVAL 8 HOUR)),
               reviewed_by = ?, reviewed_at = NOW()
           WHERE id = ?
         `).run(adminNote || null, payoutMethod, payoutRef || null, payoutProof, req.session.user.id, rr.id);

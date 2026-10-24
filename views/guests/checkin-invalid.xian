@@ -1,13 +1,19 @@
 <% layout('layouts/minimal') %>
-<div class="row justify-content-center">
-  <div class="col-md-6 col-lg-5">
-    <div class="card shadow text-center">
-      <div class="card-body p-5">
-        <div class="mb-3 text-danger"><i class="fas fa-times-circle fa-4x"></i></div>
-        <h3 class="text-danger">Invalid QR Code</h3>
-        <p class="text-muted"><%= reason || 'This QR code is not valid or has already been used.' %></p>
-        <a href="/" class="btn btn-outline-secondary">Back to Home</a>
-      </div>
-    </div>
+<% const staffViewer = typeof currentUser !== 'undefined' && currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff'); %>
+<section class="checkin-sheet" aria-labelledby="ckTitle">
+  <div class="ck-state is-invalid"><i class="fas fa-circle-xmark" aria-hidden="true"></i>QR code not accepted</div>
+  <h1 id="ckTitle">This QR code can't be used</h1>
+  <p class="ck-lead"><%= reason || 'This QR code is not valid or has already been used.' %></p>
+  <% if (staffViewer) { %>
+  <p class="small text-muted mb-4">Each booking QR works once and expires after the stay. You can still find the booking by its reference and manage it from the reservation page.</p>
+  <div class="d-grid gap-2">
+    <a href="/reservations" class="btn btn-primary btn-lg">Find the booking</a>
+    <a href="/dashboard" class="btn btn-outline-secondary">Back to dashboard</a>
   </div>
-</div>
+  <% } else { %>
+  <p class="small text-muted mb-4">Each booking QR works once and expires after the stay. Please speak to the front desk — they can find your booking by its reference.</p>
+  <div class="d-grid gap-2">
+    <a href="<%= currentUser ? '/portal/my-reservations' : '/' %>" class="btn btn-primary btn-lg"><%= currentUser ? 'My reservations' : 'Back to the resort site' %></a>
+  </div>
+  <% } %>
+</section>

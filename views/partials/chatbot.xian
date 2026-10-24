@@ -1,43 +1,155 @@
-<!-- Chatbot / Booking Assistant Widget -->
+<!-- Chatbot / Booking Assistant Widget (used on the landing, portal and back-office layouts).
+     Styles live here, scoped to #chatbotWidget, so it looks the same on every layout. -->
+<style>
+  #chatbotWidget {
+    position: fixed; z-index: 1040;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    font-family: var(--br-font-ui, 'Inter', system-ui, sans-serif);
+    color: var(--br-ink, #26383a);
+  }
+  #chatbotWidget .chatbot-toggle {
+    display: inline-flex; align-items: center; gap: 8px;
+    width: auto; height: auto; min-height: 48px; padding: 0 18px;
+    border: 0; border-radius: 999px;
+    background: var(--br-deep-sea, #0f5c66); color: #fff;
+    font-size: var(--br-fs-small, .875rem); font-weight: 600; line-height: 1;
+    box-shadow: var(--br-shadow-pop, 0 8px 24px rgba(15,42,48,.14));
+    cursor: pointer; transform: none;
+    transition: background-color var(--br-dur, 160ms) var(--br-ease, ease);
+  }
+  #chatbotWidget .chatbot-toggle:hover { background: var(--br-deep-sea-dark, #0b4850); transform: none; }
+  #chatbotWidget .chatbot-toggle i { font-size: 1rem; }
+  #chatbotWidget .chatbot-window {
+    position: absolute; right: 0; bottom: 60px;
+    width: 360px; max-width: calc(100vw - 32px);
+    max-height: min(520px, calc(100vh - 110px)); max-height: min(520px, calc(100dvh - 110px));
+    flex-direction: column; overflow: hidden;
+    background: var(--br-surface, #fff);
+    border: 1px solid var(--br-hairline, #e5e9e7); border-radius: var(--br-radius-lg, 12px);
+    box-shadow: var(--br-shadow-modal, 0 18px 48px rgba(15,42,48,.22));
+    transform-origin: bottom right;
+    animation: br-pop-in var(--dur-panel, 260ms) var(--ease-out, ease-out) both;
+  }
+  #chatbotWidget .chatbot-header {
+    display: flex; align-items: flex-start; gap: 12px;
+    padding: 14px 16px; background: var(--br-surface, #fff); color: var(--br-ink-teal, #0f2a30);
+    border-bottom: 1px solid var(--br-hairline, #e5e9e7);
+  }
+  #chatbotWidget .chatbot-name { font-weight: 600; font-size: .95rem; color: var(--br-ink-teal, #0f2a30); }
+  #chatbotWidget .chatbot-status { display: block; margin-top: 2px; font-size: var(--br-fs-meta, .8125rem); color: var(--br-ink-2, #627174); opacity: 1; }
+  #chatbotWidget .chatbot-messages {
+    flex: 1; overflow-y: auto; padding: 16px;
+    display: flex; flex-direction: column; gap: 10px;
+    background: var(--br-surface, #fff);
+  }
+  #chatbotWidget .chat-msg { display: flex; animation: br-rise-in 200ms var(--ease-out, ease-out) both; }  #chatbotWidget .chat-msg.user { justify-content: flex-end; }
+  #chatbotWidget .chat-msg.bot  { justify-content: flex-start; }
+  #chatbotWidget .chat-bubble {
+    max-width: 85%; padding: 8px 12px; border-radius: var(--br-radius-lg, 12px);
+    font-size: var(--br-fs-small, .875rem); line-height: 1.5;
+  }
+  #chatbotWidget .chat-msg.user .chat-bubble { background: var(--br-deep-sea, #0f5c66); color: #fff; border-bottom-right-radius: 4px; }
+  #chatbotWidget .chat-msg.bot  .chat-bubble { background: var(--br-surface-alt, #f3f5f4); color: var(--br-ink, #26383a); border-bottom-left-radius: 4px; }
+  #chatbotWidget .quick-replies { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
+  #chatbotWidget .quick-btn {
+    min-height: 36px; padding: 6px 12px;
+    border: 1px solid var(--br-hairline-2, #d4dbd9); border-radius: var(--br-radius, 8px);
+    background: var(--br-surface, #fff); color: var(--br-deep-sea, #0f5c66);
+    font-size: var(--br-fs-meta, .8125rem); font-weight: 600; cursor: pointer;
+    transition: background-color var(--br-dur, 160ms), border-color var(--br-dur, 160ms);
+  }
+  #chatbotWidget .quick-btn:hover { background: var(--br-deep-sea-tint, #e6f1ef); border-color: var(--br-deep-sea, #0f5c66); color: var(--br-deep-sea, #0f5c66); }
+  #chatbotWidget .typing-indicator .chat-bubble { display: flex; gap: 4px; align-items: center; }
+  #chatbotWidget .typing-indicator .chat-bubble span {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--br-ink-2, #627174);
+    animation: chatbotTyping 1.2s infinite ease-in-out;
+  }
+  #chatbotWidget .typing-indicator .chat-bubble span:nth-child(2) { animation-delay: .2s; }
+  #chatbotWidget .typing-indicator .chat-bubble span:nth-child(3) { animation-delay: .4s; }
+  @keyframes chatbotTyping { 0%, 80%, 100% { opacity: .35; } 40% { opacity: 1; } }
+  #chatbotWidget .chatbot-input {
+    display: flex; gap: 8px; padding: 10px;
+    border-top: 1px solid var(--br-hairline, #e5e9e7); background: var(--br-surface, #fff);
+  }
+  #chatbotWidget .chatbot-input input {
+    flex: 1; min-width: 0; height: 44px; padding: 0 12px;
+    border: 1px solid var(--br-hairline-2, #d4dbd9); border-radius: var(--br-radius, 8px);
+    font-size: 1rem; color: var(--br-ink, #26383a); background: #fff; outline: none;
+  }
+  #chatbotWidget .chatbot-input input:focus { border-color: var(--br-deep-sea, #0f5c66); box-shadow: 0 0 0 3px rgba(15,92,102,.18); }
+  #chatbotWidget .chatbot-input button {
+    width: 44px; height: 44px; flex-shrink: 0; border: 0; border-radius: var(--br-radius, 8px);
+    background: var(--br-deep-sea, #0f5c66); color: #fff; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  #chatbotWidget .chatbot-input button:hover { background: var(--br-deep-sea-dark, #0b4850); }
+  #chatbotWidget button:focus-visible { outline: 3px solid var(--br-deep-sea, #0f5c66); outline-offset: 2px; }
+  #chatbotWidget .chatbot-toggle:focus-visible { outline-color: var(--br-ink-teal, #0f2a30); }
+  /* Phones (≤600px): a compact icon-only launcher in the corner. The label stays in the
+     accessible name; safe-area insets are respected. */
+  @media (max-width: 600px) {
+    #chatbotWidget { right: max(12px, env(safe-area-inset-right)); bottom: calc(12px + env(safe-area-inset-bottom)); }
+    #chatbotWidget .chatbot-window { width: calc(100vw - 24px); max-width: none; right: 0; }
+    #chatbotWidget .chatbot-toggle-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; }
+    #chatbotWidget .chatbot-toggle { width: 48px; height: 48px; min-height: 48px; padding: 0; justify-content: center; }
+    /* Room at the end of every page so the launcher never covers the last content or links. */
+    body.landing-body .footer-base { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+    body.portal-body .pt-footer { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+    body.app-body--plain .app-footer { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+  }
+  /* Lift the launcher above any fixed bottom bar (booking bar on /stay pages, the booking
+     wizard's pinned action, the reservation page's action bar) so it never covers a CTA. */
+  @media (max-width: 991.98px) {
+    body.has-book-bar #chatbotWidget,
+    body:has(#bookingForm) #chatbotWidget { bottom: calc(84px + env(safe-area-inset-bottom)); }
+    body.sheet-open #chatbotWidget, body.lb-open #chatbotWidget, body.menu-open #chatbotWidget { display: none; }
+  }
+  @media (max-width: 767.98px) {
+    body:has(.pt-bottom-bar:not(.is-tucked)) #chatbotWidget { bottom: calc(84px + env(safe-area-inset-bottom)); }
+  }
+  @media print { #chatbotWidget { display: none; } }
+</style>
 <div class="chatbot-widget" id="chatbotWidget">
 
   <!-- Toggle Button -->
-  <button class="chatbot-toggle" id="chatbotToggle" title="Ask us anything">
-    <i class="fas fa-comment-dots" id="chatbotOpenIcon"></i>
-    <i class="fas fa-times d-none" id="chatbotCloseIcon"></i>
+  <button type="button" class="chatbot-toggle" id="chatbotToggle" aria-expanded="false" aria-controls="chatbotWindow">
+    <i class="fas fa-comment-dots" id="chatbotOpenIcon" aria-hidden="true"></i>
+    <i class="fas fa-times d-none" id="chatbotCloseIcon" aria-hidden="true"></i>
+    <span class="chatbot-toggle-label" id="chatbotToggleLabel">Questions?</span>
   </button>
 
   <!-- Chat Window -->
-  <div class="chatbot-window" id="chatbotWindow" style="display:none;">
+  <div class="chatbot-window" id="chatbotWindow" role="region" aria-label="Balai-Reserve assistant" style="display:none;">
     <div class="chatbot-header">
-      <div class="chatbot-avatar"><i class="fas fa-robot"></i></div>
       <div>
-        <div class="chatbot-name">Balai Assistant</div>
-        <div class="chatbot-status"><span class="status-dot"></span> Online</div>
+        <div class="chatbot-name">Balai-Reserve assistant</div>
+        <div class="chatbot-status">Automatic answers on prices, times and policies</div>
       </div>
     </div>
 
-    <div class="chatbot-messages" id="chatbotMessages">
+    <div class="chatbot-messages" id="chatbotMessages" aria-live="polite">
       <div class="chat-msg bot">
         <div class="chat-bubble">
-          Hi! I'm the Balai-Reserve assistant. I can help you with room availability, pricing, event packages, and reservations. How can I help you today?
+          Hi! I can answer questions about rooms, rates, event packages, check-in times and how to book. What would you like to know?
         </div>
       </div>
 
       <!-- Quick Replies -->
       <div class="quick-replies" id="quickReplies">
-        <button class="quick-btn" data-msg="What rooms are available?">Room Availability</button>
-        <button class="quick-btn" data-msg="What are the room rates?">Room Rates</button>
-        <button class="quick-btn" data-msg="Tell me about your event packages">Event Packages</button>
-        <button class="quick-btn" data-msg="What time is check-in and check-out?">Check-in Times</button>
-        <button class="quick-btn" data-msg="How do I make a reservation?">How to Book</button>
-        <button class="quick-btn" data-msg="What is your cancellation policy?">Cancellation Policy</button>
+        <button type="button" class="quick-btn" data-msg="What rooms are available?">Room availability</button>
+        <button type="button" class="quick-btn" data-msg="What are the room rates?">Room rates</button>
+        <button type="button" class="quick-btn" data-msg="Tell me about your event packages">Event packages</button>
+        <button type="button" class="quick-btn" data-msg="What time is check-in and check-out?">Check-in times</button>
+        <button type="button" class="quick-btn" data-msg="How do I make a reservation?">How to book</button>
+        <button type="button" class="quick-btn" data-msg="What is your cancellation policy?">Cancellation policy</button>
       </div>
     </div>
 
     <form class="chatbot-input" id="chatbotForm">
-      <input type="text" id="chatbotInput" placeholder="Type your message..." autocomplete="off" />
-      <button type="submit"><i class="fas fa-paper-plane"></i></button>
+      <label for="chatbotInput" class="visually-hidden">Your question</label>
+      <input type="text" id="chatbotInput" placeholder="Type your question…" autocomplete="off" />
+      <button type="submit" aria-label="Send"><i class="fas fa-paper-plane" aria-hidden="true"></i></button>
     </form>
   </div>
 
@@ -49,15 +161,23 @@
   const window_ = document.getElementById('chatbotWindow');
   const openIco = document.getElementById('chatbotOpenIcon');
   const closeIco= document.getElementById('chatbotCloseIcon');
+  const label   = document.getElementById('chatbotToggleLabel');
   const messages= document.getElementById('chatbotMessages');
   const form    = document.getElementById('chatbotForm');
   const input   = document.getElementById('chatbotInput');
 
-  toggle.addEventListener('click', () => {
-    const isOpen = window_.style.display !== 'none';
-    window_.style.display = isOpen ? 'none' : 'flex';
-    openIco.classList.toggle('d-none', !isOpen);
-    closeIco.classList.toggle('d-none', isOpen);
+  function setOpen(open) {
+    window_.style.display = open ? 'flex' : 'none';
+    openIco.classList.toggle('d-none', open);
+    closeIco.classList.toggle('d-none', !open);
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (label) label.textContent = open ? 'Close chat' : 'Questions?';
+    if (open) input.focus();
+  }
+
+  toggle.addEventListener('click', () => setOpen(window_.style.display === 'none'));
+  window_.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { setOpen(false); toggle.focus(); }
   });
 
   // Quick reply buttons
@@ -86,6 +206,7 @@
     const div = document.createElement('div');
     div.className = 'chat-msg bot typing-indicator';
     div.id = 'typingIndicator';
+    div.setAttribute('aria-label', 'Assistant is typing');
     div.innerHTML = '<div class="chat-bubble"><span></span><span></span><span></span></div>';
     messages.appendChild(div);
     messages.scrollTop = messages.scrollHeight;

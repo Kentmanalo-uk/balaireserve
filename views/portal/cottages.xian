@@ -1,203 +1,88 @@
 <% layout('layouts/portal') %>
+<%
+  const fmtT = t => { const m = /^(\d{1,2}):(\d{2})/.exec(String(t || '')); if (!m) return ''; const h = +m[1]; return (h % 12 || 12) + ':' + m[2] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const hasTimes = !!(filters.start_time && filters.end_time);
+  const carry = new URLSearchParams();
+  if (filters.date) carry.set('date', filters.date);
+  if (filters.date && hasTimes) { carry.set('start_time', filters.start_time); carry.set('end_time', filters.end_time); }
+  if (filters.guests) carry.set('guests', filters.guests);
+  const qs = carry.toString() ? '?' + carry.toString() : '';
+  const when = filters.date ? formatDate(filters.date, 'ddd, MMM D') + (hasTimes ? ', ' + fmtT(filters.start_time) + ' – ' + fmtT(filters.end_time) : '') : '';
+%>
 
-<style>
-.accom-card { background:#fff;border-radius:1rem;overflow:hidden;border:1px solid #e5e7eb;transition:transform .2s,box-shadow .2s;display:flex;flex-direction:column;height:100%; }
-.accom-card:hover { transform:translateY(-4px);box-shadow:0 12px 32px rgba(0,0,0,.12); }
-.accom-img-wrap { position:relative;height:220px;overflow:hidden;background:linear-gradient(135deg,#064e3b,#10b981);cursor:pointer; }
-.accom-img-wrap img { width:100%;height:100%;object-fit:cover;transition:transform .3s; }
-.accom-card:hover .accom-img-wrap img { transform:scale(1.04); }
-.img-count-badge { position:absolute;bottom:.5rem;right:.5rem;background:rgba(0,0,0,.55);color:#fff;font-size:.7rem;font-weight:600;padding:2px 8px;border-radius:999px; }
-.accom-img-placeholder { width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.25);font-size:4rem; }
-.accom-body { padding:1.25rem;flex:1;display:flex;flex-direction:column; }
-.accom-type { font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#059669;margin-bottom:.25rem; }
-.accom-name { font-size:1.05rem;font-weight:700;margin-bottom:.25rem;color:#111827; }
-.accom-meta { font-size:.8rem;color:#6b7280;margin-bottom:.75rem; }
-.accom-amenities { display:flex;flex-wrap:wrap;gap:.25rem;margin-bottom:.75rem; }
-.accom-amenity { font-size:.68rem;background:#f0fdf4;color:#065f46;padding:2px 8px;border-radius:999px;border:1px solid #d1fae5; }
-.accom-desc { font-size:.8rem;color:#6b7280;flex:1;margin-bottom:1rem;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden; }
-.accom-footer { display:flex;justify-content:space-between;align-items:center;padding-top:.75rem;border-top:1px solid #f3f4f6;margin-top:auto; }
-.accom-price { font-size:1.2rem;font-weight:700;color:#4f46e5; }
-.accom-price span { font-size:.75rem;font-weight:400;color:#9ca3af; }
-.filter-bar { background:#fff;border-radius:.875rem;border:1px solid #e5e7eb;padding:1rem 1.25rem; }
-.accom-img-wrap.is-unavailable img { filter:grayscale(1) brightness(.7); }
-.accom-unavailable-badge { position:absolute;top:10px;right:10px;z-index:2;background:rgba(220,38,38,.95);color:#fff;font-size:.72rem;font-weight:700;padding:4px 10px;border-radius:999px; }
-.lb-overlay { display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center; }
-.lb-overlay.open { display:flex; }
-.lb-content { position:relative;max-width:90vw;max-height:90vh; }
-.lb-content img { max-width:100%;max-height:85vh;border-radius:.5rem;object-fit:contain; }
-.lb-close { position:absolute;top:-40px;right:0;background:none;border:none;color:#fff;font-size:1.75rem;cursor:pointer;line-height:1; }
-.lb-prev,.lb-next { position:absolute;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.15);border:none;color:#fff;width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.25rem;cursor:pointer;transition:background .2s; }
-.lb-prev:hover,.lb-next:hover { background:rgba(255,255,255,.3); }
-.lb-prev { left:-56px; } .lb-next { right:-56px; }
-.lb-counter { position:absolute;bottom:-32px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.6);font-size:.8rem; }
-</style>
-
-<div class="lb-overlay" id="lightbox">
-  <div class="lb-content">
-    <button class="lb-close" id="lbClose">&times;</button>
-    <button class="lb-prev" id="lbPrev"><i class="fas fa-chevron-left"></i></button>
-    <img id="lbImg" src="" alt="Cottage photo" />
-    <button class="lb-next" id="lbNext"><i class="fas fa-chevron-right"></i></button>
-    <div class="lb-counter" id="lbCounter"></div>
-  </div>
-</div>
-
-<div class="container-lg px-4 py-4">
-
-  <nav aria-label="breadcrumb" class="mb-2">
-    <ol class="breadcrumb mb-0" style="font-size:.82rem;">
-      <li class="breadcrumb-item"><a href="/portal">Home</a></li>
-      <li class="breadcrumb-item active">Cottages</li>
-    </ol>
-  </nav>
-  <div class="d-flex justify-content-between align-items-end mb-4">
+<div class="pt-page">
+  <div class="pt-page-head">
     <div>
-      <h4 class="fw-bold mb-1">Cottages</h4>
-      <p class="text-muted mb-0"><%= cottages.length %> cottage<%= cottages.length !== 1 ? 's' : '' %> available</p>
-    </div>
-    <div class="d-flex gap-2">
-      <a href="/portal/rooms"  class="btn btn-sm btn-outline-secondary"><i class="fas fa-bed me-1"></i>Rooms</a>
-      <a href="/portal/venues" class="btn btn-sm btn-outline-secondary"><i class="fas fa-map-marker-alt me-1"></i>Venues</a>
-      <a href="/portal/book?type=cottage" class="btn btn-sm btn-success"><i class="fas fa-calendar-plus me-1"></i>Book Cottage</a>
+      <h1 class="pt-title">Cottages</h1>
+      <p class="pt-lede">Day-use cottages booked by date with a time in and time out. Each has one flat rate per booking — the price doesn't change with the number of hours.</p>
     </div>
   </div>
 
-  <%# Filter %>
-  <div class="filter-bar mb-4">
-    <form method="GET" action="/portal/cottages" class="row g-2 align-items-end">
-      <div class="col-6 col-md-2">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Date</label>
-        <input type="date" name="date" value="<%= filters.date %>" class="form-control form-control-sm" />
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Guests</label>
-        <input type="number" name="guests" value="<%= filters.guests %>" class="form-control form-control-sm" min="1" placeholder="Any" />
-      </div>
-      <div class="col-6 col-md-3">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Max Budget (₱)</label>
-        <input type="number" name="max_price" value="<%= filters.max_price %>" class="form-control form-control-sm" min="0" step="100" placeholder="No limit" />
-      </div>
-      <div class="col-6 col-md-2">
-        <label class="form-label" style="font-size:.78rem;font-weight:600;margin-bottom:.2rem;">Sort</label>
-        <select name="sort" class="form-select form-select-sm">
-          <option value="price_asc"  <%= filters.sort==='price_asc' ?'selected':'' %>>Price: Low–High</option>
-          <option value="price_desc" <%= filters.sort==='price_desc'?'selected':'' %>>Price: High–Low</option>
-        </select>
-      </div>
-      <div class="col-6 col-md-2 d-flex gap-1 align-items-end">
-        <button type="submit" class="btn btn-sm btn-primary flex-fill"><i class="fas fa-search me-1"></i>Search</button>
-        <a href="/portal/cottages" class="btn btn-sm btn-outline-secondary"><i class="fas fa-times"></i></a>
-      </div>
-    </form>
-  </div>
+  <%include('portal/_catalog-tabs')%>
 
-  <%# Cottage Info Banner %>
-  <div class="rounded-3 p-3 mb-4" style="background:linear-gradient(90deg,#ecfdf5,#d1fae5);border:1px solid #a7f3d0;">
-    <div class="d-flex align-items-center gap-3">
-      <i class="fas fa-leaf fa-2x" style="color:#059669;opacity:.7;"></i>
-      <div>
-        <div class="fw-bold" style="color:#065f46;">Nature-Inspired Cottages</div>
-        <div class="small" style="color:#047857;">
-          Our cottages offer a relaxing, nature-inspired escape. Perfect for family outings, group picnics, and quiet getaways.
-          Some cottages are situated near the pond, pool, or garden.
-        </div>
-      </div>
+  <form method="GET" action="/portal/cottages" class="cat-filters" style="--cat-cols:4;" aria-label="Check cottage availability">
+    <div>
+      <label class="form-label" for="fDate">Date</label>
+      <input type="date" id="fDate" name="date" value="<%= filters.date %>" class="form-control" />
     </div>
-  </div>
+    <div>
+      <label class="form-label" for="fGuests">Guests</label>
+      <input type="number" id="fGuests" name="guests" value="<%= filters.guests %>" class="form-control" min="1" inputmode="numeric" placeholder="Any" />
+    </div>
+    <div>
+      <label class="form-label" for="fMax">Budget up to (₱)</label>
+      <input type="number" id="fMax" name="max_price" value="<%= filters.max_price %>" class="form-control" min="0" step="100" inputmode="numeric" placeholder="No limit" />
+    </div>
+    <div>
+      <label class="form-label" for="fSort">Sort by price</label>
+      <select id="fSort" name="sort" class="form-select">
+        <option value="price_asc"  <%= filters.sort === 'price_asc'  ? 'selected' : '' %>>Lowest first</option>
+        <option value="price_desc" <%= filters.sort === 'price_desc' ? 'selected' : '' %>>Highest first</option>
+      </select>
+    </div>
+    <% if (hasTimes) { %><input type="hidden" name="start_time" value="<%= filters.start_time %>" /><input type="hidden" name="end_time" value="<%= filters.end_time %>" /><% } %>
+    <div class="cat-filters-actions">
+      <button type="submit" class="btn btn-primary">Check availability</button>
+      <% if (filters.date || filters.guests || filters.max_price) { %><a href="/portal/cottages" class="btn btn-outline-secondary">Clear</a><% } %>
+    </div>
+  </form>
+
+  <p class="cat-result" role="status">
+    <%= cottages.length %> cottage<%= cottages.length !== 1 ? 's' : '' %><% if (filters.guests) { %> for <%= filters.guests %>+ guests<% } %><% if (when) { %> · availability for <%= when %><% } else { %> · add a date to see which are free<% } %>
+  </p>
 
   <% if (!cottages || cottages.length === 0) { %>
-  <div class="text-center py-5 bg-white rounded-3 border">
-    <i class="fas fa-home fa-3x text-muted mb-3 d-block" style="opacity:.3;"></i>
-    <h5 class="text-muted">No cottages available right now.</h5>
-    <a href="/portal/cottages" class="btn btn-outline-primary mt-2">Refresh</a>
+  <div class="pt-surface pt-empty">
+    <h2>No cottages match this search</h2>
+    <p>Try fewer guests, a higher budget or another date.</p>
+    <a href="/portal/cottages" class="btn btn-outline-secondary">Show all cottages</a>
   </div>
   <% } else { %>
-  <div class="row g-4">
+  <div class="lst-list">
     <% for (const c of cottages) { %>
     <%
-      let cImgs = [];
-      try { cImgs = JSON.parse(c.images || '[]'); } catch {}
-      const cAmen = (() => { try { return JSON.parse(c.amenities || '[]'); } catch { return []; } })();
-      const cImgsJson = JSON.stringify(cImgs);
+      const book = new URLSearchParams({ type: 'cottage', item_id: String(c.id) });
+      if (filters.date) book.set('date', filters.date);
+      if (filters.date && hasTimes) { book.set('start_time', filters.start_time); book.set('end_time', filters.end_time); }
+      const note = c.isAvailable ? (when ? 'Open on ' + when : '') : (filters.date ? 'Booked ' + (hasTimes ? 'at that time' : 'on this date') : 'Not taking bookings right now');
     %>
-    <div class="col-12 col-sm-6 col-lg-4">
-      <div class="accom-card">
-        <div class="accom-img-wrap<%= c.isAvailable ? '' : ' is-unavailable' %>"
-          <% if (cImgs.length > 0) { %>data-lightbox="<%= cImgsJson %>" data-lightbox-name="<%= c.name %>"<% } %>
-          style="<%= cImgs.length > 0 ? 'cursor:zoom-in;' : 'cursor:default;' %>"
-          title="<%= cImgs.length > 0 ? 'Click to view photos' : 'No photos yet' %>">
-          <% if (cImgs.length > 0) { %>
-            <img src="<%= cImgs[0] %>" alt="<%= c.name %>" loading="lazy" />
-            <% if (cImgs.length > 1) { %>
-            <span class="img-count-badge"><i class="fas fa-images me-1"></i><%= cImgs.length %> photos</span>
-            <% } %>
-          <% } else { %>
-            <div class="accom-img-placeholder"><i class="fas fa-home"></i></div>
-          <% } %>
-          <% if (!c.isAvailable) { %>
-          <span class="accom-unavailable-badge"><i class="fas fa-ban me-1"></i>Unavailable</span>
-          <% } %>
-        </div>
-
-        <div class="accom-body">
-          <div class="accom-type"><i class="fas fa-leaf me-1"></i>Cottage</div>
-          <div class="accom-name"><%= c.name %></div>
-          <div class="accom-meta">
-            <i class="fas fa-users me-1"></i>Up to <%= c.capacity %> guests
-          </div>
-
-          <% if (cAmen.length > 0) { %>
-          <div class="accom-amenities">
-            <% for (const a of cAmen.slice(0,5)) { %>
-            <span class="accom-amenity"><i class="fas fa-check me-1" style="font-size:.6rem;"></i><%= a %></span>
-            <% } %>
-            <% if (cAmen.length > 5) { %><span class="accom-amenity" style="background:#f3f4f6;color:#6b7280;">+<%= cAmen.length-5 %> more</span><% } %>
-          </div>
-          <% } %>
-
-          <% if (c.description) { %>
-          <div class="accom-desc"><%= c.description %></div>
-          <% } %>
-
-          <div class="accom-footer">
-            <div>
-              <div class="accom-price"><%= formatPeso(c.price) %><span></span></div>
-              <div style="font-size:.72rem;color:#d97706;">DP: <%= formatPeso(Math.ceil(c.price * 0.5)) %></div>
-            </div>
-            <div class="d-flex gap-2">
-              <% if (cImgs.length > 0) { %>
-              <button type="button" class="btn btn-sm btn-outline-secondary"
-                data-lightbox="<%= cImgsJson %>" data-lightbox-name="<%= c.name %>" title="View photos">
-                <i class="fas fa-images"></i>
-              </button>
-              <% } %>
-              <% if (c.isAvailable) { %>
-              <a href="/portal/book?type=cottage&item_id=<%= c.id %>&date=<%= filters.date %>"
-                class="btn btn-success btn-sm px-3">Book</a>
-              <% } else { %>
-              <span class="btn btn-sm px-3 disabled" style="background:#e5e7eb;color:#9ca3af;cursor:not-allowed;"><i class="fas fa-ban me-1"></i>Unavailable</span>
-              <% } %>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <%include('partials/listing-card', Object.assign({}, __locals, { card: {
+      row: c, kind: 'cottage', variant: 'row', h: 'h2', qs: qs,
+      avail: filters.date || !c.isAvailable ? c.isAvailable : undefined, availNote: note,
+      bookHref: '/portal/book?' + book.toString(), dp: downpaymentPercent
+    } }))%>
     <% } %>
   </div>
   <% } %>
-
 </div>
+
+<%include('portal/_lightbox')%>
 
 <script>
 (function () {
-  var lb=document.getElementById('lightbox'),lbImg=document.getElementById('lbImg'),lbClose=document.getElementById('lbClose'),lbPrev=document.getElementById('lbPrev'),lbNext=document.getElementById('lbNext'),lbCtr=document.getElementById('lbCounter'),current=0,allImgs=[];
-  window.openLightbox=function(imgs,idx){if(!imgs||!imgs.length)return;allImgs=imgs;current=idx||0;showImg();lb.classList.add('open');document.body.style.overflow='hidden';};
-  document.addEventListener('click',function(e){var t=e.target.closest('[data-lightbox]');if(!t)return;e.preventDefault();var imgs=[];try{imgs=JSON.parse(t.getAttribute('data-lightbox')||'[]');}catch(err){imgs=[];}window.openLightbox(imgs,0);});
-  function showImg(){lbImg.src=allImgs[current];lbCtr.textContent=(current+1)+' / '+allImgs.length;lbPrev.style.display=allImgs.length>1?'':'none';lbNext.style.display=allImgs.length>1?'':'none';}
-  function close(){lb.classList.remove('open');document.body.style.overflow='';lbImg.src='';}
-  lbClose.addEventListener('click',close);lb.addEventListener('click',function(e){if(e.target===lb)close();});
-  lbPrev.addEventListener('click',function(){current=(current-1+allImgs.length)%allImgs.length;showImg();});
-  lbNext.addEventListener('click',function(){current=(current+1)%allImgs.length;showImg();});
-  document.addEventListener('keydown',function(e){if(!lb.classList.contains('open'))return;if(e.key==='Escape')close();if(e.key==='ArrowLeft'){current=(current-1+allImgs.length)%allImgs.length;showImg();}if(e.key==='ArrowRight'){current=(current+1)%allImgs.length;showImg();}});
+  var now = new Date();
+  var today = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  var d = document.getElementById('fDate');
+  if (d) d.min = today;
 })();
 </script>

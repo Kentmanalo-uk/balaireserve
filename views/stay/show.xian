@@ -1,0 +1,202 @@
+<%# One public detail template (V3 §06): /stay/room|cottage|venue|package/:id (layout set by the route) %>
+<%
+  const isRoom = kind === 'room';
+  const isPkg  = kind === 'package';
+  const dpRaw  = Number.parseFloat(site.downpayment_percent);
+  const dpPct  = Number.isFinite(dpRaw) && dpRaw > 0 && dpRaw <= 100 ? dpRaw : 50;
+  const section = isRoom ? { href: '/#stay', label: 'Rooms' }
+                : kind === 'cottage' ? { href: '/#cottages', label: 'Cottages' }
+                : kind === 'venue' ? { href: '/#venue', label: 'Function hall' }
+                : { href: '/#events', label: 'Events' };
+  const catalogue = isRoom ? '/portal/rooms' : (kind === 'cottage' ? '/portal/cottages' : (isPkg ? '/portal/venues#packages' : '/portal/venues'));
+  const noun = isRoom ? 'room' : (kind === 'cottage' ? 'cottage' : (isPkg ? 'package' : 'hall'));
+
+  // Description: plain lines become paragraphs; "- …" lines are house notes.
+  const lines = String(item.description || '').split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+  const paras = lines.filter(l => !/^[-•*]\s*/.test(l));
+  const notes = lines.filter(l => /^[-•*]\s*/.test(l)).map(l => l.replace(/^[-•*]\s*/, ''));
+  const amen  = (item.amenitiesList || []).map(a => a.trim().charAt(0).toUpperCase() + a.trim().slice(1));
+  const included = isPkg ? (item.includedItems || []) : [];
+  const addons   = isPkg ? (item.addonItems || []) : [];
+
+  const nightsBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
+  const period = (b) => {
+    if (isRoom) {
+      const n = nightsBetween(b.start, b.end);
+      return { when: formatDate(b.start, 'ddd, MMM D') + ' – ' + formatDate(b.end, 'ddd, MMM D, YYYY'), what: n + ' night' + (n === 1 ? '' : 's') };
+    }
+    const days = b.end > b.start ? formatDate(b.start, 'ddd, MMM D') + ' – ' + formatDate(b.end, 'ddd, MMM D, YYYY') : formatDate(b.start, 'ddd, MMM D, YYYY');
+    return { when: days, what: b.from && b.to ? fmtTime(b.from) + ' – ' + fmtTime(b.to) : 'Whole day' };
+  };
+  const shown = blocked.slice(0, 12);
+  const venueTime = (() => { const v = included.find(i => /venue|room|hall/i.test(i.name) && /\(([^)]+)\)/.test(i.name)); return v ? /\(([^)]+)\)/.exec(v.name)[1] : ''; })();
+  const addonFrom = addons.length ? Math.min(...addons.map(a => Number(a.price))) : 0;
+%>
+<div class="wrap sd">
+  <nav class="sd-crumbs" aria-label="Breadcrumb">
+    <ol role="list">
+      <li><a href="/">Home</a></li>
+      <li><a href="<%= section.href %>"><%= section.label %></a></li>
+      <li aria-current="page"><%= item.name %></li>
+    </ol>
+  </nav>
+
+  <header class="sd-head">
+    <p class="sd-kicker"><%= kindLabel %><%= isRoom && item.type_name && item.type_name !== item.name ? ' · ' + item.type_name : '' %></p>
+    <h1 class="sd-title"><%= item.name %></h1>
+    <p class="sd-context">
+      <% if (item.capacity) { %><span><%= isRoom ? 'Sleeps up to ' + item.capacity : 'Up to ' + item.capacity + ' guests' %></span><% } %>
+      <span><%= formatPrice(item.price) %> <%= isRoom ? 'a night' : (isPkg ? 'per event' : 'per booking') %></span>
+      <% if (isRoom && item.floor) { %><span><%= item.floor %></span><% } %>
+      <% if (kind === 'venue' && item.location) { %><span><%= item.location %></span><% } %>
+      <span><i class="fas fa-location-dot" aria-hidden="true"></i>Gloria, Oriental Mindoro</span>
+    </p>
+  </header>
+
+  <% if (isPkg) { %>
+  <div class="sd-band">
+    <p><strong><%= included.length ? included.length + ' item' + (included.length === 1 ? '' : 's') + ' included' : 'Inclusions confirmed with the resort' %></strong><%= venueTime ? ' · venue for ' + venueTime : '' %><%= item.capacity ? ' · up to ' + item.capacity + ' guests' : '' %><%= addons.length ? ' · ' + addons.length + ' optional add-on' + (addons.length === 1 ? '' : 's') : '' %></p>
+    <p>We haven’t published photos for this package yet. Ask us for pictures of past set-ups through an <a href="/portal/inquire">inquiry</a>.</p>
+  </div>
+  <% } else { %>
+  <%include('partials/gallery', Object.assign({}, __locals, { gallery: { photos: item.imagesList, name: item.name } }))%>
+  <% } %>
+
+  <div class="sd-layout">
+    <div class="sd-main">
+      <dl class="sd-facts">
+        <div><dt><i class="fas fa-user-group" aria-hidden="true"></i>Guests</dt><dd><%= item.capacity ? 'Up to ' + item.capacity : 'Ask the resort' %></dd></div>
+        <div><dt><i class="fas <%= isRoom ? 'fa-moon' : (isPkg ? 'fa-champagne-glasses' : 'fa-sun') %>" aria-hidden="true"></i><%= isPkg ? 'Occasion' : 'Stay type' %></dt><dd><%= isRoom ? 'Overnight' : (kind === 'cottage' ? 'Day use' : (isPkg ? kindLabel.replace(/ package$/, '') : 'Events and gatherings')) %></dd></div>
+        <div><dt><i class="fas fa-clock" aria-hidden="true"></i><%= isRoom ? 'Check-in / out' : (isPkg ? 'Venue time' : 'Time in / out') %></dt><dd><%= isRoom ? fmtTime(site.check_in_time || '14:00') + ' / ' + fmtTime(site.check_out_time || '12:00') : (isPkg ? (venueTime || 'You choose the hours') : 'You choose the hours') %></dd></div>
+        <div><dt><i class="fas fa-tag" aria-hidden="true"></i>Price</dt><dd><%= formatPrice(item.price) %> <%= isRoom ? 'a night' : 'flat' %></dd></div>
+      </dl>
+
+      <% if (paras.length || notes.length) { %>
+      <section class="sd-sec" aria-labelledby="aboutItem">
+        <h2 class="sd-h2" id="aboutItem">About this <%= noun %></h2>
+        <% for (const p of paras) { %><p class="sd-prose"><%= p %></p><% } %>
+        <% if (notes.length) { %>
+        <h3 class="sd-h3">Good to know</h3>
+        <ul class="sd-notes" role="list"><% for (const n of notes) { %><li><%= n %></li><% } %></ul>
+        <% } %>
+      </section>
+      <% } %>
+
+      <% if (amen.length || included.length) { %>
+      <section class="sd-sec" aria-labelledby="amenItem">
+        <h2 class="sd-h2" id="amenItem">What you get</h2>
+        <ul class="sd-amen" role="list">
+          <% for (const a of (isPkg ? included.map(i => i.name) : amen)) { %><li><i class="fas fa-check" aria-hidden="true"></i><span><%= a %></span></li><% } %>
+        </ul>
+        <% if (isPkg) { %><p class="sd-small">Included items are part of the package price. In the booking form you can ask staff to leave an item out; the price doesn’t change.</p><% } %>
+      </section>
+      <% } %>
+
+      <% if (addons.length) { %>
+      <section class="sd-sec" aria-labelledby="addonTitle">
+        <h2 class="sd-h2" id="addonTitle">Optional add-ons</h2>
+        <p class="sd-lede">Priced per item, from <%= formatPrice(addonFrom) %>. Each add-on you choose is added to your total and downpayment.</p>
+        <ul class="sd-addons" role="list">
+          <% for (const a of addons) { %><li><span><%= a.name %></span><span class="num">+<%= formatPrice(a.price) %></span></li><% } %>
+        </ul>
+      </section>
+      <% } %>
+
+      <section class="sd-sec" id="availability" aria-labelledby="availTitle">
+        <h2 class="sd-h2" id="availTitle"><%= isPkg ? 'Choose your event date' : 'Availability' %></h2>
+        <% if (isPkg) { %>
+        <p class="sd-lede">Event packages aren’t tied to a single room, so this calendar can’t show other events. Staff review every event booking before it is confirmed.</p>
+        <% } else if (shown.length) { %>
+        <p class="sd-lede">Booked <%= isRoom ? 'nights' : 'dates' %> include bookings waiting for payment, pencil bookings and bookings on hold. <%= isRoom ? 'A check-out day can be your check-in day.' : 'On partly booked days, other hours may still be open.' %></p>
+        <% } else { %>
+        <p class="sd-lede">No upcoming bookings hold the <%= item.name %> right now, so every date from today is open.</p>
+        <% } %>
+        <% if (bookable) { %>
+        <div class="sd-cal" data-datepicker data-dp-start="<%= isRoom ? '#bpCheckin' : '#bpDate' %>" <% if (isRoom) { %>data-dp-end="#bpCheckout" data-dp-nightly<% } %>></div>
+        <% } %>
+        <% if (shown.length) { %>
+        <details class="sd-booked">
+          <summary>Booked <%= isRoom ? 'nights' : 'dates' %> as a list (<%= blocked.length %>)</summary>
+          <ul class="sd-blocked" role="list">
+            <% for (const b of shown) { const p = period(b); %>
+            <li><span class="sd-when"><%= p.when %></span><span class="sd-what"><%= p.what %></span></li>
+            <% } %>
+          </ul>
+          <% if (blocked.length > shown.length) { %><p class="sd-small">and <%= blocked.length - shown.length %> more later on. See the <a href="/portal/calendar">availability calendar</a>.</p><% } %>
+        </details>
+        <% } %>
+        <p class="sd-small">Availability is checked again when you submit your booking, in case someone books the same <%= isRoom ? 'nights' : 'time' %> first.</p>
+      </section>
+
+      <% if (kind === 'venue' && packages.length) { %>
+      <section class="sd-sec" id="packages" aria-labelledby="pkgTitle">
+        <h2 class="sd-h2" id="pkgTitle">Event packages that fit this hall</h2>
+        <p class="sd-lede">Each package is one price for the event and includes the items listed. Add-ons are optional and priced per item.</p>
+        <%include('partials/package-rows', Object.assign({}, __locals, { pkgRows: { list: packages, dp: dpPct, venueId: item.id, date: prefill.date, h: 'h3' } }))%>
+      </section>
+      <% } %>
+
+      <section class="sd-sec" aria-labelledby="policyTitle">
+        <h2 class="sd-h2" id="policyTitle">Payment and policies</h2>
+        <dl class="sd-policy">
+          <div><dt>Downpayment</dt><dd><%= dpPct %>% of the total, paid by GCash, Maya or bank transfer outside this site. You upload a screenshot of the payment and staff verify it.</dd></div>
+          <div><dt>Balance</dt><dd>Settled at the resort<%= isRoom ? ' before check-out' : '' %>.</dd></div>
+          <div><dt>Booking status</dt><dd>Online bookings show as <strong>Awaiting payment</strong> until staff verify your proof of payment. Nothing is confirmed automatically.</dd></div>
+          <% if (isRoom) { %><div><dt>Check-in and check-out</dt><dd>Check-in from <%= fmtTime(site.check_in_time || '14:00') %>, check-out by <%= fmtTime(site.check_out_time || '12:00') %>. Front desk staff check you in with your booking QR code.</dd></div><% } %>
+          <% if (item.capacity) { %><div><dt>Guests</dt><dd>Up to <%= item.capacity %> guests for this <%= noun %>.</dd></div><% } %>
+          <% if (site.cancellation_policy) { %><div><dt>Cancellation</dt><dd><%= site.cancellation_policy %></dd></div><% } %>
+        </dl>
+        <div class="sd-ask">
+          <p>Questions about the <%= item.name %>? Ask before you book and we’ll reply on the site.</p>
+          <a href="/portal/inquire" class="btn btn-secondary-quiet">Ask a question</a>
+        </div>
+      </section>
+    </div>
+
+    <aside class="sd-aside" aria-label="Book the <%= item.name %>">
+      <%include('partials/booking-panel')%>
+    </aside>
+  </div>
+</div>
+
+<% if (isPkg && relatedPackages.length) { %>
+<section class="sd-more" aria-labelledby="moreTitle">
+  <div class="wrap">
+    <div class="sd-more-head">
+      <h2 class="sd-h2" id="moreTitle">Other event packages</h2>
+      <a href="/#events" class="text-link">Compare all packages <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <%include('partials/package-rows', Object.assign({}, __locals, { pkgRows: { list: relatedPackages, dp: dpPct, h: 'h3', idPrefix: 'rel' } }))%>
+    <% if (others.length) { %>
+    <p class="sd-small">Planning your own event instead? The <a href="/stay/venue/<%= others[0].id %>"><%= others[0].name %></a> can be booked on its own for <%= formatPrice(others[0].price) %> per booking.</p>
+    <% } %>
+  </div>
+</section>
+<% } else if (!isPkg && others.length) { %>
+<section class="sd-more" aria-labelledby="moreTitle">
+  <div class="wrap">
+    <div class="sd-more-head">
+      <h2 class="sd-h2" id="moreTitle"><%= isRoom ? 'Other rooms' : (kind === 'cottage' ? 'Other cottages' : 'Other venues') %></h2>
+      <a href="<%= catalogue %>" class="text-link">Compare by date <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+    </div>
+    <div class="lst-grid lst-grid--3">
+      <% for (const o of others) { %>
+      <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: o, kind: kind, variant: 'tile' } }))%>
+      <% } %>
+    </div>
+  </div>
+</section>
+<% } %>
+
+<% if (bookable) { %>
+<div class="bp-bar" id="bpBar">
+  <p class="bp-bar-price">
+    <strong><%= formatPrice(item.price) %></strong> <span><%= isRoom ? '/ night' : (isPkg ? '/ event' : '/ booking') %></span>
+    <span class="bp-bar-sub" id="bpBarSub"><%= isRoom ? 'Add dates for the total' : dpPct + '% down: ' + formatPeso(Math.ceil(item.price * dpPct / 100)) %></span>
+  </p>
+  <button type="button" class="btn btn-primary bp-bar-btn" data-sheet-open="book" aria-controls="book" aria-expanded="false">Reserve</button>
+</div>
+<% } %>
+
+<script src="/js/br-datepicker.js" defer></script>
+<%include('portal/_lightbox')%>

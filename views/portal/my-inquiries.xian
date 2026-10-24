@@ -1,44 +1,67 @@
-<div class="container-lg px-4 py-5">
-  <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+<% layout('layouts/portal') %>
+<%
+  const topic = (c) => ({ general: 'General question', room: 'Rooms and stays', venue: 'Venue and events', pricing: 'Prices and packages', complaint: 'Complaint', other: 'Other' })[c || 'general'] || String(c).replace(/_/g, ' ');
+  const list = inquiries || [];
+  const links = (typeof bookingLinks !== 'undefined' && bookingLinks) || {};
+  const answered = list.filter(q => q.resolution).length;
+  const waiting = list.length - answered;
+  // Booking references the guest mentioned that belong to them → link to that booking.
+  const refsIn = (q) => { const found = String((q.subject || '') + ' ' + (q.message || '')).match(/BK-\d{4}-\d{3,}/g) || []; return [...new Set(found)].filter(r => links[r]); };
+  const when = (s) => s ? formatDateTime(s, 'MMM D, YYYY · h:mm A') : '';
+%>
+<div class="pt-page pt-page--narrow">
+  <div class="pt-page-head">
     <div>
-      <h4 class="fw-bold mb-1"><i class="fas fa-comments me-2 text-primary"></i>My Inquiries</h4>
-      <p class="text-muted small mb-0">Track the questions and messages you've sent us.</p>
+      <h1 class="pt-title">My inquiries</h1>
+      <p class="pt-lede"><% if (list.length) { %><%= answered %> replied<% if (waiting) { %> · <%= waiting %> awaiting a reply<% } %>. <% } %>Messages you’ve sent the resort and their replies. You also get a notification when staff reply.</p>
     </div>
-    <a href="/portal/inquire" class="btn btn-primary btn-sm"><i class="fas fa-plus me-1"></i>New Inquiry</a>
+    <a href="/portal/inquire" class="btn btn-primary"><i class="far fa-paper-plane" aria-hidden="true"></i>New message</a>
   </div>
 
-  <% if (!inquiries || inquiries.length === 0) { %>
-  <div class="bg-white rounded-3 border shadow-sm text-center py-5">
-    <i class="fas fa-inbox text-muted mb-3" style="font-size:2.5rem;"></i>
-    <h6 class="fw-bold">No inquiries yet</h6>
-    <p class="text-muted small mb-3">When you send us a message, it will appear here with its status.</p>
-    <a href="/portal/inquire" class="btn btn-primary btn-sm"><i class="fas fa-paper-plane me-1"></i>Send an Inquiry</a>
+  <% if (list.length === 0) { %>
+  <div class="hm-empty">
+    <div class="hm-empty-text">
+      <h2 class="hm-empty-title">No messages yet</h2>
+      <p>Questions about dates, prices or an existing booking? Send a message and the reply will appear here.</p>
+      <a href="/portal/inquire" class="btn btn-secondary-quiet">Send an inquiry</a>
+    </div>
   </div>
   <% } else { %>
-  <div class="row g-3">
-    <% for (const q of inquiries) { %>
-    <div class="col-12">
-      <div class="bg-white rounded-3 border shadow-sm p-3 p-md-4">
-        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
-          <div>
-            <div class="fw-bold"><%= q.subject %></div>
-            <div class="text-muted small">
-              <span class="badge bg-light text-dark text-capitalize me-1"><%= (q.category || 'general').replace(/_/g,' ') %></span>
-              <i class="far fa-clock ms-1 me-1"></i><%= formatDate(q.created_at) %>
-            </div>
+  <ul class="inq-list">
+    <% for (const q of list) { const refs = refsIn(q); %>
+    <li class="inq-item <%= q.resolution ? 'is-replied' : 'is-waiting' %>" id="inq-<%= q.id %>">
+      <article aria-labelledby="inq-h-<%= q.id %>">
+        <div class="inq-head">
+          <div class="inq-head-main">
+            <h2 class="inq-subject" id="inq-h-<%= q.id %>"><%= q.subject %></h2>
+            <p class="pt-meta mb-0"><%= topic(q.category) %> · sent <%= when(q.created_at) %></p>
           </div>
-          <div><%- statusBadge(q.status) %></div>
+          <span class="inq-state"><% if (q.resolution) { %><i class="fas fa-reply" aria-hidden="true"></i>Replied<% } else { %><i class="far fa-clock" aria-hidden="true"></i>Awaiting reply<% } %></span>
         </div>
-        <div class="text-body small mb-2" style="white-space:pre-wrap;"><%= q.message %></div>
-        <% if (q.resolution) { %>
-        <div class="alert alert-success py-2 px-3 small mb-0 mt-2">
-          <strong><i class="fas fa-reply me-1"></i>Our response:</strong><br />
-          <span style="white-space:pre-wrap;"><%= q.resolution %></span>
-        </div>
+        <% if (refs.length) { %>
+        <p class="inq-about"><% for (const r of refs) { %><a href="/portal/my-reservations/<%= links[r] %>" class="inq-ref"><i class="far fa-calendar" aria-hidden="true"></i>Booking <%= r %></a><% } %></p>
         <% } %>
-      </div>
-    </div>
+        <ol class="inq-thread">
+          <li class="inq-msg-wrap">
+            <div class="inq-who">You wrote</div>
+            <p class="inq-msg"><%= q.message %></p>
+          </li>
+          <% if (q.resolution) { %>
+          <li class="inq-msg-wrap is-reply inq-reply">
+            <div class="inq-reply-label">Balai-Reserve replied<% if (q.resolved_at) { %> · <time datetime="<%= q.resolved_at %>"><%= when(q.resolved_at) %></time><% } %></div>
+            <p><%= q.resolution %></p>
+          </li>
+          <% } else { %>
+          <li><p class="inq-waiting"><i class="far fa-clock" aria-hidden="true"></i>No reply yet<% if (q.status === 'escalated') { %> — passed to the resort’s support team<% } %>. Staff answer here and you’ll get a notification.</p></li>
+          <% } %>
+        </ol>
+        <% if (q.resolution) { %>
+        <p class="inq-followup"><a href="/portal/inquire" class="pt-link-more">Ask a follow-up <i class="fas fa-arrow-right" aria-hidden="true"></i></a></p>
+        <% } %>
+      </article>
+    </li>
     <% } %>
-  </div>
+  </ul>
+  <p class="pt-meta mt-3 mb-0">Times are Philippine time.</p>
   <% } %>
 </div>

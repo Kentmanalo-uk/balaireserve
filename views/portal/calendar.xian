@@ -1,32 +1,26 @@
-<div class="container-lg px-4 py-5">
-  <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+<div class="pt-page">
+  <div class="pt-page-head">
     <div>
-      <h4 class="fw-bold mb-1"><i class="fas fa-calendar-alt me-2 text-primary"></i>Availability Calendar</h4>
-      <p class="text-muted small mb-0">Coloured blocks show dates that are already booked. Click any open date to start a booking.</p>
-    </div>
-    <div class="d-flex flex-wrap gap-3 align-items-center small">
-      <span><span class="cal-dot" style="background:#6366f1;"></span>Rooms</span>
-      <span><span class="cal-dot" style="background:#f97316;"></span>Cottages</span>
-      <span><span class="cal-dot" style="background:#10b981;"></span>Venues / Events</span>
+      <h1 class="pt-title">Availability calendar</h1>
+      <p class="pt-lede">Marked days already have bookings. Select an open day to start a booking from that date — you'll pick the exact room, cottage, venue or package next, and the booking page checks your dates again.</p>
     </div>
   </div>
 
-  <div class="bg-white rounded-3 border shadow-sm p-3 p-md-4">
+  <%include('portal/_catalog-tabs')%>
+
+  <ul class="pt-cal-legend" aria-label="What the colours mean">
+    <li><span class="cal-swatch cal-open" aria-hidden="true"></span>No entry — nothing booked yet</li>
+    <li><span class="cal-swatch cal-booked" aria-hidden="true"></span>Booked</li>
+    <li><span class="cal-swatch cal-pencil" aria-hidden="true"></span>Pencil booking (tentative, dates held)</li>
+    <li><span class="cal-swatch cal-hold" aria-hidden="true"></span>On hold (dates held)</li>
+  </ul>
+
+  <div class="pt-surface pt-calendar">
     <div id="portalCalendar"></div>
-    <p class="text-muted small mt-3 mb-0">
-      <i class="fas fa-info-circle me-1"></i>
-      Tip: pick a start date to book a room or cottage. You can adjust the exact dates and choose your room, venue, or cottage on the booking page.
-    </p>
   </div>
+  <p class="pt-small text-muted mt-3 mb-2">Each entry names what's booked, so a marked day can still have other rooms or cottages free. The list view shows one line per booking — handy on a phone.</p>
+  <a href="/portal/book" class="btn btn-secondary-quiet">Start a booking</a>
 </div>
-
-<style>
-  .cal-dot { display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle; }
-  #portalCalendar { max-width:100%; }
-  .fc .fc-daygrid-day.fc-day-past { background:#f9fafb; }
-  .fc .fc-daygrid-day:hover { background:#eef2ff; cursor:pointer; }
-  .fc-event { font-size:.72rem; border:none; }
-</style>
 
 <link  href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" rel="stylesheet" />
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
@@ -42,13 +36,25 @@
   }
 
   var today = new Date(); today.setHours(0, 0, 0, 0);
+  var mq = window.matchMedia('(max-width: 575.98px)'), narrow = mq.matches;
+  // Status colours follow the shared status system; the label stays in the event title.
+  var COLORS = { booked: '#0f5c66', pencil: '#5b2a91', on_hold: '#33414f' };
 
   var calendar = new FullCalendar.Calendar(el, {
-    initialView: 'dayGridMonth',
+    initialView: narrow ? 'listMonth' : 'dayGridMonth',
     height: 'auto',
     firstDay: 0,
-    headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+    headerToolbar: narrow
+      ? { left: 'prev,next', center: 'title', right: 'listMonth,dayGridMonth' }
+      : { left: 'prev,next today', center: 'title', right: 'dayGridMonth,listMonth' },
+    buttonText: { today: 'Today', month: 'Month', list: 'List' },
+    noEventsContent: 'No bookings this month',
     events: '/portal/calendar/feed',
+    eventDataTransform: function (ev) {
+      var s = ev.extendedProps && ev.extendedProps.status;
+      ev.color = COLORS[s] || COLORS.booked;
+      return ev;
+    },
     displayEventTime: false,
     selectable: false,
     dateClick: function (info) {
@@ -65,5 +71,7 @@
   });
 
   calendar.render();
+  // Phones get the day-by-day agenda; follow rotation / resizes across the breakpoint.
+  if (mq.addEventListener) mq.addEventListener('change', function (e) { calendar.changeView(e.matches ? 'listMonth' : 'dayGridMonth'); });
 })();
 </script>

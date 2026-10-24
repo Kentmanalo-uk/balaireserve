@@ -1,184 +1,174 @@
 <% layout('layouts/main') %>
+<% const hasPhotos = room && room.imagesList && room.imagesList.length > 0; %>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1">
-      <li class="breadcrumb-item"><a href="/rooms">Rooms</a></li>
-      <li class="breadcrumb-item active"><%= room ? 'Edit Room' : 'Add Room' %></li>
-    </ol></nav>
-    <h3 class="mb-0"><%= room ? 'Edit Room ' + room.room_number : 'Add New Room' %></h3>
-  </div>
-</div>
+<!--page-head-->
+<a href="/rooms" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Rooms</a>
+<h1 class="ph-title"><%= room ? 'Edit Room ' + room.room_number : 'Add New Room' %></h1>
+<% if (room) { %><div class="ph-actions"><a href="/stay/room/<%= room.id %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Guest view<span class="visually-hidden"> — opens the public room page in a new tab</span></a></div><% } %>
+<!--/page-head-->
+<p class="page-intro">Changes to price, description and photos show on the public website and guest portal as soon as you save.</p>
 
 <% if (errors && errors.length > 0) { %>
-<div class="alert alert-danger">
-  <% for (const e of errors) { %><div><i class="fas fa-exclamation-circle me-1"></i><%= e.msg %></div><% } %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
 </div>
 <% } %>
 
-<div class="row g-4">
+<form data-guard="this room" action="<%= room ? '/rooms/' + room.id + '/edit' : '/rooms' %>"
+      method="POST" enctype="multipart/form-data" id="roomForm" class="ap-form">
 
-  <%# Left column: room details form %>
-  <div class="col-lg-7">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-door-open me-2"></i>Room Details</h6></div>
-      <div class="card-body">
-        <form action="<%= room ? '/rooms/' + room.id + '/edit' : '/rooms' %>"
-              method="POST" enctype="multipart/form-data" id="roomForm">
-
-          <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label required">Room Number</label>
-              <input type="text" name="room_number" class="form-control"
-                value="<%= old.room_number || '' %>" placeholder="e.g. 101"
-                <%= room ? 'readonly' : '' %> required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Room Name</label>
-              <input type="text" name="name" class="form-control"
-                value="<%= old.name || '' %>" placeholder="e.g. Room 101 – Standard" required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Room Type</label>
-              <select name="room_type_id" class="form-select" required>
-                <option value="">Select type...</option>
-                <% for (const rt of roomTypes) { %>
-                <option value="<%= rt.id %>" <%= String(old.room_type_id) === String(rt.id) ? 'selected' : '' %>><%= rt.name %> – <%= formatPeso(rt.base_price) %>/night</option>
-                <% } %>
-              </select>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label">Floor</label>
-              <input type="text" name="floor" class="form-control"
-                value="<%= old.floor || '' %>" placeholder="e.g. 1st Floor" />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Capacity (guests)</label>
-              <input type="number" name="capacity" class="form-control"
-                value="<%= old.capacity || 2 %>" min="1" required />
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Price per Night (₱)</label>
-              <div class="input-group">
-                <span class="input-group-text">₱</span>
-                <input type="number" name="price" class="form-control"
-                  value="<%= old.price || '' %>" min="0" step="0.01" placeholder="0.00" required />
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label">Amenities <small class="text-muted">(comma-separated)</small></label>
-              <input type="text" name="amenities" class="form-control"
-                value="<%= old.amenitiesStr || '' %>"
-                placeholder="WiFi, AC, TV, Hot Shower, Balcony, Mini-bar" />
-            </div>
-            <div class="col-12">
-              <label class="form-label">Description</label>
-              <textarea name="description" class="form-control" rows="3"
-                placeholder="Brief room description..."><%= old.description || '' %></textarea>
-            </div>
-            <div class="col-md-6">
-              <label class="form-label required">Status</label>
-              <select name="status" class="form-select">
-                <% for (const s of ['available','reserved','occupied','cleaning','maintenance','unavailable']) { %>
-                <option value="<%= s %>" <%= (old.status || 'available') === s ? 'selected' : '' %>><%= s.charAt(0).toUpperCase() + s.slice(1) %></option>
-                <% } %>
-              </select>
-            </div>
-          </div>
-
-          <div class="d-flex gap-2 mt-4">
-            <button type="submit" class="btn btn-primary">
-              <i class="fas fa-save me-1"></i><%= room ? 'Update Room' : 'Create Room' %>
-            </button>
-            <a href="/rooms<%= room ? '/' + room.id : '' %>" class="btn btn-outline-secondary">Cancel</a>
-          </div>
-
-        </form>
-      </div>
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Room</h2>
+      <p>How the room is identified at the front desk and on the website.</p>
     </div>
-  </div>
-
-  <%# Right column: photo upload %>
-  <div class="col-lg-5">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-images me-2"></i>Room Photos</h6></div>
-      <div class="card-body">
-
-        <%# Existing images in edit mode %>
-        <% if (room && room.imagesList && room.imagesList.length > 0) { %>
-        <div class="mb-3">
-          <label class="form-label small fw-bold">Current Photos — click × to remove</label>
-          <div class="row g-2" id="existingImagesGrid">
-            <% for (const img of room.imagesList) { %>
-            <div class="col-6 existing-img-item" data-img="<%= img %>">
-              <div class="position-relative">
-                <img src="<%= img %>" alt="Room photo"
-                  class="img-fluid rounded border"
-                  style="height:110px;width:100%;object-fit:cover;" />
-                <input type="hidden" name="keep_images" value="<%= img %>"
-                  class="keep-img-input" form="roomForm" />
-                <button type="button"
-                  class="btn btn-danger btn-xs position-absolute top-0 end-0 m-1 remove-img-btn"
-                  style="width:22px;height:22px;padding:0;border-radius:50%;font-size:.65rem;line-height:1;display:flex;align-items:center;justify-content:center;"
-                  title="Remove photo">✕</button>
-              </div>
-            </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="roomNumber">Room number</label>
+          <input type="text" name="room_number" id="roomNumber" class="form-control"
+            value="<%= old.room_number || '' %>" placeholder="e.g. CS-02"
+            <%= room ? 'readonly' : '' %> required aria-describedby="roomNumberHelp" />
+          <div class="form-text" id="roomNumberHelp"><%= room ? 'The room number can’t be changed after the room is created.' : 'A short unique code, e.g. CS-02.' %></div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="roomName">Room name</label>
+          <input type="text" name="name" id="roomName" class="form-control"
+            value="<%= old.name || '' %>" placeholder="e.g. Casa Standard Room" required />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="roomTypeId">Room type</label>
+          <select name="room_type_id" id="roomTypeId" class="form-select" required>
+            <option value="">Select type…</option>
+            <% for (const rt of roomTypes) { %>
+            <option value="<%= rt.id %>" <%= String(old.room_type_id) === String(rt.id) ? 'selected' : '' %>><%= rt.name %> – <%= formatPeso(rt.base_price) %>/night</option>
             <% } %>
-          </div>
+          </select>
         </div>
-        <% } %>
-
-        <%# Upload new photos %>
-        <div class="mb-3">
-          <label class="form-label small fw-bold">
-            <%= room && room.imagesList && room.imagesList.length > 0 ? 'Add More Photos' : 'Upload Photos' %>
-            <span class="text-muted fw-normal">(up to 5, max 5 MB each — jpg, png, webp)</span>
-          </label>
-
-          <div class="upload-dropzone" id="dropZone" style="border:2px dashed #d1d5db;border-radius:.75rem;padding:1.5rem;text-align:center;background:#f9fafb;cursor:pointer;transition:all .2s;">
-            <i class="fas fa-cloud-upload-alt fa-2x mb-2 text-muted d-block"></i>
-            <div class="small text-muted">Drag &amp; drop photos here or</div>
-            <label for="roomImageInput" class="btn btn-sm btn-outline-primary mt-2" style="cursor:pointer;">
-              <i class="fas fa-folder-open me-1"></i>Browse Files
-            </label>
-            <input type="file" id="roomImageInput" name="images" form="roomForm"
-              multiple accept="image/*" class="d-none" />
-          </div>
-
-          <div class="row g-2 mt-2" id="newImagesPreview"></div>
-        </div>
-
-        <div class="alert alert-light py-2 small mb-0">
-          <i class="fas fa-info-circle me-1 text-info"></i>
-          First photo becomes the cover image shown on the room card.
+        <div class="col-md-6">
+          <label class="form-label" for="roomFloor">Floor <span class="ap-meta fw-normal">(optional)</span></label>
+          <input type="text" name="floor" id="roomFloor" class="form-control"
+            value="<%= old.floor || '' %>" placeholder="e.g. 1st Floor" />
         </div>
       </div>
     </div>
   </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Guests and price</h2>
+      <p>A room booking costs this nightly rate × the number of nights.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label required" for="roomCapacity">Sleeps (guests)</label>
+          <input type="number" name="capacity" id="roomCapacity" class="form-control"
+            value="<%= old.capacity || 2 %>" min="1" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required" for="roomPrice">Price per night</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" name="price" id="roomPrice" class="form-control"
+              value="<%= old.price || '' %>" min="0" step="0.01" placeholder="0.00" required />
+          </div>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required" for="roomStatus">Status</label>
+          <select name="status" id="roomStatus" class="form-select">
+            <% for (const s of ['available','reserved','occupied','cleaning','maintenance','unavailable']) { %>
+            <option value="<%= s %>" <%= (old.status || 'available') === s ? 'selected' : '' %>><%= statusLabel(s) %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Description</h2>
+      <p>Only list amenities the room really has — guests rely on them when choosing.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="mb-3">
+        <label class="form-label" for="roomAmenities">Amenities</label>
+        <input type="text" name="amenities" id="roomAmenities" class="form-control"
+          value="<%= old.amenitiesStr || '' %>"
+          placeholder="e.g. Air conditioning, Hot shower, TV" aria-describedby="roomAmenitiesHelp" />
+        <div class="form-text" id="roomAmenitiesHelp">Separate each amenity with a comma.</div>
+      </div>
+      <div>
+        <label class="form-label" for="roomDescription">Description</label>
+        <textarea name="description" id="roomDescription" class="form-control" rows="4"
+          placeholder="What guests should know about this room"><%= old.description || '' %></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Photos</h2>
+      <p>Up to 5 photos, 5 MB each (JPG, PNG or WEBP). The first photo is the cover shown in listings.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (hasPhotos) { %>
+      <div class="cat-photo-block">
+        <h3>Current photos</h3>
+        <div class="ap-thumb-grid" id="existingImagesGrid">
+          <% for (let i = 0; i < room.imagesList.length; i++) { const img = room.imagesList[i]; %>
+          <div class="ap-thumb-item existing-img-item" data-img="<%= img %>">
+            <div class="ap-thumb">
+              <img src="<%= img %>" alt="Room photo <%= i + 1 %>" data-missing="Photo unavailable — file missing" />
+              <% if (i === 0) { %><span class="cat-thumb-tag">Cover</span><% } %>
+            </div>
+            <input type="hidden" name="keep_images" value="<%= img %>" class="keep-img-input" form="roomForm" />
+            <button type="button" class="ap-act is-danger remove-img-btn" aria-pressed="false">Remove</button>
+          </div>
+          <% } %>
+        </div>
+      </div>
+      <% } %>
+
+      <div class="cat-photo-block">
+        <h3><%= hasPhotos ? 'Add more photos' : 'Upload photos' %></h3>
+        <div class="upload-dropzone cat-dropzone" id="dropZone">
+          <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+          <span>Drag photos here, or</span>
+          <label for="roomImageInput" class="btn btn-secondary-quiet btn-sm mb-0">Choose files</label>
+          <input type="file" id="roomImageInput" name="images" form="roomForm"
+            multiple accept="image/*" class="d-none" />
+        </div>
+        <div class="ap-thumb-grid mt-3" id="newImagesPreview" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
+    <a href="/rooms<%= room ? '/' + room.id : '' %>" class="btn btn-secondary-quiet">Cancel</a>
+    <button type="submit" class="btn btn-primary"><%= room ? 'Save changes' : 'Create room' %></button>
+  </div>
+</form>
+
 </div>
 
 <script>
 (function () {
-  var removeButtons = document.querySelectorAll('.remove-img-btn');
-  removeButtons.forEach(function (btn) {
+  // Remove / undo an existing photo: a removed photo's keep_images input is disabled so it isn't submitted.
+  document.querySelectorAll('.remove-img-btn').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var wrapper = this.closest('.existing-img-item');
       var inp     = wrapper.querySelector('.keep-img-input');
-      if (inp) inp.disabled = true;
-      wrapper.style.opacity = '.3';
-      wrapper.style.pointerEvents = 'none';
-      var undo = document.createElement('button');
-      undo.type = 'button';
-      undo.textContent = 'Undo';
-      undo.className = 'btn btn-xs btn-success w-100 mt-1';
-      undo.style.fontSize = '.7rem';
-      undo.addEventListener('click', function () {
-        if (inp) inp.disabled = false;
-        wrapper.style.opacity = '';
-        wrapper.style.pointerEvents = '';
-        undo.remove();
-      });
-      wrapper.appendChild(undo);
+      var removed = !wrapper.classList.contains('is-removed');
+      if (inp) inp.disabled = removed;
+      wrapper.classList.toggle('is-removed', removed);
+      this.textContent = removed ? 'Undo' : 'Remove';
+      this.classList.toggle('is-danger', !removed);
+      this.setAttribute('aria-pressed', removed ? 'true' : 'false');
     });
   });
 
@@ -200,36 +190,40 @@
   function renderPreviews() {
     preview.innerHTML = '';
     Array.from(dtFiles.files).forEach(function (file, idx) {
-      var reader = new FileReader();
-      reader.onload = function (e) {
-        var col = document.createElement('div');
-        col.className = 'col-6 col-md-4';
-        col.innerHTML = '<div style="position:relative;height:100px;border-radius:.5rem;overflow:hidden;border:2px solid #e5e7eb;">'
-          + '<img src="' + e.target.result + '" style="width:100%;height:100%;object-fit:cover;" />'
-          + '<button type="button" data-idx="' + idx + '" style="position:absolute;top:3px;right:3px;background:rgba(239,68,68,.85);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:.65rem;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;">✕</button>'
-          + (idx === 0 ? '<span style="position:absolute;bottom:3px;left:3px;background:#4f46e5;color:#fff;font-size:.6rem;padding:1px 5px;border-radius:3px;">Cover</span>' : '')
-          + '</div>';
-        col.querySelector('button').addEventListener('click', function () {
-          var i    = parseInt(this.dataset.idx);
-          var newDt= new DataTransfer();
-          Array.from(dtFiles.files).forEach(function (f, fi) { if (fi !== i) newDt.items.add(f); });
-          dtFiles      = newDt;
-          input.files  = dtFiles.files;
-          renderPreviews();
-        });
-        preview.appendChild(col);
-      };
-      reader.readAsDataURL(file);
+      var item  = document.createElement('div');
+      item.className = 'ap-thumb-item';
+      var thumb = document.createElement('div');
+      thumb.className = 'ap-thumb';
+      var img = document.createElement('img');
+      img.alt = file.name;
+      img.src = URL.createObjectURL(file);
+      thumb.appendChild(img);
+      var name = document.createElement('span');
+      name.className = 'ap-thumb-caption';
+      name.textContent = (idx === 0 && !document.querySelector('.keep-img-input') ? 'Cover · ' : 'New · ') + file.name;
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.className = 'ap-act is-danger';
+      remove.textContent = 'Remove';
+      remove.addEventListener('click', function () {
+        var newDt = new DataTransfer();
+        Array.from(dtFiles.files).forEach(function (f, fi) { if (fi !== idx) newDt.items.add(f); });
+        dtFiles     = newDt;
+        input.files = dtFiles.files;
+        renderPreviews();
+      });
+      item.appendChild(thumb); item.appendChild(name); item.appendChild(remove);
+      preview.appendChild(item);
     });
   }
 
   input.addEventListener('change', function () { addFiles(input.files); });
 
-  dropZone.addEventListener('dragover',  function (e) { e.preventDefault(); this.style.borderColor='#4f46e5'; this.style.background='#ede9fe'; });
-  dropZone.addEventListener('dragleave', function ()  { this.style.borderColor='#d1d5db'; this.style.background='#f9fafb'; });
+  dropZone.addEventListener('dragover',  function (e) { e.preventDefault(); this.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', function ()  { this.classList.remove('dragover'); });
   dropZone.addEventListener('drop',      function (e) {
     e.preventDefault();
-    this.style.borderColor='#d1d5db'; this.style.background='#f9fafb';
+    this.classList.remove('dragover');
     addFiles(e.dataTransfer.files);
   });
   dropZone.addEventListener('click', function (e) {

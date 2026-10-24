@@ -1,0 +1,71 @@
+<% layout('layouts/main') %>
+<%
+  // Older rows used the modal's option values ('add', 'remove', ...); newer ones the schema's ('added', ...).
+  // [label, status-chip class, sign of the change to available units]
+  const TXN = {
+    added:    ['Added',    'st-teal',  '+'], add:    ['Added',    'st-teal',  '+'],
+    removed:  ['Removed',  'st-gray',  '−'], remove: ['Removed',  'st-gray',  '−'],
+    damaged:  ['Damaged',  'st-red',   '−'], damage: ['Damaged',  'st-red',   '−'],
+    repaired: ['Repaired', 'st-blue',  '+'], repair: ['Repaired', 'st-blue',  '+'],
+    reserved: ['Reserved', 'st-amber', '−'], released: ['Released', 'st-blue', '+'],
+    lost:     ['Lost',     'st-red',   '−'],
+  };
+  const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const st = item.available_qty <= 0 ? 'out' : (item.available_qty <= item.reorder_level ? 'low' : 'ok');
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/inventory" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Inventory</a>
+<h1 class="ph-title"><%= item.name %></h1>
+<div class="ph-actions">
+    <a href="/inventory#item-<%= item.id %>" class="btn btn-outline-secondary"><i class="fas fa-arrow-left" aria-hidden="true"></i>Back to inventory</a>
+    <% if (canManage && item.is_active) { %>
+    <a href="/inventory/<%= item.id %>/edit" class="btn btn-outline-secondary"><i class="fas fa-pen" aria-hidden="true"></i>Edit</a>
+    <% } %>
+  </div>
+<!--/page-head-->
+<div class="page-meta"><span class="ap-code"><%= item.item_code %></span> · <%= item.category_name %><%= item.location ? ' · ' + item.location : '' %></div>
+
+<% if (!item.is_active) { %>
+<div class="ap-notice is-muted"><i class="fas fa-archive" aria-hidden="true"></i><span>This item has been removed from inventory. Its history is kept for reference.</span></div>
+<% } %>
+
+<div class="ap-kpis" aria-label="Current quantities">
+  <div class="ap-kpi <%= st === 'out' ? 'is-bad' : (st === 'low' ? 'is-warn' : '') %>">
+    <span class="ap-kpi-label">Available</span>
+    <span class="ap-kpi-value"><%= item.available_qty %> <small class="ap-muted fw-normal"><%= item.unit %></small></span>
+    <span class="ap-kpi-note"><%= st === 'out' ? 'Out of stock' : (st === 'low' ? 'Low stock — reorder at ' + item.reorder_level : 'Reorder at ' + item.reorder_level) %></span>
+  </div>
+  <div class="ap-kpi"><span class="ap-kpi-label">Total</span><span class="ap-kpi-value"><%= item.total_qty %></span></div>
+  <div class="ap-kpi"><span class="ap-kpi-label">Reserved</span><span class="ap-kpi-value"><%= item.reserved_qty %></span></div>
+  <div class="ap-kpi <%= item.damaged_qty > 0 ? 'is-bad' : '' %>"><span class="ap-kpi-label">Damaged</span><span class="ap-kpi-value"><%= item.damaged_qty %></span></div>
+</div>
+
+<section class="ap-panel" aria-labelledby="histHeading">
+  <div class="ap-panel-head">
+    <h2 id="histHeading">Stock changes <span class="ap-meta">latest 50, newest first</span></h2>
+  </div>
+  <% if (!transactions || transactions.length === 0) { %>
+  <div class="ap-empty"><strong>No changes recorded yet</strong>Adjustments and edits to the total will appear here.</div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead><tr><th scope="col">When</th><th scope="col">Change</th><th scope="col" class="num">Qty</th><th scope="col">By</th><th scope="col">Reason / note</th></tr></thead>
+      <tbody>
+        <% for (const t of transactions) { const info = TXN[t.transaction_type] || [t.transaction_type || '—', 'st-gray', '']; %>
+        <tr>
+          <td class="ap-cell-title"><span class="ap-muted text-nowrap"><%= formatDateTime(t.created_at) %></span></td>
+          <td class="ap-cell-status"><span class="status-chip <%= info[1] %>"><%= info[0] %></span></td>
+          <td class="num" data-label="Quantity"><span class="ap-delta <%= info[2] === '+' ? 'is-up' : (info[2] === '−' ? 'is-down' : '') %>"><%= info[2] %><%= t.quantity %></span> <span class="ap-muted"><%= item.unit %></span></td>
+          <td data-label="By"><%= t.performed_by_name || 'System' %></td>
+          <td class="ap-wide" data-label="Reason"><%= t.notes || '—' %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+</div>

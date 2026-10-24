@@ -1,104 +1,160 @@
 <% layout('layouts/main') %>
+<%
+  const typeLabel = t => ({ room:'Room', cottage:'Cottage', venue:'Venue', event:'Event' })[t] || String(t || '—').replace(/_/g, ' ');
+  const phToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
+  // What staff most likely do next with a booking (display only; actions live on the detail page).
+  const nextAction = (r) => {
+    const start = String(r.check_in_date || r.event_date || '').slice(0, 10);
+    const due = r.payment_status !== 'fully_paid' && r.payment_status !== 'refunded';
+    switch (r.status) {
+      case 'pending':          return { text: 'Review and confirm', urgent: true };
+      case 'pencil':           return { text: 'Confirm or release', urgent: true };
+      case 'on_hold':          return { text: 'Resume or cancel', urgent: true };
+      case 'awaiting_payment': return r.payment_status === 'unpaid' ? { text: 'Wait for downpayment' } : { text: 'Check payment', urgent: true };
+      case 'confirmed':
+        if (start && start > phToday) return { text: 'Check in ' + formatDate(start, 'MMM D') + (due ? ' · balance due' : '') };
+        return { text: 'Check in' + (due ? ' · collect balance' : ''), urgent: true };
+      case 'checked_in': {
+        const end = String(r.check_out_date || r.event_date || '').slice(0, 10);
+        if (due) return { text: 'Collect balance', urgent: true };
+        return { text: end ? 'Checks out ' + formatDate(end, 'MMM D') : 'Check out' };
+      }
+      default:                 return { text: 'Nothing to do', none: true };
+    }
+  };
+  const anyFilter = !!(filters.search || filters.type || filters.status || filters.payment || filters.from || filters.to);
+  // Quick status views: plain links that keep the other filters.
+  const quick = [['', 'All'], ['pending', 'Pending'], ['pencil', 'Pencil Booking'], ['on_hold', 'On Hold'], ['awaiting_payment', 'Awaiting payment'], ['confirmed', 'Confirmed'], ['checked_in', 'Checked in']]
+    .filter(([s]) => !s || statuses.includes(s));
+  const quickHref = (s) => '/reservations?' + new URLSearchParams(Object.fromEntries(Object.entries({ ...filters, status: s }).filter(([, v]) => v))).toString();
+%>
 
-<div class="page-header">
-  <div>
-    <h3 class="mb-1">Reservations</h3>
-    <p class="text-muted mb-0">Manage all bookings and reservations</p>
-  </div>
-  <div class="page-header-actions">
-    <a href="/reservations/view/calendar" class="btn btn-sm btn-outline-primary"><i class="fas fa-calendar me-1"></i>Calendar</a>
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/reservations/new" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>New Reservation</a>
-    <% } %>
-  </div>
+<!--page-head-->
+<h1 class="ph-title">Reservations</h1>
+<div class="ph-actions">
+  <a href="/reports/export/reservations" class="btn btn-secondary-quiet"><i class="fas fa-download" aria-hidden="true"></i>Export CSV</a>
+  <a href="/reservations/view/calendar" class="btn btn-secondary-quiet"><i class="fas fa-calendar-days" aria-hidden="true"></i>Calendar</a>
+  <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
+  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New walk-in</a>
+  <% } %>
 </div>
+<!--/page-head-->
 
-<!-- Filters -->
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/reservations" id="reservationsFilterForm" class="row g-2 align-items-end">
-      <div class="col-12 col-md-3">
-        <input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Booking ref or customer name..." />
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="type" class="form-select form-select-sm">
-          <option value="">All Types</option>
-          <% for (const t of types) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t %></option><% } %>
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="status" class="form-select form-select-sm">
-          <option value="">All Statuses</option>
-          <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= s.replace(/_/g,' ') %></option><% } %>
-        </select>
-      </div>
-      <div class="col-6 col-md-2">
-        <select name="payment" class="form-select form-select-sm">
-          <option value="">All Payments</option>
-          <% for (const p of payments) { %><option value="<%= p %>" <%= filters.payment === p ? 'selected' : '' %>><%= p.replace(/_/g,' ') %></option><% } %>
-        </select>
-      </div>
-      <div class="col-3 col-md-1">
-        <button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button>
-      </div>
-      <div class="col-3 col-md-1">
-        <a href="/reservations" class="btn btn-sm btn-outline-secondary w-100"><i class="fas fa-times"></i></a>
-      </div>
-      <div class="col-6 col-md-1">
-        <a href="/reports/export/reservations" class="btn btn-sm btn-outline-success w-100" title="Export CSV"><i class="fas fa-download"></i></a>
-      </div>
-    </form>
-  </div>
-</div>
+<nav class="quick-filters" aria-label="Show reservations by status">
+  <% for (const [s, label] of quick) { const on = (filters.status || '') === s; %>
+  <a href="<%= quickHref(s) %>" class="qf<%= on ? ' is-on' : '' %>"<%- on ? ' aria-current="true"' : '' %>><% if (s) { %><span class="qf-dot st-dot-<%= s %>" aria-hidden="true"></span><% } %><%= label %></a>
+  <% } %>
+</nav>
 
-<!-- Table -->
-<div class="card">
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead>
-          <tr>
-            <th>Booking Ref</th>
-            <th>Customer</th>
-            <th class="hide-md">Type</th>
-            <th class="hide-md">Date(s)</th>
-            <th class="hide-xs">Guests</th>
-            <th class="hide-xs">Amount</th>
-            <th class="hide-xs">Payment</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% if (!reservations || reservations.length === 0) { %>
-          <tr><td colspan="9" class="text-center py-4 text-muted">No reservations found.</td></tr>
-          <% } else { %>
-            <% for (const r of reservations) { %>
-            <tr>
-              <td><a href="/reservations/<%= r.id %>"><code class="small"><%= r.booking_ref %></code></a></td>
-              <td>
-                <div class="fw-medium"><%= r.customer_name %></div>
-                <div class="text-muted small"><%= r.customer_phone || '' %></div>
-              </td>
-              <td class="hide-md"><span class="badge bg-light text-dark"><%= r.reservation_type %></span></td>
-              <td class="small text-nowrap hide-md">
-                <% if (r.check_in_date) { %><%= formatDate(r.check_in_date) %><% } %>
-                <% if (r.check_out_date) { %> – <%= formatDate(r.check_out_date) %><% } %>
-                <% if (r.event_date) { %><%= formatDate(r.event_date) %><% } %>
-              </td>
-              <td class="text-center hide-xs"><%= r.num_guests %></td>
-              <td class="fw-medium hide-xs"><%= formatPeso(r.total_amount) %></td>
-              <td class="hide-xs"><%- statusBadge(r.payment_status) %></td>
-              <td><%- statusBadge(r.status) %></td>
-              <td><a href="/reservations/<%= r.id %>" class="btn btn-xs btn-outline-primary" title="View reservation details">View</a></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
+<!-- Search + filters -->
+<% const extraCount = [filters.status, filters.type, filters.payment, filters.from, filters.to].filter(Boolean).length; %>
+<form method="GET" action="/reservations" id="reservationsFilterForm" class="toolbar<%= extraCount ? ' show-more' : '' %>" role="search" aria-label="Filter reservations">
+  <div class="tb-field tb-search">
+    <label for="resSearch">Search</label>
+    <div class="input-group">
+      <span class="input-group-text"><i class="fas fa-magnifying-glass" aria-hidden="true"></i></span>
+      <input type="search" id="resSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Booking ref (BK-2026-…) or guest name" autocomplete="off" />
     </div>
   </div>
-  <div class="card-footer">
-    <%include('partials/pagination')%>
+  <div class="tb-field tb-half tb-extra">
+    <label for="resStatus">Status</label>
+    <select id="resStatus" name="status" class="form-select">
+      <option value="">All statuses</option>
+      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
+    </select>
   </div>
+  <div class="tb-field tb-half tb-extra">
+    <label for="resType">Type</label>
+    <select id="resType" name="type" class="form-select">
+      <option value="">All types</option>
+      <% for (const t of types) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= typeLabel(t) %></option><% } %>
+    </select>
+  </div>
+  <div class="tb-field tb-half tb-extra">
+    <label for="resPayment">Payment</label>
+    <select id="resPayment" name="payment" class="form-select">
+      <option value="">All payments</option>
+      <% for (const p of payments) { %><option value="<%= p %>" <%= filters.payment === p ? 'selected' : '' %>><%= statusLabel(p) %></option><% } %>
+    </select>
+  </div>
+  <div class="tb-field tb-half tb-date tb-extra">
+    <label for="resFrom">Booked from</label>
+    <input type="date" id="resFrom" name="from" value="<%= filters.from %>" class="form-control" />
+  </div>
+  <div class="tb-field tb-half tb-date tb-extra">
+    <label for="resTo">Booked to</label>
+    <input type="date" id="resTo" name="to" value="<%= filters.to %>" class="form-control" />
+  </div>
+  <button type="button" class="btn btn-secondary-quiet tb-more-toggle" aria-controls="reservationsFilterForm" aria-expanded="<%= extraCount ? 'true' : 'false' %>" onclick="this.setAttribute('aria-expanded', this.form.classList.toggle('show-more'))"><i class="fas fa-sliders" aria-hidden="true"></i>Filters<%= extraCount ? ' (' + extraCount + ')' : '' %></button>
+  <div class="tb-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (anyFilter) { %><a href="/reservations" class="btn btn-secondary-quiet">Clear all</a><% } %>
+  </div>
+</form>
+
+<div class="result-meta" aria-live="polite">
+  <strong><%= pagination.total %></strong> reservation<%= pagination.total === 1 ? '' : 's' %><%= anyFilter ? ' match these filters' : ', newest first' %><% if (filters.from || filters.to) { %> · booked <%= filters.from ? 'from ' + formatDate(filters.from) : '' %> <%= filters.to ? 'to ' + formatDate(filters.to) : '' %><% } %>
+</div>
+
+<div class="panel">
+  <div class="table-responsive">
+    <table class="table table-br table-hover table-stack mb-0 res-list">
+      <caption class="visually-hidden">Reservations. Select a row to open the booking.</caption>
+      <thead>
+        <tr>
+          <th scope="col">Reference</th>
+          <th scope="col">Guest</th>
+          <th scope="col">Item</th>
+          <th scope="col">Dates</th>
+          <th scope="col" class="num">Amount</th>
+          <th scope="col">Payment</th>
+          <th scope="col">Status</th>
+          <th scope="col">Next action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!reservations || reservations.length === 0) { %>
+        <tr><td colspan="8" class="empty-cell">
+          <div class="empty-state">
+            <% if (anyFilter) { %>
+            <p><strong>No reservations match these filters.</strong></p>
+            <p>Try a shorter search or another status. <a href="/reservations">Clear all filters</a></p>
+            <% } else { %>
+            <p><strong>No reservations yet.</strong></p>
+            <p>Online bookings appear here as guests book. <a href="/reservations/new">Record a walk-in</a></p>
+            <% } %>
+          </div>
+        </td></tr>
+        <% } else { %>
+          <% for (const r of reservations) {
+               const start = r.check_in_date || r.event_date;
+               const times = [r.start_time, r.end_time].filter(Boolean).join('–');
+               const next  = nextAction(r); %>
+          <tr data-href="/reservations/<%= r.id %>">
+            <td data-cell="primary">
+              <a href="/reservations/<%= r.id %>" class="ref"><%= r.booking_ref %></a>
+              <span class="cell-sub">Booked <%= formatDate(r.created_at, 'MMM D') %> · <span class="src-tag<%= r.source === 'walk_in' ? ' is-walkin' : '' %>"><%= r.source === 'walk_in' ? 'Walk-in' : (r.source === 'online' || !r.source ? 'Online' : String(r.source).replace(/_/g, ' ')) %></span></span>
+            </td>
+            <td data-cell="guest">
+              <span class="fw-medium"><%= r.customer_name %></span>
+              <% if (r.customer_phone) { %><span class="cell-sub tnum"><%= r.customer_phone %></span><% } %>
+            </td>
+            <td data-cell="main" class="res-item"><%= r.items || typeLabel(r.reservation_type) %><span class="cell-sub"><%= typeLabel(r.reservation_type) %> · <%= r.num_guests %> guest<%= Number(r.num_guests) === 1 ? '' : 's' %></span></td>
+            <td data-cell="main" class="cell-meta text-nowrap">
+              <% if (start) { const multi = r.check_out_date && String(r.check_out_date) !== String(start); %><%= multi ? formatDate(start, 'MMM D') + ' – ' + formatDate(r.check_out_date, 'MMM D, YYYY') : formatDate(start, 'MMM D, YYYY') %><% } else { %>—<% } %>
+              <% if (times) { %><span class="cell-sub"><%= times %></span><% } %>
+            </td>
+            <td data-cell="amount" class="num fw-semibold"><%= formatPeso(r.total_amount) %></td>
+            <td data-cell="pay"><%- statusBadge(r.payment_status) %></td>
+            <td data-cell="status"><%- statusBadge(r.status) %></td>
+            <td data-cell="next"><span class="next-act<%= next.urgent ? ' is-urgent' : '' %><%= next.none ? ' is-none' : '' %>"><%= next.text %></span></td>
+          </tr>
+          <% } %>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% if (pagination && pagination.totalPages > 1) { %>
+  <div class="panel-foot"><%include('partials/pagination')%></div>
+  <% } %>
 </div>

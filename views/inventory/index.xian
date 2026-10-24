@@ -1,136 +1,268 @@
 <% layout('layouts/main') %>
-<div class="page-header">
-  <div><h3 class="mb-1">Inventory</h3><p class="text-muted mb-0">Monitor all resort inventory and equipment</p></div>
-  <div class="page-header-actions">
-    <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-    <a href="/inventory/equipment/new" class="btn btn-sm btn-outline-primary"><i class="fas fa-plus me-1"></i>Add Equipment</a>
-    <a href="/inventory/new" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Add Item</a>
-    <% } %>
+<%
+  const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
+  const filtered  = !!(filters.search || filters.category || filters.alert);
+  const stockState = (item) => item.available_qty <= 0 ? 'out' : (item.available_qty <= item.reorder_level ? 'low' : 'ok');
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Inventory</h1>
+<% if (canManage) { %>
+  <div class="ph-actions">
+    <a href="/inventory/equipment/new" class="btn btn-secondary-quiet"><i class="fas fa-plus" aria-hidden="true"></i>Add equipment</a>
+    <a href="/inventory/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>Add item</a>
   </div>
-</div>
+  <% } %>
+<!--/page-head-->
+<p class="page-intro">Supplies and event equipment on hand. Use <strong>Add</strong>, <strong>Remove</strong>, <strong>Damaged</strong> or <strong>Repaired</strong> on a row to log a stock change — every change is kept in the item's history.</p>
 
 <% if (alertCount > 0) { %>
-<div class="alert alert-warning d-flex align-items-center gap-2 mb-3">
-  <i class="fas fa-exclamation-triangle fa-lg"></i>
-  <div><strong><%= alertCount %> item(s)</strong> are below reorder level. <a href="/inventory?alert=low" class="alert-link">View low stock items</a></div>
+<div class="ap-notice" role="status">
+  <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
+  <span><strong><%= alertCount %> item<%= alertCount === 1 ? ' is' : 's are' %></strong> at or below the reorder level.</span>
+  <% if (filters.alert !== 'low') { %><a href="/inventory?alert=low">Show low stock only</a><% } %>
 </div>
 <% } %>
 
-<!-- Filters -->
-<div class="card mb-3">
-  <div class="card-body py-2">
-    <form method="GET" action="/inventory" class="row g-2 align-items-end">
-      <div class="col-12 col-md-4"><input type="text" name="search" value="<%= filters.search %>" class="form-control form-control-sm" placeholder="Item name or code..." /></div>
-      <div class="col-6 col-md-2"><select name="category" class="form-select form-select-sm"><option value="">All Categories</option><% for (const c of categories) { %><option value="<%= c.id %>" <%= String(filters.category) === String(c.id) ? 'selected' : '' %>><%= c.name %></option><% } %></select></div>
-      <div class="col-6 col-md-2"><select name="alert" class="form-select form-select-sm"><option value="">All Items</option><option value="low" <%= filters.alert === 'low' ? 'selected' : '' %>>Low Stock Only</option></select></div>
-      <div class="col-6 col-md-2"><button type="submit" class="btn btn-sm btn-primary w-100"><i class="fas fa-search"></i></button></div>
-      <div class="col-6 col-md-2"><a href="/inventory" class="btn btn-sm btn-outline-secondary w-100">Clear</a></div>
-    </form>
+<form method="GET" action="/inventory" class="ap-toolbar" role="search" aria-label="Filter inventory">
+  <div class="ap-field ap-field-search">
+    <label for="invSearch">Search</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="invSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Item name or code" /></div>
   </div>
-</div>
+  <div class="ap-field">
+    <label for="invCategory">Category</label>
+    <select id="invCategory" name="category" class="form-select"><option value="">All categories</option><% for (const c of categories) { %><option value="<%= c.id %>" <%= String(filters.category) === String(c.id) ? 'selected' : '' %>><%= c.name %></option><% } %></select>
+  </div>
+  <div class="ap-field">
+    <label for="invAlert">Stock</label>
+    <select id="invAlert" name="alert" class="form-select"><option value="">All items</option><option value="low" <%= filters.alert === 'low' ? 'selected' : '' %>>Low stock only</option></select>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Apply</button>
+    <% if (filtered) { %><a href="/inventory" class="btn btn-secondary-quiet">Clear</a><% } %>
+  </div>
+</form>
 
-<!-- Inventory Items Table -->
-<div class="card mb-4">
-  <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-boxes me-2"></i>Inventory Items</h6></div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>Code</th><th>Name</th><th>Category</th><th>Unit</th><th class="text-center">Total</th><th class="text-center">Available</th><th class="text-center">Reserved</th><th class="text-center">Damaged</th><th>Status</th><th>Action</th></tr></thead>
-        <tbody>
-          <% if (!items || items.length === 0) { %>
-          <tr><td colspan="10" class="text-center py-4 text-muted">No items found.</td></tr>
-          <% } else { %>
-            <% for (const item of items) { %>
-            <tr class="<%= item.available_qty <= item.reorder_level ? 'table-warning' : '' %>">
-              <td><code class="small"><%= item.item_code %></code></td>
-              <td class="fw-medium"><%= item.name %></td>
-              <td><span class="badge bg-light text-dark small"><%= item.category_name %></span></td>
-              <td class="small"><%= item.unit %></td>
-              <td class="text-center"><%= item.total_qty %></td>
-              <td class="text-center"><strong class="<%= item.available_qty <= item.reorder_level ? 'text-danger' : 'text-success' %>"><%= item.available_qty %></strong></td>
-              <td class="text-center text-primary"><%= item.reserved_qty %></td>
-              <td class="text-center text-danger"><%= item.damaged_qty %></td>
-              <td>
-                <% if (item.available_qty <= 0) { %><span class="badge badge-danger">Out of Stock</span>
-                <% } else if (item.available_qty <= item.reorder_level) { %><span class="badge badge-warning">Low Stock</span>
-                <% } else { %><span class="badge badge-success">OK</span><% } %>
-              </td>
-              <td>
-                <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-                <button class="btn btn-xs btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#adjustModal" data-id="<%= item.id %>" data-name="<%= item.name %>">Adjust</button>
+<!-- Inventory items -->
+<section class="ap-panel" aria-labelledby="invItemsHeading">
+  <div class="ap-panel-head">
+    <h2 id="invItemsHeading">Supplies <span class="ap-meta"><%= items ? items.length : 0 %> item<%= items && items.length === 1 ? '' : 's' %><%= filtered ? ' match' : '' %></span></h2>
+    <span class="ap-meta d-none d-sm-inline">Quantities in each item's unit</span>
+  </div>
+  <% if (!items || items.length === 0) { %>
+  <div class="ap-empty">
+    <strong><%= filtered ? 'No items match these filters' : 'No inventory items yet' %></strong>
+    <%= filtered ? 'Try a different search or clear the filters.' : 'Add the supplies you want to track, such as chairs, tables or linens.' %>
+    <% if (filtered) { %><div><a href="/inventory" class="btn btn-secondary-quiet btn-sm">Clear filters</a></div><% } else if (canManage) { %><div><a href="/inventory/new" class="btn btn-primary btn-sm">Add item</a></div><% } %>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Item</th>
+          <th scope="col" class="inv-col-opt">Category</th>
+          <th scope="col" class="num">Available</th>
+          <th scope="col" class="num">Total</th>
+          <th scope="col" class="num">Reserved</th>
+          <th scope="col" class="num">Damaged</th>
+          <th scope="col" class="num inv-col-opt">Reorder at</th>
+          <th scope="col">Stock</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const item of items) { const st = stockState(item); %>
+        <tr id="item-<%= item.id %>" class="inv-row <%= st === 'out' ? 'is-out' : (st === 'low' ? 'is-low' : '') %>">
+          <td class="ap-cell-title">
+            <span class="ap-name"><%= item.name %></span>
+            <span class="ap-line2 ap-code"><%= item.item_code %><span class="inv-cat-inline"><%= item.category_name %></span></span>
+          </td>
+          <td class="inv-col-opt" data-label="Category"><%= item.category_name %></td>
+          <td class="num" data-label="Available"><span class="ap-qty <%= st === 'ok' ? '' : 'is-' + st %>"><%= item.available_qty %></span> <span class="ap-muted"><%= item.unit %></span></td>
+          <td class="num" data-label="Total"><%= item.total_qty %></td>
+          <td class="num" data-label="Reserved"><%= item.reserved_qty %></td>
+          <td class="num" data-label="Damaged"><%= item.damaged_qty %></td>
+          <td class="num ap-hide-sm inv-col-opt" data-label="Reorder at"><%= item.reorder_level %></td>
+          <td class="ap-cell-status">
+            <% if (st === 'out') { %><span class="status-chip st-red">Out of stock</span>
+            <% } else if (st === 'low') { %><span class="status-chip st-amber">Low stock</span>
+            <% } else { %><span class="status-chip st-teal">In stock</span><% } %>
+          </td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <% if (canManage) { %>
+              <div class="inv-quick" role="group" aria-label="Adjust stock of <%= item.name %>">
+                <% for (const [t, label, icon, tip] of [['add', 'Add', 'fa-plus', 'Add units received'], ['remove', 'Remove', 'fa-minus', 'Remove units (disposed or lost)'], ['damage', 'Damaged', 'fa-heart-crack', 'Mark units as damaged'], ['repair', 'Repaired', 'fa-screwdriver-wrench', 'Damaged units repaired']]) { %>
+                <button type="button" class="ap-act inv-q" data-bs-toggle="modal" data-bs-target="#adjustModal" data-type="<%= t %>" data-id="<%= item.id %>" data-name="<%= item.name %>" data-unit="<%= item.unit %>" data-total="<%= item.total_qty %>" data-available="<%= item.available_qty %>" data-damaged="<%= item.damaged_qty %>" title="<%= tip %>"<%- t === 'repair' && !(item.damaged_qty > 0) ? ' disabled' : '' %>><i class="fas <%= icon %>" aria-hidden="true"></i><%= label %><span class="br-sr-only"> — <%= item.name %></span></button>
                 <% } %>
-              </td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
+              </div>
+              <% } %>
+              <a href="/inventory/<%= item.id %>/history" class="ap-act">History<span class="br-sr-only"> for <%= item.name %></span></a>
+              <% if (canManage) { %>
+              <a href="/inventory/<%= item.id %>/edit" class="ap-act">Edit<span class="br-sr-only"> <%= item.name %></span></a>
+              <div class="dropdown">
+                <button type="button" class="ap-act ap-more dropdown-toggle" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-expanded="false" aria-label="More actions for <%= item.name %>">More<i class="fas fa-chevron-down" aria-hidden="true"></i></button>
+                <ul class="dropdown-menu dropdown-menu-end ap-menu">
+                  <li>
+                    <form action="/inventory/<%= item.id %>/remove" method="POST">
+                      <button type="submit" class="dropdown-item is-danger"
+                        data-confirm="Deactivate &quot;<%= item.name %>&quot;? It leaves the list and low-stock alerts. Nothing is deleted — its history stays for reports."
+                        data-confirm-type="danger" data-confirm-title="Deactivate item" data-confirm-ok="Deactivate"><i class="fas fa-box-archive" aria-hidden="true"></i>Deactivate item…</button>
+                    </form>
+                  </li>
+                </ul>
+              </div>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
   </div>
-</div>
+  <% } %>
+</section>
 
-<!-- Equipment Table -->
-<div class="card">
-  <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-tools me-2"></i>Event Equipment</h6></div>
-  <div class="card-body p-0">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead><tr><th>Code</th><th>Name</th><th>Category</th><th class="text-center">Total Qty</th><th class="text-center">Available</th><th>Condition</th></tr></thead>
-        <tbody>
-          <% if (!equipment || equipment.length === 0) { %>
-          <tr><td colspan="6" class="text-center py-4 text-muted">No equipment found.</td></tr>
-          <% } else { %>
-            <% for (const eq of equipment) { %>
-            <tr>
-              <td><code class="small"><%= eq.equipment_code %></code></td>
-              <td class="fw-medium"><%= eq.name %></td>
-              <td><span class="badge bg-light text-dark small"><%= eq.category_name || '—' %></span></td>
-              <td class="text-center"><%= eq.quantity %></td>
-              <td class="text-center fw-bold <%= eq.available_qty === 0 ? 'text-danger' : 'text-success' %>"><%= eq.available_qty %></td>
-              <td><%- statusBadge(eq.condition) %></td>
-            </tr>
-            <% } %>
-          <% } %>
-        </tbody>
-      </table>
-    </div>
+<!-- Equipment -->
+<section class="ap-panel" aria-labelledby="invEquipHeading">
+  <div class="ap-panel-head">
+    <h2 id="invEquipHeading">Event equipment <span class="ap-meta"><%= equipment ? equipment.length : 0 %> item<%= equipment && equipment.length === 1 ? '' : 's' %></span></h2>
   </div>
-</div>
+  <% if (!equipment || equipment.length === 0) { %>
+  <div class="ap-empty"><strong>No equipment recorded</strong>Add sound systems, tents, lights and other gear used for events.</div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead><tr><th scope="col">Equipment</th><th scope="col">Category</th><th scope="col" class="num">Available</th><th scope="col" class="num">Total</th><th scope="col">Condition</th></tr></thead>
+      <tbody>
+        <% for (const eq of equipment) { %>
+        <tr>
+          <td class="ap-cell-title"><span class="ap-name"><%= eq.name %></span><span class="ap-line2 ap-code"><%= eq.equipment_code %></span></td>
+          <td data-label="Category"><%= eq.category_name || '—' %></td>
+          <td class="num" data-label="Available"><span class="ap-qty <%= eq.available_qty === 0 ? 'is-out' : '' %>"><%= eq.available_qty %></span></td>
+          <td class="num" data-label="Total"><%= eq.quantity %></td>
+          <td class="ap-cell-status"><%- statusBadge(eq.condition) %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
 
 <!-- Adjust Modal -->
-<div class="modal fade" id="adjustModal" tabindex="-1">
-  <div class="modal-dialog modal-sm">
+<div class="modal fade" id="adjustModal" tabindex="-1" aria-labelledby="adjustModalTitle" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered inv-adjust-dialog">
     <div class="modal-content">
-      <div class="modal-header"><h6 class="modal-title">Adjust Inventory</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-header">
+        <div>
+          <h2 class="modal-title" id="adjustModalTitle">Adjust stock</h2>
+          <p class="ap-meta mb-0" id="adjustItemName"></p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
       <form id="adjustForm" method="POST">
         <div class="modal-body">
-          <p class="fw-medium" id="adjustItemName"></p>
+          <p class="inv-adjust-now" id="adjustCurrent"></p>
+          <fieldset class="mb-3">
+            <legend class="form-label">What happened?</legend>
+            <div class="inv-types">
+              <input type="radio" class="btn-check" name="adjust_type" id="adjAdd" value="add" checked>
+              <label class="inv-type" for="adjAdd"><i class="fas fa-plus" aria-hidden="true"></i><span>Received<small>adds to stock</small></span></label>
+              <input type="radio" class="btn-check" name="adjust_type" id="adjRemove" value="remove">
+              <label class="inv-type" for="adjRemove"><i class="fas fa-minus" aria-hidden="true"></i><span>Removed<small>disposed or lost</small></span></label>
+              <input type="radio" class="btn-check" name="adjust_type" id="adjDamage" value="damage">
+              <label class="inv-type" for="adjDamage"><i class="fas fa-heart-crack" aria-hidden="true"></i><span>Damaged<small>out of use</small></span></label>
+              <input type="radio" class="btn-check" name="adjust_type" id="adjRepair" value="repair">
+              <label class="inv-type" for="adjRepair"><i class="fas fa-screwdriver-wrench" aria-hidden="true"></i><span>Repaired<small>back to available</small></span></label>
+            </div>
+          </fieldset>
           <div class="mb-3">
-            <label class="form-label">Adjustment Type</label>
-            <select name="adjust_type" class="form-select">
-              <option value="add">Add (received)</option>
-              <option value="remove">Remove (disposed)</option>
-              <option value="damage">Mark as Damaged</option>
-              <option value="repair">Repaired (restore)</option>
-            </select>
+            <label class="form-label required" for="adjustQty">Quantity</label>
+            <input type="number" name="quantity" id="adjustQty" class="form-control" value="1" min="1" required aria-describedby="adjustHint" />
+            <div class="form-text" id="adjustHint"></div>
           </div>
-          <div class="mb-3"><label class="form-label required">Quantity</label><input type="number" name="quantity" class="form-control" value="1" min="1" required /></div>
-          <div class="mb-3"><label class="form-label">Notes</label><input type="text" name="notes" class="form-control" placeholder="Reason..." /></div>
+          <div>
+            <label class="form-label" for="adjustNotes">Reason <span class="ap-meta fw-normal">(recommended)</span></label>
+            <input type="text" name="notes" id="adjustNotes" class="form-control" maxlength="500" placeholder="e.g. Delivery from supplier, broken during event" aria-describedby="adjustNotesHelp" />
+            <div class="form-text" id="adjustNotesHelp">Saved with the quantity in the item's history, with your name and the time.</div>
+          </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary btn-sm">Save Adjustment</button>
+          <button type="button" class="btn btn-secondary-quiet" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save adjustment</button>
         </div>
       </form>
     </div>
   </div>
 </div>
+
+</div>
 <script>
-document.getElementById('adjustModal').addEventListener('show.bs.modal', function(e) {
-  const btn  = e.relatedTarget;
-  const id   = btn.dataset.id;
-  const name = btn.dataset.name;
-  document.getElementById('adjustItemName').textContent = name;
-  document.getElementById('adjustForm').action = '/inventory/' + id + '/adjust';
-});
+(function () {
+  const modal  = document.getElementById('adjustModal');
+  const form   = document.getElementById('adjustForm');
+  const types  = Array.from(form.querySelectorAll('[name="adjust_type"]'));
+  const type   = { get value() { const c = types.find(r => r.checked); return c ? c.value : 'add'; } };
+  const LABEL  = { add: 'Add', remove: 'Remove', damage: 'Mark as damaged', repair: 'Mark as repaired' };
+  const qty    = form.querySelector('[name="quantity"]');
+  const hint   = document.getElementById('adjustHint');
+  const submit = form.querySelector('[type="submit"]');
+  let current  = null;
+
+  // Limit the quantity to what the chosen adjustment can take
+  // (the server checks the same rules and explains any rejection).
+  function applyLimit() {
+    if (!current) return;
+    const max = { remove: current.available, damage: current.available, repair: current.damaged }[type.value];
+    if (max === undefined) {
+      qty.removeAttribute('max');
+      hint.textContent = 'Adds to both total and available.';
+    } else {
+      qty.max = max;
+      hint.textContent = max > 0
+        ? 'Up to ' + max + ' ' + current.unit + (type.value === 'repair' ? ' damaged.' : ' available.')
+        : (type.value === 'repair' ? 'No damaged units to repair.' : 'No available units.');
+    }
+    submit.disabled = max === 0;
+    syncConfirm();
+  }
+  // Save asks first and says exactly what will change (removing is shown as destructive).
+  function syncConfirm() {
+    if (!current) return;
+    const n = Math.max(parseInt(qty.value, 10) || 0, 0);
+    const what = { add: 'Add ' + n + ' ' + current.unit + ' to', remove: 'Remove ' + n + ' ' + current.unit + ' from', damage: 'Mark ' + n + ' ' + current.unit + ' of', repair: 'Return ' + n + ' repaired ' + current.unit + ' of' }[type.value];
+    submit.textContent = LABEL[type.value] + (n ? ' ' + n + ' ' + current.unit : '');
+    submit.className = 'btn ' + (type.value === 'remove' ? 'btn-danger' : 'btn-primary');
+    submit.dataset.confirm = what + ' ' + current.name + (type.value === 'damage' ? ' as damaged' : '') + '? The change is saved in the item’s history with your name.';
+    submit.dataset.confirmTitle = LABEL[type.value];
+    submit.dataset.confirmOk = 'Save adjustment';
+    if (type.value === 'remove') submit.dataset.confirmType = 'danger'; else delete submit.dataset.confirmType;
+  }
+
+  modal.addEventListener('show.bs.modal', function (e) {
+    const d = e.relatedTarget.dataset;
+    current = { name: d.name, unit: d.unit, total: +d.total, available: +d.available, damaged: +d.damaged };
+    form.reset();
+    const pick = types.find(r => r.value === (d.type || 'add'));
+    if (pick) pick.checked = true;
+    form.action = '/inventory/' + d.id + '/adjust';
+    document.getElementById('adjustItemName').textContent = d.name;
+    document.getElementById('adjustCurrent').textContent =
+      'Now: ' + current.total + ' total · ' + current.available + ' available · ' + current.damaged + ' damaged';
+    applyLimit();
+  });
+  types.forEach(r => r.addEventListener('change', applyLimit));
+  qty.addEventListener('input', function () { hint.classList.remove('text-danger'); syncConfirm(); });
+  // Quantity problems are explained under the field before anything is sent.
+  // (window capture runs before main.js's confirm dialog, which listens on document)
+  window.addEventListener('click', function (e) {
+    if (!e.target.closest('#adjustForm [type="submit"]') || qty.checkValidity()) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    hint.textContent = qty.validity.rangeOverflow ? 'That is more than this adjustment allows — ' + hint.textContent : 'Enter a whole number of at least 1.';
+    hint.classList.add('text-danger'); qty.setAttribute('aria-invalid', 'true'); qty.focus();
+  }, true);
+})();
 </script>

@@ -1,73 +1,59 @@
 <% layout('layouts/main') %>
+<% const fullName = user.first_name + ' ' + user.last_name; %>
+<div class="ap-page">
 
-<div class="page-header">
-  <div>
-    <nav aria-label="breadcrumb"><ol class="breadcrumb mb-1"><li class="breadcrumb-item"><a href="/users">Users</a></li><li class="breadcrumb-item active"><%= user.first_name %> <%= user.last_name %></li></ol></nav>
-    <h3 class="mb-0"><%= user.first_name %> <%= user.last_name %></h3>
-  </div>
-  <div class="page-header-actions">
-    <%- statusBadge(user.is_active ? 'active' : 'inactive') %>
-    <a href="/users/<%= user.id %>/edit" class="btn btn-sm btn-outline-secondary"><i class="fas fa-edit me-1"></i>Edit</a>
+<!--page-head-->
+<a href="/users" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Users</a>
+<h1 class="ph-title"><%= fullName %></h1>
+<div class="ph-actions">
+    <a href="/users/<%= user.id %>/edit" class="btn btn-outline-secondary"><i class="fas fa-pen" aria-hidden="true"></i>Edit details</a>
     <% if (user.id !== currentUser.id) { %>
     <form action="/users/<%= user.id %>/toggle" method="POST" class="d-inline">
-      <button type="submit" class="btn btn-sm <%= user.is_active ? 'btn-outline-danger' : 'btn-outline-success' %>"
-        data-confirm="<%= user.is_active ? 'Deactivate' : 'Activate' %> the account for <%= user.first_name %> <%= user.last_name %>?<%= user.is_active ? ' They will no longer be able to log in.' : ' They will regain login access.' %>"
+      <button type="submit" class="btn <%= user.is_active ? 'btn-outline-danger' : 'btn-outline-primary' %>"
+        data-confirm="<%= user.is_active ? 'Deactivate' : 'Activate' %> the account for <%= fullName %>?<%= user.is_active ? ' They will no longer be able to log in.' : ' They will regain login access.' %>"
         data-confirm-title="<%= user.is_active ? 'Deactivate User' : 'Activate User' %>"
         data-confirm-type="<%= user.is_active ? 'danger' : 'primary' %>"
         data-confirm-ok="<%= user.is_active ? 'Deactivate' : 'Activate' %>">
-        <i class="fas fa-<%= user.is_active ? 'ban' : 'check' %> me-1"></i><%= user.is_active ? 'Deactivate' : 'Activate' %>
+        <%= user.is_active ? 'Deactivate account' : 'Activate account' %>
       </button>
     </form>
     <% } %>
   </div>
+<!--/page-head-->
+<div class="page-meta"><%= user.role_label %> · <% if (user.is_active) { %><span class="status-chip st-teal">Active</span><% } else { %><span class="status-chip st-gray">Inactive</span><% } %></div>
+
+<div class="ap-split usr-split">
+  <section class="ap-panel" aria-labelledby="usrActivityHeading">
+    <div class="ap-panel-head"><h2 id="usrActivityHeading">Recent activity</h2><span class="ap-meta">Latest 10 entries from the audit log</span></div>
+    <% if (!recentAudit || recentAudit.length === 0) { %>
+    <div class="ap-empty"><strong>No activity recorded yet</strong>Changes this person makes will appear here.</div>
+    <% } else { %>
+    <ol class="ap-history">
+      <% for (const log of recentAudit) { %>
+      <li>
+        <time datetime="<%= log.created_at %>"><%= formatDateTime(log.created_at) %></time>
+        <div>
+          <div class="ap-history-title text-capitalize"><%= log.action.replace(/_/g,' ') %></div>
+          <div class="ap-history-by text-capitalize"><%= log.module %></div>
+        </div>
+      </li>
+      <% } %>
+    </ol>
+    <% } %>
+  </section>
+
+  <aside class="ap-panel" aria-labelledby="usrDetailsHeading">
+    <div class="ap-panel-head"><h2 id="usrDetailsHeading">Account</h2></div>
+    <div class="ap-panel-body">
+      <dl class="ap-dl">
+        <dt>Email</dt><dd><a href="mailto:<%= user.email %>"><%= user.email %></a></dd>
+        <dt>Phone</dt><dd><%= user.phone || '—' %></dd>
+        <dt>Role</dt><dd><%= user.role_label %></dd>
+        <dt>Last sign-in</dt><dd><%= user.last_login ? formatDateTime(user.last_login) : 'Never' %></dd>
+        <dt>Created</dt><dd><%= formatDate(user.created_at) %></dd>
+      </dl>
+    </div>
+  </aside>
 </div>
 
-<div class="row g-3">
-  <div class="col-lg-4">
-    <div class="card">
-      <div class="card-body text-center">
-        <div class="user-avatar mx-auto mb-3" style="width:64px;height:64px;font-size:1.25rem;">
-          <span><%= user.first_name.charAt(0) %><%= user.last_name.charAt(0) %></span>
-        </div>
-        <h6 class="fw-bold"><%= user.first_name %> <%= user.last_name %></h6>
-        <div class="mb-3">
-          <span class="badge <%= user.role_name === 'admin' ? 'bg-primary' : user.role_name === 'staff' ? 'bg-success' : 'bg-secondary' %>">
-            <%= user.role_label %>
-          </span>
-        </div>
-        <table class="table table-sm table-borderless text-start mb-0">
-          <tr><th>Email</th><td class="small"><%= user.email %></td></tr>
-          <tr><th>Phone</th><td class="small"><%= user.phone || '—' %></td></tr>
-          <tr><th>Status</th><td><%- statusBadge(user.is_active ? 'active' : 'inactive') %></td></tr>
-          <tr><th>Last Login</th><td class="small"><%= formatDateTime(user.last_login) || 'Never' %></td></tr>
-          <tr><th>Created</th><td class="small"><%= formatDate(user.created_at) %></td></tr>
-        </table>
-      </div>
-    </div>
-  </div>
-  <div class="col-lg-8">
-    <div class="card">
-      <div class="card-header"><h6 class="card-title mb-0"><i class="fas fa-history me-2"></i>Recent Activity (Audit Log)</h6></div>
-      <div class="card-body p-0">
-        <% if (!recentAudit || recentAudit.length === 0) { %>
-        <div class="empty-state py-4"><i class="fas fa-history"></i><p>No recent activity recorded.</p></div>
-        <% } else { %>
-        <div class="table-responsive">
-          <table class="table table-sm table-hover mb-0">
-            <thead><tr><th>Action</th><th>Module</th><th>Date/Time</th></tr></thead>
-            <tbody>
-              <% for (const log of recentAudit) { %>
-              <tr>
-                <td class="small"><%= log.action.replace(/_/g,' ') %></td>
-                <td><span class="badge bg-light text-dark small"><%= log.module %></span></td>
-                <td class="small text-muted"><%= formatDateTime(log.created_at) %></td>
-              </tr>
-              <% } %>
-            </tbody>
-          </table>
-        </div>
-        <% } %>
-      </div>
-    </div>
-  </div>
 </div>

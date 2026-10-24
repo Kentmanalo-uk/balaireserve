@@ -1,0 +1,8 @@
+<%# Rooms · Cottages · Venues · Event packages — shared catalogue navigation %>
+<nav class="cat-tabs" aria-label="Browse by type">
+  <a href="/portal/rooms" <%- currentPath === '/portal/rooms' ? 'aria-current="page"' : '' %>>Rooms</a>
+  <a href="/portal/cottages" <%- currentPath === '/portal/cottages' ? 'aria-current="page"' : '' %>>Cottages</a>
+  <a href="/portal/venues" <%- currentPath === '/portal/venues' ? 'aria-current="page"' : '' %>>Venues</a>
+  <a href="/portal/venues#packages">Event packages</a>
+  <a href="/portal/calendar" <%- currentPath === '/portal/calendar' ? 'aria-current="page"' : '' %>>Availability calendar</a>
+</nav>
