@@ -265,3 +265,108 @@ body.auth-body .auth-card .form-control:focus-visible { outline: none; }
 .auth-mark { display: inline-grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; align-items: center; align-content: center; }
 .auth-mark > .brand-logo { grid-column: 1; grid-row: 1 / span 2; }
 .auth-mark > :not(.brand-logo) { grid-column: 2; }
+
+/* ============================================================
+   Upgrade: floating pill header, an inset photo with a progressive
+   blur behind the tagline, and the form on a white card.
+   Same language as the public site (pill header, blur, round buttons).
+   ============================================================ */
+body.auth-body { background: linear-gradient(180deg, var(--color-canvas) 0%, #f6efe3 100%); }
+
+/* Header: a white floating pill */
+body.auth-body .auth-header {
+  z-index: 3; min-height: 0; margin: 0; padding: 8px 8px 8px 10px;
+  border: 0; border-radius: 999px; background: rgba(255, 255, 255, .96);
+  box-shadow: 0 10px 30px rgba(20, 52, 58, .12), 0 1px 3px rgba(20, 52, 58, .06);
+  -webkit-backdrop-filter: saturate(1.6) blur(16px); backdrop-filter: saturate(1.6) blur(16px);
+}
+body.auth-body .auth-mark .brand-logo { width: 40px; height: 40px; box-shadow: 0 0 0 2px #fff, 0 3px 10px rgba(20, 52, 58, .16); }
+body.auth-body .auth-back-home {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 18px;
+  border-radius: 999px; background: var(--color-seaglass-100); color: var(--color-ocean-900);
+  font-weight: 600; text-decoration: none; transition: background-color .2s var(--ease-out), color .2s var(--ease-out);
+}
+body.auth-body .auth-back-home:hover { background: var(--color-ocean-900); color: #fff; }
+
+/* Photo: rounded, with a layered blur rising from the bottom behind the words */
+body.auth-body .auth-photo {
+  position: relative; overflow: hidden; isolation: isolate;
+  background:
+    linear-gradient(180deg, rgba(8, 24, 28, .28) 0%, rgba(8, 24, 28, 0) 26%),
+    url('/images/landing/beachfront-gazebo.jpg') center 62% / cover no-repeat,
+    var(--color-ocean-900);
+}
+.auth-blur { position: absolute; left: 0; right: 0; bottom: 0; height: 58%; z-index: -1; pointer-events: none; }
+.auth-blur i { position: absolute; inset: 0; }
+.auth-blur i:nth-child(1) { -webkit-backdrop-filter: blur(2px) saturate(1.1); backdrop-filter: blur(2px) saturate(1.1);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 45%, transparent 100%); mask-image: linear-gradient(0deg, #000 0%, #000 45%, transparent 100%); }
+.auth-blur i:nth-child(2) { -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 32%, transparent 72%); mask-image: linear-gradient(0deg, #000 0%, #000 32%, transparent 72%); }
+.auth-blur i:nth-child(3) { -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 20%, transparent 52%); mask-image: linear-gradient(0deg, #000 0%, #000 20%, transparent 52%); }
+.auth-blur i:nth-child(4) { -webkit-backdrop-filter: blur(22px); backdrop-filter: blur(22px);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, transparent 36%); mask-image: linear-gradient(0deg, #000 0%, transparent 36%); }
+.auth-blur::after { content: ''; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(8, 24, 28, .66) 0%, rgba(8, 24, 28, .3) 45%, rgba(8, 24, 28, 0) 100%); }
+body.auth-body .auth-photo-text { position: relative; }
+body.auth-body .auth-photo-tagline { text-shadow: 0 2px 18px rgba(0, 0, 0, .3); }
+
+/* Form on a white card */
+body.auth-body .auth-card {
+  max-width: 460px; padding: 36px 36px 28px; border-radius: 28px;
+  background: var(--color-white);
+  box-shadow: 0 2px 4px rgba(20, 52, 58, .04), 0 24px 60px rgba(20, 52, 58, .1);
+}
+body.auth-body .auth-title { margin-bottom: 6px; letter-spacing: -.02em; }
+body.auth-body .auth-subtitle { margin-bottom: 24px; }
+body.auth-body .auth-card .form-control,
+body.auth-body .auth-card .form-select {
+  min-height: 50px; border-radius: 14px !important; background: var(--color-canvas) !important;
+  border-color: rgba(20, 52, 58, .12) !important; transition: border-color .2s var(--ease-out), box-shadow .2s var(--ease-out), background-color .2s var(--ease-out);
+}
+body.auth-body .auth-card .form-control:hover { border-color: rgba(20, 52, 58, .24) !important; }
+body.auth-body .auth-card .form-control:focus,
+body.auth-body .auth-card .form-select:focus { background: var(--color-white) !important; box-shadow: 0 0 0 4px rgba(15, 92, 102, .14) !important; }
+body.auth-body .auth-card .btn-primary,
+body.auth-body .auth-card .btn-auth {
+  min-height: 52px; border-radius: 999px !important; letter-spacing: .01em;
+  box-shadow: 0 10px 24px rgba(15, 92, 102, .24);
+}
+body.auth-body .auth-card .auth-google { min-height: 50px; border-radius: 999px; }
+body.auth-body .auth-pass-toggle { border-radius: 999px; }
+body.auth-body .auth-alt { border-top-color: rgba(20, 52, 58, .08); }
+
+/* Desktop: the photo is an inset rounded panel; the pill header floats over the form side */
+@media (min-width: 992px) {
+  body.auth-body .auth-shell {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    grid-template-rows: auto 1fr; grid-template-areas: "photo header" "photo main";
+    gap: 0 16px; padding: 16px; min-height: 100vh;
+  }
+  body.auth-body .auth-header { align-self: start; margin: 4px 8px 0 24px; }
+  body.auth-body .auth-photo {
+    position: sticky; top: 16px; height: calc(100vh - 32px); border-radius: 28px;
+    padding: 40px 44px;
+  }
+  body.auth-body .auth-main { padding: 0 24px 24px; }
+}
+
+/* Phones and tablets: a photo banner under a floating pill, the card rising over it */
+@media (max-width: 991.98px) {
+  body.auth-body .auth-shell { position: relative; }
+  body.auth-body .auth-header { position: absolute; top: 12px; left: 12px; right: 12px; border-bottom: 0; }
+  body.auth-body .auth-photo { min-height: 260px; padding: 96px 24px 64px; border-radius: 0 0 28px 28px; }
+  body.auth-body .auth-main { position: relative; z-index: 2; margin-top: -44px; padding: 0 12px 32px; }
+  body.auth-body .auth-wrapper { padding-top: 0; }
+  body.auth-body .auth-card { margin: 0 auto; padding: 28px 22px 22px; }
+}
+@media (max-width: 575.98px) {
+  body.auth-body .auth-photo { min-height: 230px; padding: 88px 20px 60px; }
+  body.auth-body .auth-back-more { display: none; }
+  body.auth-body .auth-back-home { padding: 0 16px; }
+  body.auth-body .auth-mark-sub { display: none; }
+}
+body.auth-body .auth-back-home { margin-right: 0; }
+body.auth-body .auth-back-home .fa-arrow-left { display: inline-block; }
+@media (min-width: 992px) { body.auth-body .auth-shell { box-sizing: border-box; } }
+@media (min-width: 992px) { body.auth-body .auth-main, body.auth-body .auth-wrapper { min-height: 0; } }
+@media (min-width: 992px) { body.auth-body .auth-shell { grid-template-rows: auto minmax(0, 1fr); } }

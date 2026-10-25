@@ -251,6 +251,43 @@
     });
   }
 
+  // ── Events: rise in when the section comes into view; arrows for the package row ──
+  var evSection = document.getElementById('events');
+  if (evSection) {
+    var evReveal = function () { evSection.classList.add('is-in'); };
+    if ('IntersectionObserver' in window && !reduceMotion) {
+      var evIo = new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (e.isIntersecting) { evReveal(); evIo.disconnect(); } });
+      }, { threshold: 0.12 });
+      evIo.observe(evSection);
+    } else {
+      evReveal();
+    }
+
+    var evRow = document.getElementById('evCards'), evNav = evSection.querySelector('[data-ev-nav]');
+    if (evRow && evNav) {
+      var evBtns = evNav.querySelectorAll('[data-ev-step]');
+      var evSync = function () {
+        var max = evRow.scrollWidth - evRow.clientWidth - 4;
+        evNav.hidden = max <= 0;
+        evBtns[0].disabled = evRow.scrollLeft <= 4;
+        evBtns[1].disabled = evRow.scrollLeft >= max;
+        evRow.classList.toggle('is-end', evRow.scrollLeft >= max);
+      };
+      evBtns.forEach(function (b) {
+        b.addEventListener('click', function () {
+          var card = evRow.querySelector('.ev-card');
+          var step = card ? card.getBoundingClientRect().width + 20 : 300;
+          var perClick = Math.max(1, Math.floor(evRow.clientWidth / step));
+          evRow.scrollBy({ left: Number(b.getAttribute('data-ev-step')) * step * perClick, behavior: reduceMotion ? 'auto' : 'smooth' });
+        });
+      });
+      evRow.addEventListener('scroll', evSync, { passive: true });
+      window.addEventListener('resize', evSync);
+      evSync();
+    }
+  }
+
   // ── In-page anchors: smooth scroll (unless reduced motion), open the right tab, move focus ──
   function scrollToId(id, focusEl) {
     var target = document.getElementById(id);

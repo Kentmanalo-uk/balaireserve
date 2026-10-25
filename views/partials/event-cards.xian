@@ -1,73 +1,59 @@
 <%#
   Event packages as illustrated cards — homepage "Celebrate" section only.
   (The hall detail page and the portal venues page keep partials/package-rows.)
-  Include with Object.assign({}, __locals, { evCards: { list, dp, h } }).
-  Each package needs p.includedItems and p.addonItems (see the landing route handler).
+  Include with Object.assign({}, __locals, { evCards: { list, h } }).
+  Kept deliberately short: illustration, name, price, guests. The package page has the details.
 %>
 <%
   const _o = evCards || {};
   const _list = Array.isArray(_o.list) ? _o.list : [];
   const _H = _o.h || 'h3';
   const _tc = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-  // Occasion → label, icon and colour theme of the card's top band.
   const _occ = (t) => ({
-    wedding:   { label: 'Wedding',         icon: 'fa-heart',            theme: 'wedding' },
-    birthday:  { label: 'Birthday',        icon: 'fa-cake-candles',     theme: 'birthday' },
-    debut:     { label: 'Debut',           icon: 'fa-crown',            theme: 'debut' },
-    corporate: { label: 'Corporate event', icon: 'fa-briefcase',        theme: 'corporate' },
-    meeting:   { label: 'Meeting',         icon: 'fa-person-chalkboard', theme: 'meeting' },
-  }[t] || { label: t && t !== 'other' ? _tc(t) : 'Gathering', icon: 'fa-bell-concierge', theme: 'gathering' });
-  const _SHOW = 4;   // inclusions listed on the card; the rest are summarised as "+N more"
+    wedding: 'Wedding', birthday: 'Birthday', debut: 'Debut', corporate: 'Corporate', meeting: 'Meeting',
+  }[t] || (t && t !== 'other' ? _tc(t) : 'Gathering'));
+  const _theme = (t) => (['wedding', 'birthday', 'debut', 'corporate', 'meeting'].includes(t) ? t : 'gathering');
+  // One small drawing per occasion. Classes: k = ink, s = soft tint, w = white, g = gold, o = ink outline.
+  const _art = {
+    wedding: `<path class="o w5" d="M74 142V86a46 46 0 0 1 92 0v56"/>
+      <circle class="s" cx="74" cy="92" r="9"/><circle class="g" cx="86" cy="62" r="7"/><circle class="s" cx="104" cy="45" r="8"/><circle class="w" cx="120" cy="40" r="6"/>
+      <circle class="s" cx="136" cy="45" r="8"/><circle class="g" cx="154" cy="62" r="7"/><circle class="s" cx="166" cy="92" r="9"/>
+      <circle class="o w5" cx="110" cy="118" r="15"/><circle class="o w5" cx="131" cy="118" r="15"/><path class="g" d="M121 96l3 6 6 1-5 4 2 6-6-3-6 3 2-6-5-4 6-1z"/>`,
+    birthday: `<ellipse class="s" cx="120" cy="140" rx="64" ry="9"/><rect class="k" x="70" y="98" width="100" height="40" rx="9"/>
+      <path class="w" d="M70 108q8 10 16 0t16 0 16 0 16 0 16 0 16 0 4 0v-4H70z"/><rect class="s" x="88" y="68" width="64" height="32" rx="8"/>
+      <rect class="w" x="102" y="50" width="5" height="18" rx="2.5"/><rect class="w" x="117.5" y="46" width="5" height="22" rx="2.5"/><rect class="w" x="133" y="50" width="5" height="18" rx="2.5"/>
+      <path class="g flame" d="M104.5 38c4 5 4 9 0 11-4-2-4-6 0-11zM120 34c4 5 4 9 0 11-4-2-4-6 0-11zM135.5 38c4 5 4 9 0 11-4-2-4-6 0-11z"/>`,
+    debut: `<path class="g" d="M90 64l10 22h40l10-22-18 11-12-22-12 22z"/><rect class="g" x="98" y="84" width="44" height="7" rx="3.5"/>
+      <circle class="w" cx="120" cy="66" r="4.5"/><circle class="g" cx="90" cy="62" r="4"/><circle class="g" cx="150" cy="62" r="4"/><circle class="g" cx="120" cy="50" r="4"/>
+      <text class="k big" x="120" y="146" text-anchor="middle">18</text>`,
+    corporate: `<path class="o" d="M56 34q64 24 128 0"/>
+      <path class="g" d="M70 40h13l-6.5 12zM98 45h13l-6.5 12zM129 45h13l-6.5 12zM157 40h13l-6.5 12z"/>
+      <path class="o" d="M98 58l22 30 22-30"/>
+      <rect class="w" x="88" y="84" width="64" height="62" rx="10"/><rect class="k" x="112" y="80" width="16" height="10" rx="3"/>
+      <circle class="s" cx="120" cy="108" r="11"/><rect class="k" x="104" y="126" width="32" height="5" rx="2.5"/><rect class="s" x="110" y="135" width="20" height="4" rx="2"/>`,
+    meeting: `<rect class="w" x="62" y="40" width="116" height="74" rx="8"/><rect class="o" x="62" y="40" width="116" height="74" rx="8"/>
+      <rect class="s" x="80" y="80" width="14" height="22" rx="3"/><rect class="k" x="102" y="66" width="14" height="36" rx="3"/><rect class="g" x="124" y="56" width="14" height="46" rx="3"/><rect class="s" x="146" y="72" width="14" height="30" rx="3"/>
+      <path class="o" d="M120 114v12M104 142l16-16 16 16"/>`,
+    gathering: `<ellipse class="s" cx="120" cy="134" rx="70" ry="10"/><path class="k" d="M66 128a54 54 0 0 1 108 0z"/><rect class="k" x="58" y="126" width="124" height="8" rx="4"/>
+      <circle class="w" cx="120" cy="70" r="7"/><path class="hl" d="M90 108a34 34 0 0 1 14-24"/>
+      <path class="o steam" d="M98 56q-6-8 0-16t0-16M120 50q-6-8 0-16t0-16M142 56q-6-8 0-16t0-16"/>`,
+  };
 %>
-<ol class="ev-grid" role="list">
-  <% for (const p of _list) { %>
-  <%
-    const o = _occ(p.event_type);
-    const first = String(p.description || '').split(/\r?\n/).map(s => s.trim()).find(Boolean) || '';
-    const href = '/stay/package/' + p.id;
-    const incl = p.includedItems || [], addons = p.addonItems || [];
-    const cheapestAddon = addons.length ? Math.min(...addons.map(a => Number(a.price))) : 0;
-  %>
-  <li class="ev-card ev-card--<%= o.theme %>" id="pkg-<%= p.id %>" data-occasion="<%= p.event_type || 'other' %>">
-    <div class="ev-band" aria-hidden="true">
-      <svg class="ev-confetti" viewBox="0 0 320 120" preserveAspectRatio="xMidYMid slice" focusable="false">
-        <circle cx="34" cy="26" r="4"/><circle cx="96" cy="88" r="3"/><circle cx="270" cy="22" r="5"/><circle cx="214" cy="96" r="3"/><circle cx="150" cy="18" r="2.5"/>
-        <rect x="58" y="62" width="9" height="4" rx="2" transform="rotate(-28 62 64)"/><rect x="236" y="54" width="10" height="4" rx="2" transform="rotate(32 241 56)"/>
-        <rect x="178" y="70" width="8" height="3.5" rx="1.75" transform="rotate(-12 182 72)"/><rect x="292" y="80" width="9" height="4" rx="2" transform="rotate(48 296 82)"/>
-        <path d="M12 96q8-10 16 0t16 0" fill="none" stroke-width="2.5" stroke-linecap="round"/><path d="M118 52q7-9 14 0t14 0" fill="none" stroke-width="2.5" stroke-linecap="round"/>
-      </svg>
-      <span class="ev-icon"><i class="fas <%= o.icon %>"></i></span>
+<ol class="ev-grid" role="list" id="evCards">
+  <% _list.forEach((p, n) => { const t = _theme(p.event_type); %>
+  <li class="ev-card ev-card--<%= t %>" id="pkg-<%= p.id %>" data-occasion="<%= p.event_type || 'other' %>" style="--i: <%= n %>">
+    <div class="ev-media" aria-hidden="true">
+      <svg class="ev-ill" viewBox="0 0 240 160" focusable="false"><%- _art[t] %></svg>
     </div>
     <div class="ev-body">
-      <div class="ev-tags">
-        <span class="ev-occ"><%= o.label %></span>
-        <% if (p.capacity) { %><span class="ev-cap"><i class="fas fa-user-group" aria-hidden="true"></i>Up to <%= p.capacity %> guests</span><% } %>
-      </div>
-      <<%= _H %> class="ev-name"><a href="<%= href %>"><%= p.name %></a></<%= _H %>>
-      <% if (first) { %><p class="ev-desc"><%= first %></p><% } %>
-
-      <div class="ev-price">
-        <p class="ev-amount"><strong><%= formatPrice(p.price) %></strong><span>/ event</span></p>
-        <% if (_o.dp) { %><p class="ev-dp"><%= formatPeso(Math.ceil(p.price * _o.dp / 100)) %> downpayment holds the date</p><% } %>
-      </div>
-
-      <% if (incl.length) { %>
-      <div class="ev-incl">
-        <p class="ev-label">Included</p>
-        <ul role="list">
-          <% for (const i of incl.slice(0, _SHOW)) { %><li><i class="fas fa-check" aria-hidden="true"></i><span><%= i.name %></span></li><% } %>
-        </ul>
-        <% if (incl.length > _SHOW) { %><p class="ev-more">+ <%= incl.length - _SHOW %> more included</p><% } %>
-      </div>
-      <% } else { %>
-      <p class="ev-incl-none"><i class="fas fa-circle-info" aria-hidden="true"></i><span>What’s included is confirmed with the resort when you book. Open the package or <a href="/portal/inquire">ask a question</a>.</span></p>
-      <% } %>
-
-      <div class="ev-foot">
-        <% if (addons.length) { %><p class="ev-addons"><i class="fas fa-plus" aria-hidden="true"></i><%= addons.length %> add-on<%= addons.length === 1 ? '' : 's' %> from <%= formatPrice(cheapestAddon) %></p><% } %>
-        <a href="<%= href %>" class="btn ev-cta">See package details<i class="fas fa-arrow-right" aria-hidden="true"></i><span class="br-sr-only">: <%= p.name %></span></a>
-      </div>
+      <p class="ev-occ"><%= _occ(p.event_type) %></p>
+      <<%= _H %> class="ev-name"><a href="/stay/package/<%= p.id %>"><%= p.name %></a></<%= _H %>>
+      <p class="ev-meta">
+        <span class="ev-amount"><%= formatPrice(p.price) %></span>
+        <% if (p.capacity) { %><span class="ev-cap">up to <%= p.capacity %> guests</span><% } %>
+        <span class="ev-go"><i class="fas fa-arrow-right" aria-hidden="true"></i></span>
+      </p>
     </div>
   </li>
-  <% } %>
+  <% }) %>
 </ol>

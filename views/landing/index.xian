@@ -99,6 +99,8 @@
     <img src="<%= heroImage %>" alt="<%= heroIsDefault ? DEFAULT_HERO_ALT : 'The beachfront at Balai-Reserve' %>"
       <% if (heroIsDefault) { %>width="1382" height="2048"<% } %> fetchpriority="high" decoding="async" />
   </div>
+  <%# Progressive blur: stacked layers, each blurrier and narrower, for a smooth soft-to-sharp ramp. %>
+  <div class="hero-blur" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   <div class="wrap hero-inner">
     <div class="hero-copy">
       <p class="hero-place"><i class="fas fa-location-dot" aria-hidden="true"></i> Brgy. San Antonio, Gloria, Oriental Mindoro</p>
@@ -125,19 +127,19 @@
         <div class="search-fields">
           <div class="field">
             <label for="heroCheckin" id="heroCheckinLabel">Check-in</label>
-            <input type="date" name="checkin" id="heroCheckin" class="form-control" />
+            <input type="date" name="checkin" id="heroCheckin" class="form-control" data-picker="date" data-range-end="heroCheckout" />
           </div>
           <div class="field" id="heroCheckoutField" data-for="room">
             <label for="heroCheckout">Check-out</label>
-            <input type="date" name="checkout" id="heroCheckout" class="form-control" />
+            <input type="date" name="checkout" id="heroCheckout" class="form-control" data-picker="date" data-range-start="heroCheckin" />
           </div>
           <div class="field" data-for="cottage venue" hidden>
             <label for="heroStart" id="heroStartLabel">Time in</label>
-            <input type="time" name="start_time" id="heroStart" class="form-control" value="14:00" step="900" disabled />
+            <input type="time" name="start_time" id="heroStart" class="form-control" value="14:00" step="900" disabled data-picker="time" data-push="heroEnd" />
           </div>
           <div class="field" data-for="cottage venue" hidden>
             <label for="heroEnd" id="heroEndLabel">Time out</label>
-            <input type="time" name="end_time" id="heroEnd" class="form-control" value="22:00" step="900" disabled />
+            <input type="time" name="end_time" id="heroEnd" class="form-control" value="22:00" step="900" disabled data-picker="time" data-after="heroStart" />
           </div>
           <div class="field field-guests">
             <label for="heroGuests">Guests</label>
@@ -287,7 +289,7 @@
         <a href="<%= photo.src %>" class="gal-open" data-photo-index="<%= i %>" aria-label="Open photo <%= i + 1 %> of <%= galleryPhotos.length %><%= photo.caption ? ': ' + photo.caption : '' %>">
           <img src="<%= photo.src %>" alt="<%= photo.alt %>" loading="lazy" decoding="async" width="1200" height="900" />
         </a>
-        <% if (photo.caption) { %><figcaption><%= photo.caption %></figcaption><% } %>
+        <% if (photo.caption) { %><span class="gal-shade" aria-hidden="true"><i></i><i></i><i></i></span><figcaption><%= photo.caption %></figcaption><% } %>
       </figure>
       <% }) %>
       <% if (galleryPhotos.length > 1) { %>
@@ -304,101 +306,76 @@
   <div class="wrap">
     <div class="ev-head">
       <div class="ev-head-text">
-        <p class="ev-kicker"><i class="fas fa-champagne-glasses" aria-hidden="true"></i>Events &amp; celebrations</p>
-        <h2 class="section-title" id="eventsTitle">Celebrate with everyone in one place</h2>
-        <p class="section-sub">
-          Each package is one price for the event, including the items listed under it.
-          Add-ons are priced per item. A <%= dpPercent %>% downpayment holds your booking while staff review it.
-        </p>
-        <ul class="ev-points" role="list">
-          <li><i class="fas fa-tag" aria-hidden="true"></i>One price per event</li>
-          <li><i class="fas fa-calendar-check" aria-hidden="true"></i><%= dpPercent %>% downpayment holds the date</li>
-          <% if (venues.length && venues[0].capacity) { %><li><i class="fas fa-people-group" aria-hidden="true"></i><%= venues[0].name %> fits up to <%= venues[0].capacity %> guests</li><% } %>
-        </ul>
-        <p class="events-more">Planning something different? <a href="/portal/inquire">Ask a question</a><% if (venues.length) { %> or <a href="/stay/venue/<%= venues[0].id %>">book the <%= venues[0].name %></a> on its own<% } %>.</p>
+        <h2 class="ev-title" id="eventsTitle">
+          <span class="br-sr-only">Celebrate weddings, debuts, birthdays and milestones by the sea</span>
+          <span aria-hidden="true">Celebrate <span class="ev-rotator"><span class="ev-words"><span>weddings</span><span>debuts</span><span>birthdays</span><span>milestones</span><span>weddings</span></span></span><br>by the sea.</span>
+        </h2>
+        <p class="ev-lede">One price per event<% if (venues.length && venues[0].capacity) { %> at the <%= venues[0].name %>, for up to <%= venues[0].capacity %> guests<% } %>.</p>
+        <a class="ev-link" href="/portal/inquire">Planning something different? Ask us<i class="fas fa-arrow-right" aria-hidden="true"></i></a>
       </div>
-      <%# Decorative: an open pavilion with string lights, a cake table, balloons, a palm and the sea. %>
+      <%# Decorative: an open pavilion with twinkling string lights, a cake table, floating balloons, a palm and the sea. %>
       <div class="ev-art" aria-hidden="true">
         <svg viewBox="0 0 460 320" focusable="false">
           <defs><clipPath id="evArtClip"><ellipse cx="236" cy="168" rx="218" ry="150"/></clipPath></defs>
-          <ellipse cx="236" cy="168" rx="218" ry="150" fill="#f7f2e8"/>
-          <circle cx="356" cy="78" r="34" fill="#f6dfb0"/>
+          <ellipse cx="236" cy="168" rx="218" ry="150" fill="#f3ece0"/>
+          <circle class="sun" cx="356" cy="78" r="34" fill="#f6dfb0"/>
           <g clip-path="url(#evArtClip)">
-            <path d="M0 236q36-12 72 0t72 0 72 0 72 0 72 0 72 0 72 0v84H0z" fill="#8fcfc4" opacity=".55"/>
-            <path d="M0 254q36-10 72 0t72 0 72 0 72 0 72 0 72 0 72 0v66H0z" fill="#8fcfc4" opacity=".8"/>
-            <path d="M60 272q20-6 40 0M300 282q20-6 40 0M170 296q16-5 32 0" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".8"/>
+            <path class="wave wave-1" d="M-72 236q36-12 72 0t72 0 72 0 72 0 72 0 72 0 72 0 72 0v84H-72z" fill="#8fcfc4" opacity=".55"/>
+            <path class="wave wave-2" d="M-72 254q36-10 72 0t72 0 72 0 72 0 72 0 72 0 72 0 72 0v66H-72z" fill="#8fcfc4" opacity=".85"/>
           </g>
           <rect x="104" y="246" width="252" height="14" rx="5" fill="#e3d2b2"/>
-          <!-- palm -->
-          <path d="M398 258c-6-48-2-92 10-128" stroke="#a9825a" stroke-width="9" stroke-linecap="round" fill="none"/>
-          <path d="M408 130c-22-18-52-16-70 2 24-6 44-2 70-2z" fill="#0f5c66"/>
-          <path d="M408 130c18-24 46-28 66-16-24 0-42 6-66 16z" fill="#2a7d6f"/>
-          <path d="M408 130c-8-26 2-50 22-60-10 20-14 38-22 60z" fill="#2a7d6f"/>
-          <path d="M408 130c10 14 12 36 4 54-2-20-6-36-4-54z" fill="#0f5c66"/>
-          <!-- pavilion -->
+          <g class="palm">
+            <path d="M398 258c-6-48-2-92 10-128" stroke="#a9825a" stroke-width="9" stroke-linecap="round" fill="none"/>
+            <path d="M408 130c-22-18-52-16-70 2 24-6 44-2 70-2z" fill="#0f5c66"/>
+            <path d="M408 130c18-24 46-28 66-16-24 0-42 6-66 16z" fill="#2a7d6f"/>
+            <path d="M408 130c-8-26 2-50 22-60-10 20-14 38-22 60z" fill="#2a7d6f"/>
+            <path d="M408 130c10 14 12 36 4 54-2-20-6-36-4-54z" fill="#0f5c66"/>
+          </g>
           <path d="M116 120 230 58l114 62z" fill="#0f5c66"/>
           <path d="M230 58l114 62h-22L230 68z" fill="#0b4850"/>
           <rect x="112" y="118" width="236" height="12" rx="4" fill="#0b4850"/>
           <rect x="128" y="130" width="11" height="118" rx="3" fill="#fff"/>
           <rect x="224" y="130" width="11" height="118" rx="3" fill="#fff"/>
           <rect x="321" y="130" width="11" height="118" rx="3" fill="#fff"/>
-          <rect x="128" y="130" width="11" height="10" fill="#e7e9e6"/><rect x="224" y="130" width="11" height="10" fill="#e7e9e6"/><rect x="321" y="130" width="11" height="10" fill="#e7e9e6"/>
-          <!-- string lights -->
           <path d="M134 140q48 34 96 10 48 34 96-10" stroke="#14343a" stroke-width="1.6" fill="none"/>
           <g fill="#e8b96a">
-            <circle cx="150" cy="152" r="9" opacity=".25"/><circle cx="150" cy="152" r="4.2"/>
-            <circle cx="172" cy="160" r="9" opacity=".25"/><circle cx="172" cy="160" r="4.2"/>
-            <circle cx="196" cy="160" r="9" opacity=".25"/><circle cx="196" cy="160" r="4.2"/>
-            <circle cx="216" cy="153" r="9" opacity=".25"/><circle cx="216" cy="153" r="4.2"/>
-            <circle cx="244" cy="153" r="9" opacity=".25"/><circle cx="244" cy="153" r="4.2"/>
-            <circle cx="266" cy="160" r="9" opacity=".25"/><circle cx="266" cy="160" r="4.2"/>
-            <circle cx="290" cy="160" r="9" opacity=".25"/><circle cx="290" cy="160" r="4.2"/>
-            <circle cx="312" cy="152" r="9" opacity=".25"/><circle cx="312" cy="152" r="4.2"/>
+            <g class="bulb"><circle cx="150" cy="152" r="9" opacity=".3"/><circle cx="150" cy="152" r="4.2"/></g>
+            <g class="bulb"><circle cx="172" cy="160" r="9" opacity=".3"/><circle cx="172" cy="160" r="4.2"/></g>
+            <g class="bulb"><circle cx="196" cy="160" r="9" opacity=".3"/><circle cx="196" cy="160" r="4.2"/></g>
+            <g class="bulb"><circle cx="216" cy="153" r="9" opacity=".3"/><circle cx="216" cy="153" r="4.2"/></g>
+            <g class="bulb"><circle cx="244" cy="153" r="9" opacity=".3"/><circle cx="244" cy="153" r="4.2"/></g>
+            <g class="bulb"><circle cx="266" cy="160" r="9" opacity=".3"/><circle cx="266" cy="160" r="4.2"/></g>
+            <g class="bulb"><circle cx="290" cy="160" r="9" opacity=".3"/><circle cx="290" cy="160" r="4.2"/></g>
+            <g class="bulb"><circle cx="312" cy="152" r="9" opacity=".3"/><circle cx="312" cy="152" r="4.2"/></g>
           </g>
-          <!-- cake table -->
           <path d="M168 214h124l-7 34h-110z" fill="#fff"/>
           <path d="M168 214h124v7H168z" fill="#e7f3f0"/>
-          <path d="M184 221q8 12 16 0t16 0 16 0 16 0 16 0 16 0" stroke="#8fcfc4" stroke-width="2.5" fill="none"/>
           <rect x="210" y="190" width="40" height="24" rx="4" fill="#f2c4b3"/>
           <rect x="216" y="172" width="28" height="19" rx="4" fill="#fff"/>
-          <path d="M210 198q5 5 10 0t10 0 10 0 10 0" stroke="#fff" stroke-width="3" fill="none"/>
           <rect x="228.5" y="160" width="3" height="12" rx="1.5" fill="#e8b96a"/>
-          <path d="M230 150c4 5 4 9 0 11-4-2-4-6 0-11z" fill="#f59e0b"/>
-          <path d="M186 186h14l-3 14h-8zM194 200v12M189 213h10" stroke="#0f5c66" stroke-width="2" fill="#fcfbf8" stroke-linejoin="round" stroke-linecap="round"/>
-          <path d="M262 186h14l-3 14h-8zM270 200v12M265 213h10" stroke="#0f5c66" stroke-width="2" fill="#fcfbf8" stroke-linejoin="round" stroke-linecap="round"/>
-          <!-- balloons -->
-          <path d="M62 116q8 50 70 88M90 100q10 50 42 104M76 140q20 36 56 64" stroke="#14343a" stroke-width="1.2" fill="none" opacity=".55"/>
-          <ellipse cx="62" cy="94" rx="19" ry="23" fill="#e07a5f"/><path d="M58 116l4 4 4-4z" fill="#e07a5f"/>
-          <ellipse cx="92" cy="78" rx="19" ry="23" fill="#8fcfc4"/><path d="M88 100l4 4 4-4z" fill="#8fcfc4"/>
-          <ellipse cx="78" cy="120" rx="17" ry="21" fill="#e8b96a"/><path d="M74 140l4 4 4-4z" fill="#e8b96a"/>
-          <path d="M54 84q4-8 10-8M84 68q4-8 10-8M71 110q4-7 9-7" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".7"/>
-          <!-- confetti -->
-          <g opacity=".9">
+          <path class="flame" d="M230 150c4 5 4 9 0 11-4-2-4-6 0-11z" fill="#f59e0b"/>
+          <path d="M186 186h14l-3 14h-8zM194 200v12M189 213h10M262 186h14l-3 14h-8zM270 200v12M265 213h10" stroke="#0f5c66" stroke-width="2" fill="#fcfbf8" stroke-linejoin="round" stroke-linecap="round"/>
+          <g class="balloons">
+            <path d="M62 116q8 50 70 88M90 100q10 50 42 104M76 140q20 36 56 64" stroke="#14343a" stroke-width="1.2" fill="none" opacity=".5"/>
+            <ellipse cx="62" cy="94" rx="19" ry="23" fill="#e07a5f"/><ellipse cx="92" cy="78" rx="19" ry="23" fill="#8fcfc4"/><ellipse cx="78" cy="120" rx="17" ry="21" fill="#e8b96a"/>
+            <path d="M54 84q4-8 10-8M84 68q4-8 10-8M71 110q4-7 9-7" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".7"/>
+          </g>
+          <g class="confetti">
             <rect x="150" y="40" width="9" height="4" rx="2" fill="#e07a5f" transform="rotate(-24 154 42)"/>
             <rect x="300" y="36" width="9" height="4" rx="2" fill="#0f5c66" transform="rotate(30 304 38)"/>
-            <rect x="388" y="186" width="9" height="4" rx="2" fill="#e8b96a" transform="rotate(-40 392 188)"/>
-            <rect x="40" y="186" width="9" height="4" rx="2" fill="#0f5c66" transform="rotate(20 44 188)"/>
             <circle cx="196" cy="34" r="3.5" fill="#e8b96a"/><circle cx="270" cy="26" r="3" fill="#8fcfc4"/>
-            <circle cx="420" cy="230" r="3" fill="#e07a5f"/><circle cx="30" cy="150" r="3" fill="#e8b96a"/>
           </g>
         </svg>
       </div>
     </div>
 
-    <% if (occasions.length > 1) { %>
-    <div class="occ-filter" data-occ-filter hidden>
-      <p class="occ-label" id="occLabel">Show packages for</p>
-      <div class="occ-chips" role="group" aria-labelledby="occLabel">
-        <button type="button" class="occ-chip" data-occ="" aria-pressed="true">All occasions <span><%= packages.length %></span></button>
-        <% for (const o of occasions) { %>
-        <button type="button" class="occ-chip" data-occ="<%= o.key %>" aria-pressed="false"><%= o.label %> <span><%= o.list.length %></span></button>
-        <% } %>
+    <div class="ev-row">
+      <div class="ev-row-nav" data-ev-nav hidden>
+        <button type="button" class="ev-nav" data-ev-step="-1" aria-controls="evCards" aria-label="Previous packages"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>
+        <button type="button" class="ev-nav" data-ev-step="1" aria-controls="evCards" aria-label="Next packages"><i class="fas fa-arrow-right" aria-hidden="true"></i></button>
       </div>
-      <p class="br-sr-only" id="occStatus" aria-live="polite"></p>
+      <%include('partials/event-cards', Object.assign({}, __locals, { evCards: { list: packages, h: 'h3' } }))%>
     </div>
-    <% } %>
-
-    <%include('partials/event-cards', Object.assign({}, __locals, { evCards: { list: packages, dp: dpPercent, h: 'h3' } }))%>
   </div>
 </section>
 <% } %>
@@ -500,28 +477,49 @@
 
 <%# ── Location and contact (Settings > General); empty rows are hidden ── %>
 <section class="section contact" id="contact" aria-labelledby="contactTitle">
-  <div class="wrap contact-grid">
-    <div>
+  <% const dirUrl = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(address); %>
+  <div class="wrap gh-grid">
+    <div class="gh-text">
       <h2 class="section-title" id="contactTitle">Getting here</h2>
-      <address class="contact-address"><%= address %></address>
-      <p><a href="<%= mapsUrl %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener noreferrer"><i class="fas fa-map-location-dot" aria-hidden="true"></i> Directions in Google Maps<span class="br-sr-only"> (opens in a new tab)</span></a></p>
-      <p class="contact-arrival">
-        Check-in from <strong><%= checkIn %></strong>, check-out by <strong><%= checkOut %></strong>.
-        Bring the QR code from your booking page; front desk staff check you in.
-      </p>
+      <address class="gh-address"><%= address %></address>
+      <p class="gh-times">Check-in <strong><%= checkIn %></strong><span aria-hidden="true">·</span>Check-out <strong><%= checkOut %></strong></p>
+      <a class="btn btn-primary gh-dir" href="<%= dirUrl %>" target="_blank" rel="noopener noreferrer"><i class="fas fa-diamond-turn-right" aria-hidden="true"></i>Get directions<span class="br-sr-only"> in Google Maps (opens in a new tab)</span></a>
     </div>
-    <dl class="contact-list">
-      <% if (site.resort_phone) { %>
-      <div><dt>Phone</dt><dd><a href="tel:<%= String(site.resort_phone).replace(/[^\d+]/g, '') %>"><%= site.resort_phone %></a></dd></div>
-      <% } %>
-      <% if (site.resort_email) { %>
-      <div><dt>Email</dt><dd><a href="mailto:<%= site.resort_email %>"><%= site.resort_email %></a></dd></div>
-      <% } %>
-      <div><dt>Facebook</dt><dd><a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener noreferrer">facebook.com/BalaiMiciano<span class="br-sr-only"> (opens in a new tab)</span></a></dd></div>
-      <div><dt>Questions</dt><dd><a href="/portal/inquire">Send an inquiry</a> and we’ll reply on the site.</dd></div>
-      <% if (site.cancellation_policy) { %><div><dt>Policies</dt><dd><a href="#cancellation-policy">Cancellation policy</a> · <a href="#how-to-book">How booking works</a></dd></div><% } %>
-    </dl>
+
+    <div class="gh-reach">
+      <h3 class="gh-sub">Reach us</h3>
+      <ul class="gh-socials" role="list">
+        <li><a class="gh-social gh-fb" href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener noreferrer">
+          <span class="gh-ico" aria-hidden="true"><i class="fab fa-facebook-f"></i></span>
+          <span class="gh-s-text"><strong>Facebook</strong><span>BalaiMiciano</span></span>
+          <i class="fas fa-arrow-right gh-ext" aria-hidden="true"></i><span class="br-sr-only"> (opens in a new tab)</span></a></li>
+        <li><a class="gh-social gh-maps" href="<%= dirUrl %>" target="_blank" rel="noopener noreferrer">
+          <span class="gh-ico" aria-hidden="true"><i class="fas fa-location-dot"></i></span>
+          <span class="gh-s-text"><strong>Google Maps</strong><span>Brgy. San Antonio, Gloria</span></span>
+          <i class="fas fa-arrow-right gh-ext" aria-hidden="true"></i><span class="br-sr-only"> (opens in a new tab)</span></a></li>
+        <li><a class="gh-social gh-msg" href="/portal/inquire">
+          <span class="gh-ico" aria-hidden="true"><i class="fas fa-comment"></i></span>
+          <span class="gh-s-text"><strong>Message us</strong><span>We reply on the site</span></span>
+          <i class="fas fa-arrow-right gh-ext" aria-hidden="true"></i></a></li>
+        <% if (site.resort_phone) { %>
+        <li><a class="gh-social gh-phone" href="tel:<%= String(site.resort_phone).replace(/[^\d+]/g, '') %>">
+          <span class="gh-ico" aria-hidden="true"><i class="fas fa-phone"></i></span>
+          <span class="gh-s-text"><strong>Call</strong><span><%= site.resort_phone %></span></span>
+          <i class="fas fa-arrow-right gh-ext" aria-hidden="true"></i></a></li>
+        <% } %>
+        <% if (site.resort_email) { %>
+        <li><a class="gh-social gh-mail" href="mailto:<%= site.resort_email %>">
+          <span class="gh-ico" aria-hidden="true"><i class="fas fa-envelope"></i></span>
+          <span class="gh-s-text"><strong>Email</strong><span><%= site.resort_email %></span></span>
+          <i class="fas fa-arrow-right gh-ext" aria-hidden="true"></i></a></li>
+        <% } %>
+      </ul>
+      <% if (site.cancellation_policy) { %><p class="gh-policies"><a href="#cancellation-policy">Cancellation policy</a><span aria-hidden="true">·</span><a href="#how-to-book">How booking works</a></p><% } %>
+    </div>
   </div>
 </section>
 
 <%include('portal/_lightbox')%>
+<script src="/js/photo-stack.js" defer></script>
+<script src="/js/br-datepicker.js" defer></script>
+<script src="/js/br-fieldpicker.js" defer></script>

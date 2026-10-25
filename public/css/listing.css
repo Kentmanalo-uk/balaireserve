@@ -513,3 +513,57 @@ body.sheet-open, body.lb-open { overflow: hidden; }
   .dg-item:hover img { transform: none; }
   .js .bp.is-open, .br-lb[open] { animation: none; }
 }
+
+/* ── Tile cards: text on the photo over a progressive blur ─────────────
+   The photo is the whole card; a layered blur rises from the bottom (soft
+   behind the words, sharp at the top) with a gentle dark fade so the white
+   text always reads. Row and feature cards keep the text below the photo. */
+.lst--tile .lst-media { aspect-ratio: 4 / 5; }
+@media (min-width: 640px) { .lst--tile .lst-media { aspect-ratio: 1 / 1; } }
+@media (min-width: 1024px) {
+  .lst--tile .lst-media { aspect-ratio: 4 / 5; }
+  .lst-grid--2 .lst--tile .lst-media { aspect-ratio: 16 / 11; }   /* two per row: wide enough not to tower */
+}
+.lst-shade { position: absolute; left: 0; right: 0; bottom: 0; height: 64%; z-index: 1; pointer-events: none; }
+.lst-shade i { position: absolute; inset: 0; }
+.lst-shade i:nth-child(1) { -webkit-backdrop-filter: blur(2px) saturate(1.1); backdrop-filter: blur(2px) saturate(1.1);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 45%, transparent 100%); mask-image: linear-gradient(0deg, #000 0%, #000 45%, transparent 100%); }
+.lst-shade i:nth-child(2) { -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 35%, transparent 75%); mask-image: linear-gradient(0deg, #000 0%, #000 35%, transparent 75%); }
+.lst-shade i:nth-child(3) { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, #000 22%, transparent 55%); mask-image: linear-gradient(0deg, #000 0%, #000 22%, transparent 55%); }
+.lst-shade i:nth-child(4) { -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+  -webkit-mask-image: linear-gradient(0deg, #000 0%, transparent 38%); mask-image: linear-gradient(0deg, #000 0%, transparent 38%); }
+.lst-shade::after {
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(0deg, rgba(11, 28, 32, .74) 0%, rgba(11, 28, 32, .42) 40%, rgba(11, 28, 32, 0) 100%);
+}
+.lst--tile .lst-count { top: 12px; bottom: auto; right: 12px; background: rgba(11, 28, 32, .45); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+
+.lst--tile .lst-body {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
+  padding: 18px 18px 16px; pointer-events: none; color: #fff;
+}
+.lst--tile .lst-name { margin-bottom: 2px; font-family: var(--font-display); font-size: 1.4375rem; font-weight: 600; line-height: 1.15; color: #fff; text-shadow: 0 1px 14px rgba(0, 0, 0, .35); }
+.lst--tile .lst-name a { color: #fff; pointer-events: auto; }
+.lst--tile .lst-meta { margin-bottom: 0; color: rgba(255, 255, 255, .86); }
+.lst--tile .lst-hl, .lst--tile .lst-desc { display: none; }
+.lst--tile .lst-foot { align-items: center; padding-top: 12px; margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, .22); }
+.lst--tile .lst-price, .lst--tile .lst-unit, .lst--tile .lst-sub { color: rgba(255, 255, 255, .82); }
+.lst--tile .lst-price strong { color: #fff; font-size: 1.375rem; }
+.lst--tile .lst-avail { color: #bff0dc; }
+.lst--tile .lst-actions { pointer-events: auto; }
+.lst--tile .lst-go {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 999px;
+  background: rgba(255, 255, 255, .16); border: 1px solid rgba(255, 255, 255, .34); color: #fff;
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); font-size: .8125rem; font-weight: 600;
+  transition: background-color .25s var(--ease-out), color .25s var(--ease-out);
+}
+.lst--tile:hover .lst-go { background: #fff; color: var(--color-ocean-900); }
+/* No photos yet: a calm sea-coloured card so the white text still reads. */
+.lst--tile .photo-pending {
+  justify-content: flex-start; align-content: start; padding-top: 16%;
+  background: radial-gradient(120% 90% at 30% 10%, #2a6f78 0%, #14343a 75%); color: rgba(255, 255, 255, .72);
+}
+.lst--tile .photo-pending i { color: #fff; opacity: .6; }
+.lst--tile.is-unavailable .lst-slide img { opacity: 1; }

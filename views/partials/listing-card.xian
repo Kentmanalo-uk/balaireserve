@@ -55,6 +55,7 @@
         </a>
       <% } %>
     </div>
+    <% if (_var === 'tile') { %><div class="lst-shade" aria-hidden="true"><i></i><i></i><i></i><i></i></div><% } %>
     <% if (_photos.length > 1) { %>
     <button type="button" class="lst-nav lst-prev" data-carousel-step="-1" aria-label="Previous photo of <%= _r.name %>"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
     <button type="button" class="lst-nav lst-next" data-carousel-step="1" aria-label="Next photo of <%= _r.name %>"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>

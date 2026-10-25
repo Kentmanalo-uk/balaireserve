@@ -260,6 +260,14 @@
   font-size: var(--br-fs-small);
 }
 .photo-pending i { font-size: 1.25rem; opacity: .7; }
+/* No photo yet: the resort's badge, softened, instead of a camera icon.
+   QR-code placeholders (Settings) keep their own icon. */
+.photo-pending:not(:has(.fa-qrcode)) > i { display: none; }
+.photo-pending:not(:has(.fa-qrcode))::before {
+  content: ''; flex: 0 0 auto; width: min(88px, 42%); aspect-ratio: 1;
+  background: url('/images/brand/balai-icon-192.png') center / cover no-repeat;
+  border-radius: 50%; opacity: .45; box-shadow: 0 0 0 3px rgba(255, 255, 255, .55);
+}
 
 /* ── Reduced motion ──────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {

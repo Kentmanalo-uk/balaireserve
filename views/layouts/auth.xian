@@ -27,11 +27,12 @@
         <span class="auth-mark-name">Balai-Reserve</span>
         <span class="auth-mark-sub">Gloria, Oriental Mindoro</span>
       </a>
-      <a href="/" class="auth-back-home"><i class="fas fa-arrow-left" aria-hidden="true"></i>Back to the resort</a>
+      <a href="/" class="auth-back-home" aria-label="Back to the resort"><i class="fas fa-arrow-left" aria-hidden="true"></i><span>Back<span class="auth-back-more"> to the resort</span></span></a>
     </header>
 
     <%# The resort's own beachfront photo, as on the landing hero %>
     <div class="auth-photo">
+      <div class="auth-blur" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
       <div class="auth-photo-text">
         <p class="auth-photo-tagline">Your Home Away From Home</p>
         <p class="auth-photo-place">Brgy. San Antonio, Gloria, Oriental Mindoro</p>

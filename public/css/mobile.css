@@ -106,7 +106,6 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
    The next card peeks in so it is clear there is more. */
 .landing-body .lst-grid,
 .landing-body .pk-rows,
-.landing-body .ev-grid,
 .landing-body .review-list {
   display: grid; grid-auto-flow: column; grid-auto-columns: 84%; grid-template-columns: none;
   gap: 14px; overflow-x: auto; overscroll-behavior-x: contain;
@@ -117,19 +116,15 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
 }
 .landing-body .lst-grid::-webkit-scrollbar,
 .landing-body .pk-rows::-webkit-scrollbar,
-.landing-body .ev-grid::-webkit-scrollbar,
 .landing-body .review-list::-webkit-scrollbar { display: none; }
 .landing-body .lst-grid > *,
 .landing-body .pk-rows > *,
-.landing-body .ev-grid > *,
 .landing-body .review-list > * { scroll-snap-align: start; min-width: 0; position: relative; }
-/* Event cards in the swipe row: a slightly shorter band, no hover lift on touch. */
-.landing-body .ev-grid { padding-top: 6px; padding-bottom: 18px; }
-.landing-body .ev-band { height: 92px; }
+/* Event cards: a wider card on phones, no hover lift on touch. */
+.landing-body .ev-grid { grid-auto-columns: 80%; gap: 14px; }
 .landing-body .ev-card:hover { transform: none; }
-.landing-body .ev-name { font-size: 1.375rem; }
-.landing-body .ev-art { max-width: 300px; }
-.landing-body .ev-head { gap: var(--space-4); margin-top: 8px; }
+.landing-body .ev-art { max-width: 340px; }
+.landing-body .ev-row { margin-top: var(--space-6); }
 /* Package rows read as cards in the row. */
 .landing-body .pk-rows .pk-row {
   height: 100%; padding: 18px; border: 1px solid var(--color-divider); border-radius: var(--radius-media);
