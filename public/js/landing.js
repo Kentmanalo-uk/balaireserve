@@ -234,7 +234,7 @@
   if (occBox) {
     occBox.hidden = false;
     var chips = occBox.querySelectorAll('[data-occ]');
-    var rows = document.querySelectorAll('#events .pk-row[data-occasion]');
+    var rows = document.querySelectorAll('#events [data-occasion]');
     var known = ['wedding', 'debut', 'birthday', 'corporate', 'meeting'];
     var occStatus = document.getElementById('occStatus');
     chips.forEach(function (c) {

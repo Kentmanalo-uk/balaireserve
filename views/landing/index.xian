@@ -302,15 +302,87 @@
 <% if (packages.length) { %>
 <section class="section events" id="events" aria-labelledby="eventsTitle">
   <div class="wrap">
-    <div class="events-head">
-      <div>
+    <div class="ev-head">
+      <div class="ev-head-text">
+        <p class="ev-kicker"><i class="fas fa-champagne-glasses" aria-hidden="true"></i>Events &amp; celebrations</p>
         <h2 class="section-title" id="eventsTitle">Celebrate with everyone in one place</h2>
         <p class="section-sub">
           Each package is one price for the event, including the items listed under it.
           Add-ons are priced per item. A <%= dpPercent %>% downpayment holds your booking while staff review it.
         </p>
+        <ul class="ev-points" role="list">
+          <li><i class="fas fa-tag" aria-hidden="true"></i>One price per event</li>
+          <li><i class="fas fa-calendar-check" aria-hidden="true"></i><%= dpPercent %>% downpayment holds the date</li>
+          <% if (venues.length && venues[0].capacity) { %><li><i class="fas fa-people-group" aria-hidden="true"></i><%= venues[0].name %> fits up to <%= venues[0].capacity %> guests</li><% } %>
+        </ul>
+        <p class="events-more">Planning something different? <a href="/portal/inquire">Ask a question</a><% if (venues.length) { %> or <a href="/stay/venue/<%= venues[0].id %>">book the <%= venues[0].name %></a> on its own<% } %>.</p>
       </div>
-      <p class="events-more">Planning something different? <a href="/portal/inquire">Ask a question</a><% if (venues.length) { %> or <a href="/stay/venue/<%= venues[0].id %>">book the <%= venues[0].name %></a> on its own<% } %>.</p>
+      <%# Decorative: an open pavilion with string lights, a cake table, balloons, a palm and the sea. %>
+      <div class="ev-art" aria-hidden="true">
+        <svg viewBox="0 0 460 320" focusable="false">
+          <defs><clipPath id="evArtClip"><ellipse cx="236" cy="168" rx="218" ry="150"/></clipPath></defs>
+          <ellipse cx="236" cy="168" rx="218" ry="150" fill="#f7f2e8"/>
+          <circle cx="356" cy="78" r="34" fill="#f6dfb0"/>
+          <g clip-path="url(#evArtClip)">
+            <path d="M0 236q36-12 72 0t72 0 72 0 72 0 72 0 72 0 72 0v84H0z" fill="#8fcfc4" opacity=".55"/>
+            <path d="M0 254q36-10 72 0t72 0 72 0 72 0 72 0 72 0 72 0v66H0z" fill="#8fcfc4" opacity=".8"/>
+            <path d="M60 272q20-6 40 0M300 282q20-6 40 0M170 296q16-5 32 0" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".8"/>
+          </g>
+          <rect x="104" y="246" width="252" height="14" rx="5" fill="#e3d2b2"/>
+          <!-- palm -->
+          <path d="M398 258c-6-48-2-92 10-128" stroke="#a9825a" stroke-width="9" stroke-linecap="round" fill="none"/>
+          <path d="M408 130c-22-18-52-16-70 2 24-6 44-2 70-2z" fill="#0f5c66"/>
+          <path d="M408 130c18-24 46-28 66-16-24 0-42 6-66 16z" fill="#2a7d6f"/>
+          <path d="M408 130c-8-26 2-50 22-60-10 20-14 38-22 60z" fill="#2a7d6f"/>
+          <path d="M408 130c10 14 12 36 4 54-2-20-6-36-4-54z" fill="#0f5c66"/>
+          <!-- pavilion -->
+          <path d="M116 120 230 58l114 62z" fill="#0f5c66"/>
+          <path d="M230 58l114 62h-22L230 68z" fill="#0b4850"/>
+          <rect x="112" y="118" width="236" height="12" rx="4" fill="#0b4850"/>
+          <rect x="128" y="130" width="11" height="118" rx="3" fill="#fff"/>
+          <rect x="224" y="130" width="11" height="118" rx="3" fill="#fff"/>
+          <rect x="321" y="130" width="11" height="118" rx="3" fill="#fff"/>
+          <rect x="128" y="130" width="11" height="10" fill="#e7e9e6"/><rect x="224" y="130" width="11" height="10" fill="#e7e9e6"/><rect x="321" y="130" width="11" height="10" fill="#e7e9e6"/>
+          <!-- string lights -->
+          <path d="M134 140q48 34 96 10 48 34 96-10" stroke="#14343a" stroke-width="1.6" fill="none"/>
+          <g fill="#e8b96a">
+            <circle cx="150" cy="152" r="9" opacity=".25"/><circle cx="150" cy="152" r="4.2"/>
+            <circle cx="172" cy="160" r="9" opacity=".25"/><circle cx="172" cy="160" r="4.2"/>
+            <circle cx="196" cy="160" r="9" opacity=".25"/><circle cx="196" cy="160" r="4.2"/>
+            <circle cx="216" cy="153" r="9" opacity=".25"/><circle cx="216" cy="153" r="4.2"/>
+            <circle cx="244" cy="153" r="9" opacity=".25"/><circle cx="244" cy="153" r="4.2"/>
+            <circle cx="266" cy="160" r="9" opacity=".25"/><circle cx="266" cy="160" r="4.2"/>
+            <circle cx="290" cy="160" r="9" opacity=".25"/><circle cx="290" cy="160" r="4.2"/>
+            <circle cx="312" cy="152" r="9" opacity=".25"/><circle cx="312" cy="152" r="4.2"/>
+          </g>
+          <!-- cake table -->
+          <path d="M168 214h124l-7 34h-110z" fill="#fff"/>
+          <path d="M168 214h124v7H168z" fill="#e7f3f0"/>
+          <path d="M184 221q8 12 16 0t16 0 16 0 16 0 16 0 16 0" stroke="#8fcfc4" stroke-width="2.5" fill="none"/>
+          <rect x="210" y="190" width="40" height="24" rx="4" fill="#f2c4b3"/>
+          <rect x="216" y="172" width="28" height="19" rx="4" fill="#fff"/>
+          <path d="M210 198q5 5 10 0t10 0 10 0 10 0" stroke="#fff" stroke-width="3" fill="none"/>
+          <rect x="228.5" y="160" width="3" height="12" rx="1.5" fill="#e8b96a"/>
+          <path d="M230 150c4 5 4 9 0 11-4-2-4-6 0-11z" fill="#f59e0b"/>
+          <path d="M186 186h14l-3 14h-8zM194 200v12M189 213h10" stroke="#0f5c66" stroke-width="2" fill="#fcfbf8" stroke-linejoin="round" stroke-linecap="round"/>
+          <path d="M262 186h14l-3 14h-8zM270 200v12M265 213h10" stroke="#0f5c66" stroke-width="2" fill="#fcfbf8" stroke-linejoin="round" stroke-linecap="round"/>
+          <!-- balloons -->
+          <path d="M62 116q8 50 70 88M90 100q10 50 42 104M76 140q20 36 56 64" stroke="#14343a" stroke-width="1.2" fill="none" opacity=".55"/>
+          <ellipse cx="62" cy="94" rx="19" ry="23" fill="#e07a5f"/><path d="M58 116l4 4 4-4z" fill="#e07a5f"/>
+          <ellipse cx="92" cy="78" rx="19" ry="23" fill="#8fcfc4"/><path d="M88 100l4 4 4-4z" fill="#8fcfc4"/>
+          <ellipse cx="78" cy="120" rx="17" ry="21" fill="#e8b96a"/><path d="M74 140l4 4 4-4z" fill="#e8b96a"/>
+          <path d="M54 84q4-8 10-8M84 68q4-8 10-8M71 110q4-7 9-7" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".7"/>
+          <!-- confetti -->
+          <g opacity=".9">
+            <rect x="150" y="40" width="9" height="4" rx="2" fill="#e07a5f" transform="rotate(-24 154 42)"/>
+            <rect x="300" y="36" width="9" height="4" rx="2" fill="#0f5c66" transform="rotate(30 304 38)"/>
+            <rect x="388" y="186" width="9" height="4" rx="2" fill="#e8b96a" transform="rotate(-40 392 188)"/>
+            <rect x="40" y="186" width="9" height="4" rx="2" fill="#0f5c66" transform="rotate(20 44 188)"/>
+            <circle cx="196" cy="34" r="3.5" fill="#e8b96a"/><circle cx="270" cy="26" r="3" fill="#8fcfc4"/>
+            <circle cx="420" cy="230" r="3" fill="#e07a5f"/><circle cx="30" cy="150" r="3" fill="#e8b96a"/>
+          </g>
+        </svg>
+      </div>
     </div>
 
     <% if (occasions.length > 1) { %>
@@ -326,7 +398,7 @@
     </div>
     <% } %>
 
-    <%include('partials/package-rows', Object.assign({}, __locals, { pkgRows: { list: packages, dp: dpPercent, h: 'h3' } }))%>
+    <%include('partials/event-cards', Object.assign({}, __locals, { evCards: { list: packages, dp: dpPercent, h: 'h3' } }))%>
   </div>
 </section>
 <% } %>

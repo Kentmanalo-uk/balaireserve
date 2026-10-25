@@ -1,0 +1,73 @@
+<%#
+  Event packages as illustrated cards — homepage "Celebrate" section only.
+  (The hall detail page and the portal venues page keep partials/package-rows.)
+  Include with Object.assign({}, __locals, { evCards: { list, dp, h } }).
+  Each package needs p.includedItems and p.addonItems (see the landing route handler).
+%>
+<%
+  const _o = evCards || {};
+  const _list = Array.isArray(_o.list) ? _o.list : [];
+  const _H = _o.h || 'h3';
+  const _tc = (s) => String(s || '').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  // Occasion → label, icon and colour theme of the card's top band.
+  const _occ = (t) => ({
+    wedding:   { label: 'Wedding',         icon: 'fa-heart',            theme: 'wedding' },
+    birthday:  { label: 'Birthday',        icon: 'fa-cake-candles',     theme: 'birthday' },
+    debut:     { label: 'Debut',           icon: 'fa-crown',            theme: 'debut' },
+    corporate: { label: 'Corporate event', icon: 'fa-briefcase',        theme: 'corporate' },
+    meeting:   { label: 'Meeting',         icon: 'fa-person-chalkboard', theme: 'meeting' },
+  }[t] || { label: t && t !== 'other' ? _tc(t) : 'Gathering', icon: 'fa-bell-concierge', theme: 'gathering' });
+  const _SHOW = 4;   // inclusions listed on the card; the rest are summarised as "+N more"
+%>
+<ol class="ev-grid" role="list">
+  <% for (const p of _list) { %>
+  <%
+    const o = _occ(p.event_type);
+    const first = String(p.description || '').split(/\r?\n/).map(s => s.trim()).find(Boolean) || '';
+    const href = '/stay/package/' + p.id;
+    const incl = p.includedItems || [], addons = p.addonItems || [];
+    const cheapestAddon = addons.length ? Math.min(...addons.map(a => Number(a.price))) : 0;
+  %>
+  <li class="ev-card ev-card--<%= o.theme %>" id="pkg-<%= p.id %>" data-occasion="<%= p.event_type || 'other' %>">
+    <div class="ev-band" aria-hidden="true">
+      <svg class="ev-confetti" viewBox="0 0 320 120" preserveAspectRatio="xMidYMid slice" focusable="false">
+        <circle cx="34" cy="26" r="4"/><circle cx="96" cy="88" r="3"/><circle cx="270" cy="22" r="5"/><circle cx="214" cy="96" r="3"/><circle cx="150" cy="18" r="2.5"/>
+        <rect x="58" y="62" width="9" height="4" rx="2" transform="rotate(-28 62 64)"/><rect x="236" y="54" width="10" height="4" rx="2" transform="rotate(32 241 56)"/>
+        <rect x="178" y="70" width="8" height="3.5" rx="1.75" transform="rotate(-12 182 72)"/><rect x="292" y="80" width="9" height="4" rx="2" transform="rotate(48 296 82)"/>
+        <path d="M12 96q8-10 16 0t16 0" fill="none" stroke-width="2.5" stroke-linecap="round"/><path d="M118 52q7-9 14 0t14 0" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+      <span class="ev-icon"><i class="fas <%= o.icon %>"></i></span>
+    </div>
+    <div class="ev-body">
+      <div class="ev-tags">
+        <span class="ev-occ"><%= o.label %></span>
+        <% if (p.capacity) { %><span class="ev-cap"><i class="fas fa-user-group" aria-hidden="true"></i>Up to <%= p.capacity %> guests</span><% } %>
+      </div>
+      <<%= _H %> class="ev-name"><a href="<%= href %>"><%= p.name %></a></<%= _H %>>
+      <% if (first) { %><p class="ev-desc"><%= first %></p><% } %>
+
+      <div class="ev-price">
+        <p class="ev-amount"><strong><%= formatPrice(p.price) %></strong><span>/ event</span></p>
+        <% if (_o.dp) { %><p class="ev-dp"><%= formatPeso(Math.ceil(p.price * _o.dp / 100)) %> downpayment holds the date</p><% } %>
+      </div>
+
+      <% if (incl.length) { %>
+      <div class="ev-incl">
+        <p class="ev-label">Included</p>
+        <ul role="list">
+          <% for (const i of incl.slice(0, _SHOW)) { %><li><i class="fas fa-check" aria-hidden="true"></i><span><%= i.name %></span></li><% } %>
+        </ul>
+        <% if (incl.length > _SHOW) { %><p class="ev-more">+ <%= incl.length - _SHOW %> more included</p><% } %>
+      </div>
+      <% } else { %>
+      <p class="ev-incl-none"><i class="fas fa-circle-info" aria-hidden="true"></i><span>What’s included is confirmed with the resort when you book. Open the package or <a href="/portal/inquire">ask a question</a>.</span></p>
+      <% } %>
+
+      <div class="ev-foot">
+        <% if (addons.length) { %><p class="ev-addons"><i class="fas fa-plus" aria-hidden="true"></i><%= addons.length %> add-on<%= addons.length === 1 ? '' : 's' %> from <%= formatPrice(cheapestAddon) %></p><% } %>
+        <a href="<%= href %>" class="btn ev-cta">See package details<i class="fas fa-arrow-right" aria-hidden="true"></i><span class="br-sr-only">: <%= p.name %></span></a>
+      </div>
+    </div>
+  </li>
+  <% } %>
+</ol>

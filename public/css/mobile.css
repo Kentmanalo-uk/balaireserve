@@ -69,6 +69,35 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
 .modal-footer { gap: 8px; }
 .modal-footer > .btn { flex: 1 1 0; min-height: 46px; margin: 0; }
 
+/* ── Public site header (phone sizing of the floating pill in landing.css) ── */
+.landing-body { --hdr-gap: 10px; --hdr-pill: 60px; }
+.site-header, .site-header.scrolled { padding-left: 12px; padding-right: 12px; }
+.site-header .header-inner { padding: 0 8px 0 10px; gap: 8px; }
+.landing-body .brand { column-gap: 9px; }
+.landing-body .brand > .brand-logo { width: 40px; height: 40px; }
+.landing-body .brand-name { font-size: 1.125rem; letter-spacing: -.005em; line-height: 1.05; }
+.landing-body .brand .brand-place {
+  display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis;
+  font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+}
+.landing-body .header-actions { gap: 6px; }
+.landing-body .header-cta { height: 42px; min-height: 42px; padding: 0 14px; font-size: .9375rem; }
+.landing-body .header-cta .cta-short::before {
+  content: '\f073'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: .8125rem; margin-right: 7px;
+}
+.landing-body .nav-toggle { width: 44px; height: 44px; min-width: 44px; padding: 0; justify-content: center; }
+.landing-body .nav-toggle i { font-size: 1.0625rem; }
+
+/* Narrow phones: keep everything on one line. */
+@media (max-width: 389.98px) {
+  .landing-body .brand .brand-place { display: none; }
+  .landing-body .header-cta .cta-short::before { display: none; }
+}
+@media (max-width: 349.98px) {
+  .landing-body .brand-name { font-size: 1rem; }
+  .landing-body .brand > .brand-logo { width: 34px; height: 34px; }
+}
+
 /* ── Public homepage ─────────────────────────────────────────── */
 .landing-body .section { padding: 48px 0; }
 .landing-body .section-head { margin-bottom: 20px; }
@@ -77,6 +106,7 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
    The next card peeks in so it is clear there is more. */
 .landing-body .lst-grid,
 .landing-body .pk-rows,
+.landing-body .ev-grid,
 .landing-body .review-list {
   display: grid; grid-auto-flow: column; grid-auto-columns: 84%; grid-template-columns: none;
   gap: 14px; overflow-x: auto; overscroll-behavior-x: contain;
@@ -87,10 +117,19 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
 }
 .landing-body .lst-grid::-webkit-scrollbar,
 .landing-body .pk-rows::-webkit-scrollbar,
+.landing-body .ev-grid::-webkit-scrollbar,
 .landing-body .review-list::-webkit-scrollbar { display: none; }
 .landing-body .lst-grid > *,
 .landing-body .pk-rows > *,
+.landing-body .ev-grid > *,
 .landing-body .review-list > * { scroll-snap-align: start; min-width: 0; position: relative; }
+/* Event cards in the swipe row: a slightly shorter band, no hover lift on touch. */
+.landing-body .ev-grid { padding-top: 6px; padding-bottom: 18px; }
+.landing-body .ev-band { height: 92px; }
+.landing-body .ev-card:hover { transform: none; }
+.landing-body .ev-name { font-size: 1.375rem; }
+.landing-body .ev-art { max-width: 300px; }
+.landing-body .ev-head { gap: var(--space-4); margin-top: 8px; }
 /* Package rows read as cards in the row. */
 .landing-body .pk-rows .pk-row {
   height: 100%; padding: 18px; border: 1px solid var(--color-divider); border-radius: var(--radius-media);
