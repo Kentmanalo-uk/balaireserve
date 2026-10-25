@@ -394,7 +394,9 @@
     if (!checkSchedule() && !firstBad) firstBad = checkOut;
     if (firstBad) {
       e.preventDefault();
-      firstBad.focus();
+      // focus() alone leaves a half-visible field (or one under the sticky top bar) where it is.
+      (firstBad.closest('.item-field, [class*="col-"]') || firstBad).scrollIntoView({ block: 'center' });
+      firstBad.focus({ preventScroll: true });
       if (window.appNotify) window.appNotify('Some details need attention — see the highlighted fields.', 'warning');
       return;
     }

@@ -19,7 +19,7 @@ const { notifyAllAdmins, notifyUser } = require('../../../utils/notifications');
 const { validateGcashScreenshot }     = require('../../../utils/gcashValidator');
 const { calculateCottageTotal, validateCottageTimeRange } = require('../../../utils/cottagePricing');
 const { publicSettings } = require('../../../utils/publicSettings');
-const { uniqueCatalogRows, withExistingPhotos, photosFirst } = require('../../../utils/catalog');
+const { uniqueCatalogRows, imageExists, withExistingPhotos, photosFirst } = require('../../../utils/catalog');
 
 const router = express.Router();
 
@@ -168,8 +168,9 @@ router.use(async (req, res, next) => {
       bank_bdo:     pm.bank_bdo      || '—',
       bank_bpi:     pm.bank_bpi      || '—',
       bank_name:    pm.bank_name     || 'Balai Miciano Resort',
-      gcash_qr_path: pm.gcash_qr_path || '',
-      maya_qr_path: pm.maya_qr_path || '',
+      // A QR whose file is gone is treated as not uploaded, so guests never see a broken image.
+      gcash_qr_path: imageExists(pm.gcash_qr_path) ? pm.gcash_qr_path : '',
+      maya_qr_path:  imageExists(pm.maya_qr_path)  ? pm.maya_qr_path  : '',
     };
     // Guest-facing price cards show the downpayment from the current setting.
     res.locals.downpaymentPercent = getDownpaymentPercent(pm.downpayment_percent);
