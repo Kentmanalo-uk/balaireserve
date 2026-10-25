@@ -147,8 +147,8 @@ async function loadSettings() {
 // ΓöÇΓöÇ Helper: upsert a single setting key ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 async function saveSetting(key, value) {
   await db.prepare(`
-    INSERT INTO settings (\`key\`, value) VALUES (?, ?) AS new
-    ON DUPLICATE KEY UPDATE value = new.value, updated_at = NOW()
+    INSERT INTO settings (\`key\`, value) VALUES (?, ?)
+    ON DUPLICATE KEY UPDATE value = VALUES(value), updated_at = NOW()
   `).run(key, value);
 }
 

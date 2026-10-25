@@ -83,7 +83,7 @@ const seedAll = async () => {
     INSERT INTO venues
       (name, venue_type, capacity, description, location, price, amenities, status)
     SELECT ?, ?, ?, ?, ?, ?, ?, 'available' FROM DUAL
-    WHERE NOT EXISTS (SELECT 1 FROM venues WHERE name = ?)   -- utf8mb4_0900_ai_ci is case-insensitive
+    WHERE NOT EXISTS (SELECT 1 FROM venues WHERE name = ?)   -- utf8mb4_unicode_ci is case-insensitive
   `);
   const seedVenue = (name, ...values) => insertVenue.run(name, ...values, name);
   await seedVenue('Main House Function Hall',    'function_hall', 150, 'Elegant air-conditioned main house function hall for events', 'Main House',     15000, JSON.stringify(['Sound System','Projector','AC','Stage','Tables','Chairs']));

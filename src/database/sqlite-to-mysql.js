@@ -36,7 +36,7 @@ async function main() {
 
   try {
     await conn.query(
-      `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`
+      `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
     );
     await conn.query(`USE \`${DB_NAME}\``);
     await conn.query("SET time_zone = '+00:00', FOREIGN_KEY_CHECKS = 0");

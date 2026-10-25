@@ -25,7 +25,7 @@ async function connect() {
 
 async function applySchema(conn) {
   await conn.query(
-    `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci`
+    `CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`
   );
   await conn.query(`USE \`${DB_NAME}\``);
   const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');

@@ -36,8 +36,8 @@ class MySqlSessionStore extends session.Store {
 
   set(sid, sess, cb = () => {}) {
     this.db.prepare(`
-      INSERT INTO sessions (sid, sess, expire) VALUES (?, ?, ?) AS new
-      ON DUPLICATE KEY UPDATE sess = new.sess, expire = new.expire
+      INSERT INTO sessions (sid, sess, expire) VALUES (?, ?, ?)
+      ON DUPLICATE KEY UPDATE sess = VALUES(sess), expire = VALUES(expire)
     `).run(sid, JSON.stringify(sess), this.expiryFor(sess))
       .then(() => cb(null))
       .catch(cb);

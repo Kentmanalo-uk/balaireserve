@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS roles (
   name       VARCHAR(50)  NOT NULL UNIQUE,      -- admin, staff, customer
   label      VARCHAR(100) NOT NULL,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── USERS ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS users (
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
   google_sub     VARCHAR(255),
   UNIQUE KEY idx_users_google_sub (google_sub),
   FOREIGN KEY (role_id) REFERENCES roles(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── CUSTOMERS ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS customers (
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS customers (
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── ROOM TYPES ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS room_types (
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS room_types (
   description TEXT,
   base_price  DECIMAL(12,2) NOT NULL DEFAULT 0,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── ROOMS ────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS rooms (
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (room_type_id) REFERENCES room_types(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── VENUES ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS venues (
@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS venues (
   is_active    TINYINT NOT NULL DEFAULT 1,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── COTTAGES ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS cottages (
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS cottages (
   is_active   TINYINT NOT NULL DEFAULT 1,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── EVENT PACKAGES ───────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS event_packages (
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS event_packages (
   is_active   TINYINT NOT NULL DEFAULT 1,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── RESERVATIONS ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS reservations (
@@ -162,7 +162,7 @@ CREATE TABLE IF NOT EXISTS reservations (
   KEY idx_reservations_status (status),
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (assigned_staff_id) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── RESERVATION ITEMS ────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS reservation_items (
@@ -177,7 +177,7 @@ CREATE TABLE IF NOT EXISTS reservation_items (
   notes          TEXT,
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (reservation_id) REFERENCES reservations(id) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── RESERVATION STATUS HISTORY ───────────────────────────────
 CREATE TABLE IF NOT EXISTS reservation_status_history (
@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS reservation_status_history (
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (changed_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── PAYMENTS ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS payments (
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS payments (
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (received_by) REFERENCES users(id),
   FOREIGN KEY (verified_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── REFUND REQUESTS ──────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS refund_requests (
@@ -235,7 +235,7 @@ CREATE TABLE IF NOT EXISTS refund_requests (
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (reviewed_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── GUESTS ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS guests (
@@ -257,7 +257,7 @@ CREATE TABLE IF NOT EXISTS guests (
   KEY idx_guests_reservation (reservation_id),
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (customer_id) REFERENCES customers(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── CHECK-INS / CHECK-OUTS ───────────────────────────────────
 CREATE TABLE IF NOT EXISTS check_ins (
@@ -271,7 +271,7 @@ CREATE TABLE IF NOT EXISTS check_ins (
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (guest_id) REFERENCES guests(id),
   FOREIGN KEY (checked_in_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS check_outs (
   id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -283,7 +283,7 @@ CREATE TABLE IF NOT EXISTS check_outs (
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (guest_id) REFERENCES guests(id),
   FOREIGN KEY (checked_out_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── QR CODES ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS qr_codes (
@@ -296,7 +296,7 @@ CREATE TABLE IF NOT EXISTS qr_codes (
   expires_at     DATETIME,
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (reservation_id) REFERENCES reservations(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── EVENTS ───────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS events (
@@ -324,7 +324,7 @@ CREATE TABLE IF NOT EXISTS events (
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (event_package_id) REFERENCES event_packages(id),
   FOREIGN KEY (venue_id) REFERENCES venues(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── FEEDBACK ─────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS feedback (
@@ -343,7 +343,7 @@ CREATE TABLE IF NOT EXISTS feedback (
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (responded_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── INQUIRIES ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS inquiries (
@@ -364,7 +364,7 @@ CREATE TABLE IF NOT EXISTS inquiries (
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (assigned_to) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── CRM ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS crm_activities (
@@ -383,7 +383,7 @@ CREATE TABLE IF NOT EXISTS crm_activities (
   KEY idx_crm_customer (customer_id),
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (staff_id) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS sales_calls (
   id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -399,7 +399,7 @@ CREATE TABLE IF NOT EXISTS sales_calls (
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (staff_id) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS marketing_emails (
   id           INT AUTO_INCREMENT PRIMARY KEY,
@@ -413,7 +413,7 @@ CREATE TABLE IF NOT EXISTS marketing_emails (
   follow_up_at DATETIME,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (customer_id) REFERENCES customers(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS support_tickets (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -433,7 +433,7 @@ CREATE TABLE IF NOT EXISTS support_tickets (
   FOREIGN KEY (customer_id) REFERENCES customers(id),
   FOREIGN KEY (inquiry_id) REFERENCES inquiries(id),
   FOREIGN KEY (assigned_to) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS follow_ups (
   id             INT AUTO_INCREMENT PRIMARY KEY,
@@ -447,7 +447,7 @@ CREATE TABLE IF NOT EXISTS follow_ups (
   created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (customer_id) REFERENCES customers(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── INVENTORY ────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS inventory_categories (
@@ -455,7 +455,7 @@ CREATE TABLE IF NOT EXISTS inventory_categories (
   name        VARCHAR(100) NOT NULL UNIQUE,
   description TEXT,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS inventory_items (
   id            INT AUTO_INCREMENT PRIMARY KEY,
@@ -475,7 +475,7 @@ CREATE TABLE IF NOT EXISTS inventory_items (
   updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_inventory_items_cat (category_id),
   FOREIGN KEY (category_id) REFERENCES inventory_categories(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS inventory_transactions (
   id               INT AUTO_INCREMENT PRIMARY KEY,
@@ -489,7 +489,7 @@ CREATE TABLE IF NOT EXISTS inventory_transactions (
   created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (item_id) REFERENCES inventory_items(id),
   FOREIGN KEY (performed_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- `condition` is a reserved word in MySQL; always quote it with backticks.
 CREATE TABLE IF NOT EXISTS equipment (
@@ -507,7 +507,7 @@ CREATE TABLE IF NOT EXISTS equipment (
   created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (category_id) REFERENCES inventory_categories(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS equipment_assignments (
   id              INT AUTO_INCREMENT PRIMARY KEY,
@@ -528,7 +528,7 @@ CREATE TABLE IF NOT EXISTS equipment_assignments (
   FOREIGN KEY (reservation_id) REFERENCES reservations(id),
   FOREIGN KEY (event_id) REFERENCES events(id),
   FOREIGN KEY (assigned_by) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── NOTIFICATIONS ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS notifications (
@@ -544,7 +544,7 @@ CREATE TABLE IF NOT EXISTS notifications (
   KEY idx_notifications_user (user_id, is_read),
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (customer_id) REFERENCES customers(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── AI INSIGHTS ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ai_insights (
@@ -557,7 +557,7 @@ CREATE TABLE IF NOT EXISTS ai_insights (
   confidence   VARCHAR(20),            -- low | medium | high
   is_dismissed TINYINT NOT NULL DEFAULT 0,
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── AUDIT LOGS ───────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS audit_logs (
@@ -573,7 +573,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   KEY idx_audit_user (user_id),
   FOREIGN KEY (user_id) REFERENCES users(id)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── SETTINGS ─────────────────────────────────────────────────
 -- `key` is a reserved word in MySQL; always quote it with backticks.
@@ -584,7 +584,7 @@ CREATE TABLE IF NOT EXISTS settings (
   label      VARCHAR(255),
   group_name VARCHAR(50) DEFAULT 'general',
   updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─── SESSIONS (express-session store) ─────────────────────────
 CREATE TABLE IF NOT EXISTS sessions (
@@ -592,6 +592,6 @@ CREATE TABLE IF NOT EXISTS sessions (
   sess   MEDIUMTEXT NOT NULL,
   expire DATETIME NOT NULL,
   KEY idx_sessions_expire (expire)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;
