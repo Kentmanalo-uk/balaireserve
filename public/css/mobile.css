@@ -38,6 +38,9 @@ input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, te
   border-radius: 0 0 3px 3px; background: var(--color-ocean-700);
 }
 .m-tab:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -3px; }
+/* Scoped to the bar so page link styles (e.g. the homepage's) never recolour the tabs. */
+.m-tabbar .m-tab, .m-tabbar .m-tab:hover { color: var(--color-secondary); text-decoration: none; }
+.m-tabbar .m-tab[aria-current="page"] { color: var(--color-ocean-700); }
 .m-tab-badge {
   position: absolute; top: 3px; left: calc(50% + 5px);
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; border: 2px solid var(--color-canvas);
