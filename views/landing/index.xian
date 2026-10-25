@@ -98,9 +98,10 @@
   <div class="hero-media">
     <img src="<%= heroImage %>" alt="<%= heroIsDefault ? DEFAULT_HERO_ALT : 'The beachfront at Balai-Reserve' %>"
       <% if (heroIsDefault) { %>width="1382" height="2048"<% } %> fetchpriority="high" decoding="async" />
+    <%# Progressive blur: stacked layers, each blurrier and narrower, for a smooth soft-to-sharp ramp.
+        It lives inside the photo layer so the two move together on scroll (nothing re-blurs per frame). %>
+    <div class="hero-blur" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   </div>
-  <%# Progressive blur: stacked layers, each blurrier and narrower, for a smooth soft-to-sharp ramp. %>
-  <div class="hero-blur" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
   <div class="wrap hero-inner">
     <div class="hero-copy">
       <p class="hero-place"><i class="fas fa-location-dot" aria-hidden="true"></i> Brgy. San Antonio, Gloria, Oriental Mindoro</p>
@@ -523,3 +524,4 @@
 <script src="/js/photo-stack.js" defer></script>
 <script src="/js/br-datepicker.js" defer></script>
 <script src="/js/br-fieldpicker.js" defer></script>
+<script src="/js/hero-parallax.js" defer></script>

@@ -953,8 +953,7 @@ html.ps-lock, html.ps-lock body { overflow: hidden; }
    search button inside it (desktop) or a grouped stack (phones/tablets). */
 .search {
   padding: 22px; border: 1px solid rgba(255, 255, 255, .7); border-radius: 28px;
-  background: rgba(255, 255, 255, .94);
-  -webkit-backdrop-filter: saturate(1.6) blur(18px); backdrop-filter: saturate(1.6) blur(18px);
+  background: rgba(255, 255, 255, .97);   /* no backdrop blur: the card moves on scroll, and a re-blur every frame would stutter */
   box-shadow: 0 2px 4px rgba(20, 52, 58, .04), 0 24px 60px rgba(20, 52, 58, .14);
 }
 .search-kind legend { font-size: .75rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--color-muted); }
@@ -1142,3 +1141,20 @@ html.ps-lock, html.ps-lock body { overflow: hidden; }
 .pk-pop.is-sheet.pk-pop--time { scroll-padding-top: 40px; }
 html.pk-lock { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .pk-pop, .pk-pop.is-sheet, .pk-scrim, .pk-icon { transition: none; } }
+
+/* ── Hero parallax ───────────────────────────────────────────────────
+   Tied straight to the scroll position. Browsers with scroll-driven animations run it on the
+   compositor (no script, no lag); others get the same numbers from public/js/hero-parallax.js.
+   Photo: 0.38 × scroll · words: drift and fade over the first 460px · card: lifts up to 44px. */
+.hero-media .hero-blur { z-index: 1; }   /* above the photo, inside its moving layer */
+.hero-media, .hero-copy, .dock-wrap .search { will-change: transform; }
+@keyframes br-par-photo { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, 380px, 0); } }
+@keyframes br-par-copy { from { transform: translate3d(0, 0, 0); opacity: 1; } to { transform: translate3d(0, 101px, 0); opacity: 0; } }
+@keyframes br-par-card { from { transform: translate3d(0, 0, 0); } to { transform: translate3d(0, -44px, 0); } }
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: scroll()) {
+    .hero-media { animation: br-par-photo linear both; animation-timeline: scroll(root block); animation-range: 0px 1000px; }
+    .hero-copy { animation: br-par-copy linear both; animation-timeline: scroll(root block); animation-range: 0px 460px; }
+    .dock-wrap .search { animation: br-par-card linear both; animation-timeline: scroll(root block); animation-range: 0px 440px; }
+  }
+}

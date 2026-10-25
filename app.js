@@ -76,7 +76,7 @@ app.use(helmet({
       styleSrc:   ["'self'", "'unsafe-inline'", 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com'],
       fontSrc:    ["'self'", 'fonts.gstatic.com', 'cdnjs.cloudflare.com', 'data:'],
       imgSrc:     ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'", 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com',
+      connectSrc: ["'self'", 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com',
                    'cloudflareinsights.com'],
       frameSrc:   ["'self'"],
       formAction: ["'self'"],

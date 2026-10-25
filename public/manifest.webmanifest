@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Balai-Reserve",
+  "short_name": "Balai",
+  "description": "Book rooms, cottages, the function hall and event packages at Balai Miciano, Gloria, Oriental Mindoro.",
+  "lang": "en",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#fcfbf8",
+  "theme_color": "#fcfbf8",
+  "categories": ["travel", "lifestyle"],
+  "icons": [
+    { "src": "/images/brand/pwa-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/images/brand/pwa-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/images/brand/pwa-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/images/brand/pwa-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Book a room", "short_name": "Rooms", "url": "/portal/rooms?source=pwa", "icons": [{ "src": "/images/brand/pwa-192.png", "sizes": "192x192" }] },
+    { "name": "Cottages", "url": "/portal/cottages?source=pwa", "icons": [{ "src": "/images/brand/pwa-192.png", "sizes": "192x192" }] },
+    { "name": "My reservations", "short_name": "My bookings", "url": "/portal/my-reservations?source=pwa", "icons": [{ "src": "/images/brand/pwa-192.png", "sizes": "192x192" }] },
+    { "name": "Availability calendar", "short_name": "Calendar", "url": "/portal/calendar?source=pwa", "icons": [{ "src": "/images/brand/pwa-192.png", "sizes": "192x192" }] }
+  ]
+}

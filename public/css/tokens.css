@@ -304,3 +304,19 @@
 /* Phone-only elements (bottom tab bars). Their look lives in mobile.css, which only
    loads at ≤575.98px; at every wider width they stay out of the layout entirely. */
 @media (min-width: 576px) { .m-only { display: none !important; } }
+
+/* ── "Install the app" card in the menus (public/js/pwa.js shows it when installable) ── */
+.app-install {
+  display: flex; align-items: center; gap: 12px; width: 100%; margin-top: var(--space-5); padding: 12px 14px;
+  border: 1px solid rgba(15, 92, 102, .18); border-radius: 18px; background: var(--color-seaglass-100);
+  font: inherit; color: var(--color-ocean-900); text-align: left; cursor: pointer;
+  transition: background-color .2s ease, transform .15s ease;
+}
+.app-install[hidden] { display: none; }
+.app-install:hover { background: #d9ede8; }
+.app-install:active { transform: scale(.98); }
+.app-install img { flex-shrink: 0; border-radius: 50%; box-shadow: 0 4px 12px rgba(20, 52, 58, .18); }
+.app-install span { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.app-install strong { font-weight: 700; }
+.app-install small { font-size: .8125rem; color: var(--color-secondary); }
+.app-install > i { color: var(--color-ocean-700); }

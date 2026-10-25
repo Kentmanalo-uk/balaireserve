@@ -119,6 +119,7 @@
       if (current && !pop.contains(e.target) && e.target !== current.f.btn) close(false);
     });
     window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, { passive: true });   // the search card moves a little on scroll (hero parallax)
     if (phone.addEventListener) phone.addEventListener('change', place);
   }
 

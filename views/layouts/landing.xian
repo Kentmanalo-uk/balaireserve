@@ -7,7 +7,13 @@
   <meta name="theme-color" content="#fcfbf8" />
   <title><%= title || 'Balai-Reserve — Your Home Away From Home' %></title>
   <link rel="icon" type="image/png" sizes="32x32" href="/images/brand/balai-icon-32.png" />
-  <link rel="apple-touch-icon" href="/images/brand/balai-icon-192.png" />
+  <link rel="apple-touch-icon" href="/images/brand/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Balai" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <script src="/js/pwa.js" defer></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -101,6 +107,11 @@
       <a href="/auth/register" class="mobile-menu-sub">New here? Create an account</a>
     <% } %>
   </div>
+  <button type="button" class="app-install" data-install-app hidden>
+    <img src="/images/brand/pwa-192.png" alt="" width="40" height="40" />
+    <span><strong>Install the app</strong><small>Book faster from your home screen</small></span>
+    <i class="fas fa-download" aria-hidden="true"></i>
+  </button>
 </div>
 
 <main id="main">
