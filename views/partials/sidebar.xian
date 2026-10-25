@@ -104,3 +104,21 @@
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 <div class="sidebar-tip" id="sidebarTip" role="tooltip" hidden></div>
+
+<%# Phones only (mobile.css): the most-used desk screens one tap away. The full menu stays behind ☰. Hidden at ≥576px by .m-only. %>
+<% if (isStaffRole) { %>
+<nav class="m-tabbar m-only" aria-label="Quick links">
+  <% for (const t of [
+       { href: '/dashboard', icon: 'fa-gauge', text: 'Home', on: navOn('/dashboard') },
+       { href: '/reservations', icon: 'fa-calendar-check', text: 'Bookings', on: navOn('/reservations', '/reservations/view/calendar'), badge: pendingReservationsCount, badgeText: 'need attention' },
+       { href: '/reservations/view/calendar', icon: 'fa-calendar-days', text: 'Calendar', on: navOn('/reservations/view/calendar') },
+       { href: '/payments', icon: 'fa-money-bill-wave', text: 'Payments', on: navOn('/payments') },
+       { href: '/inquiries', icon: 'fa-inbox', text: 'Inquiries', on: navOn('/inquiries'), badge: pendingInquiriesCount, badgeText: 'open' },
+     ]) { %>
+  <a href="<%= t.href %>" class="m-tab" <%- t.on ? 'aria-current="page"' : '' %>>
+    <i class="fas <%= t.icon %>" aria-hidden="true"></i><span><%= t.text %></span>
+    <% if (t.badge > 0) { %><span class="m-tab-badge"><%= t.badge > 9 ? '9+' : t.badge %><span class="br-sr-only"> <%= t.badgeText %></span></span><% } %>
+  </a>
+  <% } %>
+</nav>
+<% } %>

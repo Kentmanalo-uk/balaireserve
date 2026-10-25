@@ -292,3 +292,7 @@
 
 /* Backdrops behind drawers and sheets */
 .sidebar-overlay.open, .sheet-backdrop:not([hidden]) { animation: br-fade-in var(--dur-panel) var(--ease-out); }
+
+/* Phone-only elements (bottom tab bars). Their look lives in mobile.css, which only
+   loads at ≤575.98px; at every wider width they stay out of the layout entirely. */
+@media (min-width: 576px) { .m-only { display: none !important; } }

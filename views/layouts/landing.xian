@@ -16,6 +16,7 @@
   <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/landing.css" />
   <link rel="stylesheet" href="/css/listing.css" />
+  <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 575.98px)" />
   <script>document.documentElement.classList.add('js');</script>
 </head>
 <body class="landing-body<%= typeof bodyClass !== 'undefined' && bodyClass ? ' ' + bodyClass : '' %>">

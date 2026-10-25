@@ -1,0 +1,137 @@
+/* ============================================================
+   Balai-Reserve — phone layout
+   Loaded by every layout with media="(max-width: 575.98px)", so
+   tablets and desktops never apply a single rule from this file.
+   Phone-only markup (the tab bars) carries .m-only, which tokens.css
+   hides at ≥576px.
+   ============================================================ */
+
+/* ── Basics ──────────────────────────────────────────────────── */
+html { -webkit-text-size-adjust: 100%; }
+/* iOS zooms the page into any field under 16px; keep typing comfortable instead. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea,
+.form-control, .form-select { font-size: 16px !important; }
+
+/* ── Bottom tab bar (guest site and back office) ─────────────── */
+.m-tabbar {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 1030;
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr);
+  padding: 4px max(4px, env(safe-area-inset-right)) calc(4px + env(safe-area-inset-bottom)) max(4px, env(safe-area-inset-left));
+  background: rgba(252, 251, 248, .97);
+  -webkit-backdrop-filter: saturate(1.4) blur(12px); backdrop-filter: saturate(1.4) blur(12px);
+  border-top: 1px solid var(--color-divider);
+  box-shadow: 0 -8px 20px rgba(20, 52, 58, .06);
+}
+.m-tab {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-height: 54px; padding: 6px 2px 4px; border-radius: 14px;
+  color: var(--color-secondary); font-size: 11px; font-weight: 600; letter-spacing: .01em; line-height: 1.1;
+  text-decoration: none; -webkit-tap-highlight-color: transparent;
+}
+.m-tab span:not(.m-tab-badge) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-tab i { font-size: 19px; line-height: 1; }
+.m-tab:hover { color: var(--color-ocean-800); text-decoration: none; }
+.m-tab:active { background: var(--color-seaglass-100); }
+.m-tab[aria-current="page"] { color: var(--color-ocean-700); }
+.m-tab[aria-current="page"]::before {
+  content: ''; position: absolute; top: -4px; left: 32%; right: 32%; height: 3px;
+  border-radius: 0 0 3px 3px; background: var(--color-ocean-700);
+}
+.m-tab:focus-visible { outline: 2px solid var(--color-focus); outline-offset: -3px; }
+.m-tab-badge {
+  position: absolute; top: 3px; left: calc(50% + 5px);
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; border: 2px solid var(--color-canvas);
+  background: var(--color-danger); color: #fff; font-size: 10px; font-weight: 700; line-height: 14px; text-align: center;
+}
+/* Room for the bar; the chat bubble sits above it. */
+body:has(.m-tabbar) { padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
+body:has(.m-tabbar) #chatbotWidget { bottom: calc(74px + env(safe-area-inset-bottom)); }
+body:has(.m-tabbar) #toastContainer { bottom: calc(74px + env(safe-area-inset-bottom)); }
+/* Focused task screens keep their own bottom action bar instead of the tab bar. */
+body:has(.bw-page, .pt-bottom-bar, .bp-bar) .m-tabbar { display: none; }
+body:has(.bw-page, .pt-bottom-bar, .bp-bar) { padding-bottom: 0; }
+body:has(.bw-page, .pt-bottom-bar, .bp-bar) #chatbotWidget { bottom: max(16px, env(safe-area-inset-bottom)); }
+/* Menus and dialogs cover the tab bar while open. */
+body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
+
+/* ── Dialogs become bottom sheets ────────────────────────────── */
+.modal-dialog, .modal-dialog.modal-dialog-centered {
+  display: flex; align-items: flex-end; min-height: 100%; max-width: none; margin: 0;
+}
+.modal-dialog .modal-content {
+  width: 100%; border: 0; border-radius: 20px 20px 0 0;
+  max-height: 92vh; max-height: 92dvh; padding-bottom: env(safe-area-inset-bottom);
+}
+.modal-dialog-scrollable { height: 100%; }
+.modal-dialog-scrollable .modal-content { max-height: 92vh; max-height: 92dvh; }
+.modal.fade .modal-dialog { transform: translateY(32px); }
+.modal.show .modal-dialog { transform: none; }
+.modal-footer { gap: 8px; }
+.modal-footer > .btn { flex: 1 1 0; min-height: 46px; margin: 0; }
+
+/* ── Public homepage ─────────────────────────────────────────── */
+.landing-body .section { padding: 48px 0; }
+.landing-body .section-head { margin-bottom: 20px; }
+
+/* Rooms, cottages, packages and reviews: swipe sideways instead of a long stack.
+   The next card peeks in so it is clear there is more. */
+.landing-body .lst-grid,
+.landing-body .pk-rows,
+.landing-body .review-list {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 84%; grid-template-columns: none;
+  gap: 14px; overflow-x: auto; overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory; scroll-padding-inline: var(--gutter, 20px);
+  margin: 0 calc(-1 * var(--gutter, 20px)); padding: 4px var(--gutter, 20px) 14px;
+  border: 0; scrollbar-width: none;
+  position: relative;   /* absolutely positioned bits (screen-reader labels, card links) stay inside the row */
+}
+.landing-body .lst-grid::-webkit-scrollbar,
+.landing-body .pk-rows::-webkit-scrollbar,
+.landing-body .review-list::-webkit-scrollbar { display: none; }
+.landing-body .lst-grid > *,
+.landing-body .pk-rows > *,
+.landing-body .review-list > * { scroll-snap-align: start; min-width: 0; position: relative; }
+/* Package rows read as cards in the row. */
+.landing-body .pk-rows .pk-row {
+  height: 100%; padding: 18px; border: 1px solid var(--color-divider); border-radius: var(--radius-media);
+  background: var(--color-white);
+}
+.landing-body .review { padding: 20px; }
+
+/* The about photo keeps its 4:3 shape (its height attribute otherwise makes it very tall). */
+.landing-body .about-photo img { height: auto; max-height: none; object-position: 50% 62%; }
+
+/* ── Guest site ──────────────────────────────────────────────── */
+/* Book and Alerts are in the tab bar; the header keeps the brand and the menu. */
+.portal-body .pt-book-btn,
+.portal-body .pt-actions > .dropdown:not(.pt-account),
+.portal-body .pt-actions > .pt-header-link { display: none; }
+
+/* Booking tiles: tighter, with a smaller thumbnail. */
+.portal-body .rt { grid-template-columns: 64px minmax(0, 1fr); gap: 10px 12px; padding: 14px; }
+.portal-body .rt-thumb { width: 64px; border-radius: 10px; }
+.portal-body .rt-thumb .photo-pending { font-size: 0; }
+.portal-body .rt-thumb .photo-pending i { font-size: 18px; }
+.portal-body .rt-title { font-size: 1rem; }
+.portal-body .rt-money { padding-top: 10px; }
+
+/* Footer: the tab bar and menu already carry its links; keep the brand and contact. */
+.portal-body .pt-footer { margin-top: 32px; }
+.portal-body .pt-footer-inner { padding: 24px 20px 12px; gap: 0; }
+.portal-body .pt-footer-inner > div:not(:first-child) { display: none; }
+.portal-body .pt-footer-inner > div:first-child > p:not(.pt-footer-brand) { display: none; }
+.portal-body .pt-footer-inner ul { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; }
+.portal-body .pt-footer-base div { padding: 12px 20px; }
+
+/* ── Back office ─────────────────────────────────────────────── */
+/* Page actions: one compact row (swipe if there are many) instead of full-width stacked buttons. */
+.app-body .ph-actions { flex-wrap: nowrap; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.app-body .ph-actions::-webkit-scrollbar { display: none; }
+.app-body .ph-actions .btn { flex: 0 0 auto; min-height: 44px; }
+
+/* Dashboard day picker on one line: Today ‹ [date] Show › */
+.dash-controls .date-switcher:has(.ds-date) { flex-wrap: nowrap; width: 100%; gap: 4px; }
+.dash-controls .date-switcher .ds-date { flex: 1 1 auto; min-width: 0; padding-left: 8px; padding-right: 6px; }
+.dash-controls .date-switcher .ds-step { flex: 0 0 40px; min-width: 40px; padding: 0; }
+.dash-controls .date-switcher .ds-today,
+.dash-controls .date-switcher .ds-go { flex: 0 0 auto; padding-left: 10px; padding-right: 10px; }
