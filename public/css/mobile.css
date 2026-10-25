@@ -169,3 +169,7 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
 .dash-controls .date-switcher .ds-step { flex: 0 0 40px; min-width: 40px; padding: 0; }
 .dash-controls .date-switcher .ds-today,
 .dash-controls .date-switcher .ds-go { flex: 0 0 auto; padding-left: 10px; padding-right: 10px; }
+
+/* Hero copy, phones: the header already names the place, so keep just the title and tagline */
+.hero-place, .hero-intro-more { display: none; }
+.hero-intro { font-size: 1.125rem; }

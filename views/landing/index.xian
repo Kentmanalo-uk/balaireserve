@@ -105,7 +105,7 @@
     <div class="hero-copy">
       <p class="hero-place"><i class="fas fa-location-dot" aria-hidden="true"></i> Brgy. San Antonio, Gloria, Oriental Mindoro</p>
       <h1 class="hero-title" id="heroTitle">Make room for a beach&nbsp;day.</h1>
-      <p class="hero-intro"><strong><%= tagline %>.</strong> Rooms for the night, cottages by the shore and a function hall for the celebrations in between.</p>
+      <p class="hero-intro"><strong><%= tagline %>.</strong><span class="hero-intro-more"> Rooms for the night, cottages by the shore and a function hall for the celebrations in between.</span></p>
     </div>
   </div>
 </section>
