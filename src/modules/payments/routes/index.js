@@ -15,6 +15,7 @@ const crypto  = require('crypto');
 const multer  = require('multer');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
+const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { notifyAllAdmins, notifyReservationCustomer } = require('../../../utils/notifications');
 const { verifyPayment } = require('../../../utils/paymentVerification');
@@ -22,7 +23,7 @@ const { verifyPayment } = require('../../../utils/paymentVerification');
 const router = express.Router();
 
 // ΓöÇΓöÇ Multer: refund payout proof screenshots ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-const REFUND_PROOF_DIR = path.join(process.cwd(), 'uploads', 'refund_proofs');
+const REFUND_PROOF_DIR = uploadDir('refund_proofs');
 if (!fs.existsSync(REFUND_PROOF_DIR)) fs.mkdirSync(REFUND_PROOF_DIR, { recursive: true });
 
 const refundProofStorage = multer.diskStorage({

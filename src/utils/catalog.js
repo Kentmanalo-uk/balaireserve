@@ -3,7 +3,7 @@
 const fs   = require('fs');
 const path = require('path');
 
-const ROOT_DIR   = path.resolve(__dirname, '..', '..');
+const { ROOT_DIR, UPLOAD_ROOT } = require('../config/paths');
 const PUBLIC_DIR = path.join(ROOT_DIR, 'public');
 
 function uniqueCatalogRows(rows, keyForRow = row => row.name, preferredId = null) {
@@ -38,11 +38,11 @@ function uniqueCatalogRows(rows, keyForRow = row => row.name, preferredId = null
 }
 
 // Does a stored image path point at a file that actually exists?
-// /uploads/... is served from the project root, everything else from public/.
+// /uploads/... is served from UPLOAD_ROOT, everything else from public/.
 function imageExists(src) {
   if (typeof src !== 'string' || !src.startsWith('/')) return false;
   const rel  = decodeURIComponent(src.split('?')[0]).replace(/^\/+/, '');
-  const base = rel.startsWith('uploads/') ? path.join(ROOT_DIR, 'uploads') : PUBLIC_DIR;
+  const base = rel.startsWith('uploads/') ? UPLOAD_ROOT : PUBLIC_DIR;
   const abs  = path.resolve(base, rel.startsWith('uploads/') ? rel.slice('uploads/'.length) : rel);
   if (!abs.startsWith(base + path.sep)) return false;
   try { return fs.statSync(abs).isFile(); } catch { return false; }

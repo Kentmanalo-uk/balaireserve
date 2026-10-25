@@ -10,13 +10,14 @@ const fs      = require('fs');
 const crypto  = require('crypto');
 const multer  = require('multer');
 const db      = require('../../../config/database');
+const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 
 const router     = express.Router();
 const ADMIN_ONLY = requireRole('admin');
 
 // ΓöÇΓöÇ Multer: QR code image upload ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-const QR_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'settings');
+const QR_UPLOAD_DIR = uploadDir('settings');
 if (!fs.existsSync(QR_UPLOAD_DIR)) fs.mkdirSync(QR_UPLOAD_DIR, { recursive: true });
 
 const qrStorage = multer.diskStorage({
@@ -224,7 +225,7 @@ router.post('/payment',
         if (file) {
           const oldQR = (await db.prepare('SELECT value FROM settings WHERE `key` = ?').get(key))?.value || '';
           if (oldQR) {
-            const oldAbs = path.join(process.cwd(), oldQR.replace(/^\//, ''));
+            const oldAbs = uploadFileFromUrl(oldQR);
             if (fs.existsSync(oldAbs)) fs.unlink(oldAbs, () => {});
           }
           await saveSetting(key, '/uploads/settings/' + file.filename);
@@ -243,7 +244,7 @@ router.post('/payment',
 router.post('/payment/remove-qr', requireAuth, ADMIN_ONLY, async (req, res) => {
   const oldQR = (await db.prepare("SELECT value FROM settings WHERE `key` = 'gcash_qr_path'").get())?.value || '';
   if (oldQR) {
-    const oldAbs = path.join(process.cwd(), oldQR.replace(/^\//, ''));
+    const oldAbs = uploadFileFromUrl(oldQR);
     if (fs.existsSync(oldAbs)) fs.unlink(oldAbs, () => {});
     await saveSetting('gcash_qr_path', '');
   }
@@ -254,7 +255,7 @@ router.post('/payment/remove-qr', requireAuth, ADMIN_ONLY, async (req, res) => {
 router.post('/payment/remove-maya-qr', requireAuth, ADMIN_ONLY, async (req, res) => {
   const oldQR = (await db.prepare("SELECT value FROM settings WHERE `key` = 'maya_qr_path'").get())?.value || '';
   if (oldQR) {
-    const oldAbs = path.join(process.cwd(), oldQR.replace(/^\//, ''));
+    const oldAbs = uploadFileFromUrl(oldQR);
     if (fs.existsSync(oldAbs)) fs.unlink(oldAbs, () => {});
     await saveSetting('maya_qr_path', '');
   }

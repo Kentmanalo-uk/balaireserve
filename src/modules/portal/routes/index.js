@@ -11,6 +11,7 @@ const multer  = require('multer');
 const bcrypt  = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
+const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { generateBookingRef }       = require('../../../utils/bookingRef');
 const { generateReservationQR }    = require('../../../utils/qrGenerator');
@@ -22,7 +23,7 @@ const { uniqueCatalogRows, withExistingPhotos, photosFirst } = require('../../..
 
 const router = express.Router();
 
-const PROOF_DIR = path.join(process.cwd(), 'uploads', 'payment_proofs');
+const PROOF_DIR = uploadDir('payment_proofs');
 if (!fs.existsSync(PROOF_DIR)) fs.mkdirSync(PROOF_DIR, { recursive: true });
 
 const proofStorage = multer.diskStorage({

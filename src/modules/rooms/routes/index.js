@@ -10,6 +10,7 @@ const fs      = require('fs');
 const multer  = require('multer');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
+const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 
 const router     = express.Router();
@@ -25,7 +26,7 @@ async function getActiveRoomTypes() {
 }
 
 // ΓöÇΓöÇ Multer — upload up to 5 images per room into uploads/rooms/ ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-const UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'rooms');
+const UPLOAD_DIR = uploadDir('rooms');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
@@ -201,7 +202,8 @@ router.post('/:id/edit',
     const existingImages = parseImages(old.images);
     for (const img of existingImages) {
       if (!keepImages.includes(img)) {
-        fs.unlink(path.join(process.cwd(), img.replace(/^\//, '')), () => {});
+        const filePath = uploadFileFromUrl(img);
+        if (filePath) fs.unlink(filePath, () => {});
       }
     }
 
