@@ -4,7 +4,7 @@
 <h1 class="ph-title">Booking calendar</h1>
 <div class="ph-actions">
   <a href="/reservations" class="btn btn-secondary-quiet"><i class="fas fa-list" aria-hidden="true"></i>List</a>
-  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New walk-in</a>
+  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New reservation</a>
 </div>
 <!--/page-head-->
 

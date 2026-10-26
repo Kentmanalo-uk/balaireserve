@@ -86,7 +86,7 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
 .landing-body .header-actions { gap: 6px; }
 .landing-body .header-cta { height: 42px; min-height: 42px; padding: 0 14px; font-size: .9375rem; }
 .landing-body .header-cta .cta-short::before {
-  content: '\f073'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: .8125rem; margin-right: 7px;
+  content: ''; display: inline-block; flex-shrink: 0; width: 15px; height: 15px; background-color: currentColor; -webkit-mask: url('/images/icons/calendar.svg') center / contain no-repeat; mask: url('/images/icons/calendar.svg') center / contain no-repeat; margin-right: 7px; vertical-align: -2px;
 }
 .landing-body .nav-toggle { width: 44px; height: 44px; min-width: 44px; padding: 0; justify-content: center; }
 .landing-body .nav-toggle i { font-size: 1.0625rem; }

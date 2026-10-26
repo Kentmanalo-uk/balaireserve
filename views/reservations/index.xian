@@ -35,7 +35,7 @@
   <a href="/reports/export/reservations" class="btn btn-secondary-quiet"><i class="fas fa-download" aria-hidden="true"></i>Export CSV</a>
   <a href="/reservations/view/calendar" class="btn btn-secondary-quiet"><i class="fas fa-calendar-days" aria-hidden="true"></i>Calendar</a>
   <% if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff')) { %>
-  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New walk-in</a>
+  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New reservation</a>
   <% } %>
 </div>
 <!--/page-head-->
@@ -121,7 +121,7 @@
             <p>Try a shorter search or another status. <a href="/reservations">Clear all filters</a></p>
             <% } else { %>
             <p><strong>No reservations yet.</strong></p>
-            <p>Online bookings appear here as guests book. <a href="/reservations/new">Record a walk-in</a></p>
+            <p>Online bookings appear here as guests book. <a href="/reservations/new">Add a reservation</a></p>
             <% } %>
           </div>
         </td></tr>

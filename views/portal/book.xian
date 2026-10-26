@@ -117,9 +117,9 @@
                 <p class="pt-meta mb-1">You’re booking</p>
                 <p class="sel-item-name"><%= selectedItem.name %></p>
                 <p class="sel-item-facts"><%= _sel === 'room' ? 'Sleeps ' : 'Up to ' %><%= selectedItem.capacity %><%= _sel === 'room' ? '' : ' guests' %> · <strong><%= formatPrice(selectedItem.price) %></strong> <%= _unit %></p>
-                <p class="pt-small mb-0"><a href="<%= browseFor[_sel] || '/portal' %>">Browse others</a> or <a href="/portal/book">start over</a>.</p>
               </div>
             </div>
+            <p class="lock-note"><i class="fas fa-lock" aria-hidden="true"></i><span>You chose this from its listing, so the type and the <%= _sel === 'room' ? 'room' : (_sel === 'cottage' ? 'cottage' : 'venue') %> are locked for this booking. <a href="<%= browseFor[_sel] || '/portal' %>">Go back to browse</a> to pick a different one.</span></p>
             <% } %>
             <input type="hidden" name="reservation_type" id="reservationType" value="<%= old.reservation_type || filters.type || '' %>" required />
           </div>
@@ -134,7 +134,9 @@
             <h2 class="wiz-step-title" id="step2Title" tabindex="-1">Select room &amp; dates</h2>
             <p class="wiz-step-lede" id="step2Lede">Choose your option and dates. The summary updates as you go.</p>
             <%# Selected room / cottage / venue: real photo (if any), capacity and rate unit — filled by the script %>
-            <div class="sel-item mb-4" id="itemCard" hidden aria-live="polite"></div>
+            <div class="sel-item" id="itemCard" hidden aria-live="polite"></div>
+            <% if (lockedSelection) { %><p class="lock-note lock-note--step2"><i class="fas fa-lock" aria-hidden="true"></i><span>Locked to your chosen listing. <a href="<%= browseFor[_sel] || '/portal' %>">Go back to browse</a> to pick a different one.</span></p><% } %>
+            <div class="mb-4"></div>
 
             <!-- ── Room fields (room type only) ── -->
             <div id="roomFields" style="display:none;">
@@ -631,6 +633,10 @@
     if (!lockedValue) return;   // only the type's own list carries the chosen item
     sel.classList.add('is-locked-select');
     sel.setAttribute('aria-readonly', 'true');
+    // Show the choice as a locked card (renderItemCard) instead of a dropdown that looks changeable;
+    // the hidden select still posts the value.
+    var box = sel.closest('.mb-3');
+    if (box) box.hidden = true;
     sel.addEventListener('mousedown', function (e) { e.preventDefault(); });  // block dropdown open
     sel.addEventListener('change', function () {
       if (this.value !== lockedValue) {
@@ -1346,7 +1352,9 @@
       '<div class="sel-item-body"><p class="sel-item-name">' + esc(opt.dataset.name || opt.text) + '</p>' +
       '<p class="sel-item-facts">' + (cap ? (t === 'room' ? 'Sleeps ' + esc(cap) : 'Up to ' + esc(cap) + ' guests') + ' · ' : '') +
       '<strong>' + fmtPrice(opt.dataset.price) + '</strong> ' + (t === 'room' ? 'per night' : 'per booking') + '</p>' +
-      (t === 'cottage' ? '<p class="pt-meta mb-0">Flat rate — the same whatever times you choose.</p>' : '') + '</div>';
+      (t === 'cottage' ? '<p class="pt-meta mb-0">Flat rate — the same whatever times you choose.</p>' : '') + '</div>' +
+      (selectEl.classList.contains('is-locked-select') ? '<span class="sel-item-lock"><i class="fas fa-lock" aria-hidden="true"></i>Locked</span>' : '');
+    itemCard.classList.toggle('is-locked', selectEl.classList.contains('is-locked-select'));
     itemCard.hidden = false;
   }
   function renderGallery(selectEl) {

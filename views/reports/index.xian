@@ -2,12 +2,12 @@
 <%
   const isAdmin = currentUser && currentUser.role === 'admin';
   const REPORTS = [
-    { href: '/reports/sales', title: 'Sales', adminOnly: true,
-      text: 'Payments received in a date range, grouped by day, week, month or year, with revenue by booking type.' },
-    { href: '/reports/reservations', title: 'Reservations',
-      text: 'Bookings made in a date range, filterable by status and type, with amounts and payment status.' },
-    { href: '/reports/events', title: 'Events',
-      text: 'Events scheduled in a date range with attendees, venue, cost and status.' },
+    { href: '/reports/sales', title: 'Sales Report', button: 'View Sales Report', icon: 'fa-coins', tone: 'sales', adminOnly: true,
+      text: 'Daily, weekly, monthly and yearly sales, with revenue by booking type.' },
+    { href: '/reports/reservations', title: 'Reservation Report', button: 'View Reservation Report', icon: 'fa-calendar-check', tone: 'res',
+      text: 'All reservations by status, type and date range, with summary totals.' },
+    { href: '/reports/events', title: 'Event Report', button: 'View Event Report', icon: 'fa-star', tone: 'event',
+      text: 'Event bookings, types, revenue, attendee counts and upcoming events.' },
   ];
   const EXPORTS = [
     { type: 'sales',        label: 'Sales',        note: 'Every payment recorded in the range (by payment date).' },
@@ -21,20 +21,18 @@
 <h1 class="ph-title">Reports</h1>
 <!--/page-head-->
 
-<section class="ap-panel" aria-labelledby="rptListHeading">
-  <div class="ap-panel-head"><h2 id="rptListHeading">View a report</h2></div>
-  <ul class="rpt-list">
-    <% for (const r of REPORTS) { if (r.adminOnly && !isAdmin) continue; %>
-    <li>
-      <a href="<%= r.href %>" class="rpt-list-link">
-        <span class="rpt-list-title"><%= r.title %> report</span>
-        <span class="rpt-list-text"><%= r.text %></span>
-        <i class="fas fa-chevron-right" aria-hidden="true"></i>
-      </a>
-    </li>
-    <% } %>
-  </ul>
-</section>
+<p class="rpt-lede">Generate and export business reports.</p>
+<h2 class="visually-hidden">View a report</h2>
+<ul class="rpt-cards">
+  <% for (const r of REPORTS) { if (r.adminOnly && !isAdmin) continue; %>
+  <li class="rpt-card rpt-card--<%= r.tone %>">
+    <span class="rpt-card-icon" aria-hidden="true"><i class="fas <%= r.icon %>"></i></span>
+    <h3 class="rpt-card-title"><%= r.title %></h3>
+    <p class="rpt-card-text"><%= r.text %></p>
+    <a href="<%= r.href %>" class="rpt-card-btn"><i class="fas fa-chart-bar" aria-hidden="true"></i><%= r.button %></a>
+  </li>
+  <% } %>
+</ul>
 
 <% if (isAdmin) { %>
 <section class="ap-panel" aria-labelledby="rptExportHeading">

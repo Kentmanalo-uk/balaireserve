@@ -160,7 +160,7 @@
           <td class="ap-cell-title"><a href="/payments/<%= p.id %>" class="ap-name ap-code pay-ref"><%= p.reference_number %></a><span class="ap-line2"><%= typeLabel(p.payment_type) %> · <%= methodLabel(p.payment_method) %></span></td>
           <td data-label="Date" class="text-nowrap"><%= formatDate(p.payment_date) %></td>
           <td data-label="Booking"><a href="/reservations/<%= p.reservation_id %>" class="ap-code"><%= p.booking_ref %></a><span class="ap-line2"><%= p.customer_name %></span></td>
-          <td data-label="Received by" class="ap-hide-sm ap-muted pay-col-by"><%= p.received_by_name || '—' %></td>
+          <td data-label="Received by" class="ap-hide-sm ap-muted pay-col-by"><%= paymentReceiver %></td>
           <td class="ap-cell-status"><%- statusBadge(p.status) %></td>
           <td class="num" data-label="Amount"><span class="pay-amount <%= refunded ? 'is-refund' : '' %>"><%= refunded ? '−' : '' %><%= formatPeso(p.amount) %></span></td>
           <td class="ap-row-actions"><div class="ap-actions"><a href="/payments/<%= p.id %>" class="ap-act">View<span class="br-sr-only"> payment <%= p.reference_number %></span></a></div></td>

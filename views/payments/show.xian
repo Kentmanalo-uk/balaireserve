@@ -59,7 +59,7 @@
           <dt>Method</dt><dd><%= methodLabel(payment.payment_method) %></dd>
           <dt>Type</dt><dd><%= typeLabel(payment.payment_type) %></dd>
           <dt>Payment date</dt><dd><%= formatDate(payment.payment_date) %></dd>
-          <dt>Received by</dt><dd><%= payment.received_by_name || '—' %></dd>
+          <dt>Received by</dt><dd><%= paymentReceiver %></dd>
           <dt>Status</dt><dd><%- statusBadge(payment.status) %></dd>
           <dt>Recorded by</dt><dd><%= isGuestProof ? 'Guest (online proof upload)' : 'Staff' %></dd>
           <% if (payment.proof_image) { %><dt>Screenshot</dt><dd><a href="/portal/payment-proof/<%= payment.id %>" data-lightbox="/portal/payment-proof/<%= payment.id %>" data-lightbox-title="Payment proof — <%= payment.booking_ref %>" class="pay-proof-link"><img src="/portal/payment-proof/<%= payment.id %>" alt="Payment screenshot for <%= formatPeso(payment.amount) %>" loading="lazy" data-missing="Screenshot unavailable" class="pay-proof-thumb" /><span>View screenshot</span></a></dd><% } %>

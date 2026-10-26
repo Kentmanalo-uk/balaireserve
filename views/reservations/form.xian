@@ -2,7 +2,7 @@
 
 <!--page-head-->
 <a href="/reservations" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Reservations</a>
-<h1 class="ph-title">New walk-in reservation</h1>
+<h1 class="ph-title">New reservation</h1>
 <!--/page-head-->
 
 <% if (errors && errors.length > 0) { %>
@@ -25,20 +25,31 @@
   <div>
     <p class="form-intro">For a guest at the front desk or on the phone. Every type takes dates and times, there is no guest limit, and the total can be edited. Fields marked <span class="req-mark" aria-hidden="true">*</span><span class="visually-hidden">with an asterisk</span> are required.</p>
 
-    <!-- 1. Customer -->
+    <!-- 1. Guest: staff type the walk-in guest's details (no customer list to pick from) -->
     <section class="form-block" aria-labelledby="fb1">
-      <h2 id="fb1"><span class="fb-num" aria-hidden="true">1</span>Customer</h2>
-      <p class="fb-help">Pick an existing customer. New guests are added under CRM → Customers first.</p>
+      <h2 id="fb1"><span class="fb-num" aria-hidden="true">1</span>Guest</h2>
+      <% if (linkedCustomer) { %>
+      <input type="hidden" name="customer_id" value="<%= linkedCustomer.id %>" />
+      <p class="fb-help">Booking for <strong><%= linkedCustomer.first_name %> <%= linkedCustomer.last_name %></strong> (<%= linkedCustomer.customer_code %>). <a href="/reservations/new">Enter a different guest</a></p>
+      <% } else { %>
+      <p class="fb-help">Type the guest's details. If this guest is already on file (same name and phone or email), the booking is added to them; otherwise they're saved as a new customer.</p>
+      <% } %>
       <div class="row g-3">
         <div class="col-md-6">
-          <label class="form-label required" for="customerId">Customer</label>
-          <select name="customer_id" id="customerId" class="form-select" required>
-            <option value="">Select customer...</option>
-            <% for (const c of customers) { %>
-            <option value="<%= c.id %>" <%= sel(old.customer_id, c.id) %>><%= c.first_name %> <%= c.last_name %> (<%= c.customer_code %>)</option>
-            <% } %>
-          </select>
-          <div class="form-text"><a href="/crm/customers/new">Add a new customer</a> if they're not listed.</div>
+          <label class="form-label required" for="guestFirst">First name</label>
+          <input type="text" name="guest_first_name" id="guestFirst" class="form-control" value="<%= old.guest_first_name || '' %>" maxlength="100" autocomplete="off" required <%- linkedCustomer ? 'readonly' : '' %> />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label required" for="guestLast">Last name</label>
+          <input type="text" name="guest_last_name" id="guestLast" class="form-control" value="<%= old.guest_last_name || '' %>" maxlength="100" autocomplete="off" required <%- linkedCustomer ? 'readonly' : '' %> />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="guestPhone">Mobile number <span class="opt">(optional)</span></label>
+          <input type="tel" name="guest_phone" id="guestPhone" class="form-control" value="<%= old.guest_phone || '' %>" maxlength="50" inputmode="tel" autocomplete="off" placeholder="09XX XXX XXXX" <%- linkedCustomer ? 'readonly' : '' %> />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="guestEmail">Email <span class="opt">(optional)</span></label>
+          <input type="email" name="guest_email" id="guestEmail" class="form-control" value="<%= old.guest_email || '' %>" maxlength="255" autocomplete="off" <%- linkedCustomer ? 'readonly' : '' %> />
         </div>
         <div class="col-6 col-md-3">
           <label class="form-label required" for="numGuests">Guests</label>
@@ -347,7 +358,8 @@
     if (el.disabled) return '';
     var item = REQUIRED_ITEM[resType.value];
     if (item && el.name === item && !el.value) return ITEM_MSG[item];
-    if (el === customerSel && !el.value) return 'Select a customer, or add them under CRM first.';
+    if ((el === guestFirst || el === guestLast) && !el.value.trim()) return labelText(el) + ' is required.';
+    if (el === guestEmail && el.value && !el.checkValidity()) return 'Enter a valid email address, or leave it empty.';
     if (el === resType && !el.value) return 'Choose what is being booked.';
     if (el === numGuests && !(/^\d+$/.test(el.value) && Number(el.value) >= 1)) return 'Enter a whole number of at least 1 (there is no upper limit).';
     if (el === totalAmt && (el.value === '' || Number(el.value) < 0)) return 'Enter the total amount (₱0 or more). “Use price” fills it from the catalogue.';
@@ -359,10 +371,12 @@
     if (el === paymentNow && el.value !== '' && totalAmt.value !== '' && Number(el.value) > Number(totalAmt.value)) return 'Payment received is more than the total amount.';
     return '';
   }
-  var customerSel = document.getElementById('customerId');
+  var guestFirst  = document.getElementById('guestFirst');
+  var guestLast   = document.getElementById('guestLast');
+  var guestEmail  = document.getElementById('guestEmail');
   var numGuests   = document.getElementById('numGuests');
   var paymentNow  = document.getElementById('paymentNow');
-  var FIELDS = [customerSel, resType, numGuests, document.getElementById('roomId'), document.getElementById('cottageId'), document.getElementById('venueId'), document.getElementById('packageId'), checkIn, checkOut, totalAmt, paymentNow];
+  var FIELDS = [guestFirst, guestLast, guestEmail, resType, numGuests, document.getElementById('roomId'), document.getElementById('cottageId'), document.getElementById('venueId'), document.getElementById('packageId'), checkIn, checkOut, totalAmt, paymentNow];
   function show(el, msg) {
     var box = msgBox(el);
     box.textContent = msg; box.classList.toggle('is-shown', !!msg);

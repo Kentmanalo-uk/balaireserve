@@ -144,6 +144,9 @@ app.use('/uploads/payment_proofs', async (req, res) => {
 app.use('/uploads', express.static(UPLOAD_ROOT));
 
 // ΓöÇΓöÇ Xianfire Template Engine ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// Ikions icons: <i class="fas fa-…"> in rendered pages gets the matching SVG (src/utils/ikions.js).
+app.use(require('./src/utils/ikions').ikionsMiddleware);
+
 xianfire.register(app, { viewsDir: path.join(__dirname, 'views') });
 
 // ΓöÇΓöÇ Global Template Helpers (pure functions — no per-request state) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
@@ -159,6 +162,8 @@ app.use(async (req, res, next) => {
   res.locals.appName     = process.env.APP_NAME || 'Balai-Reserve';
   res.locals.currentUser = user;
   res.locals.currentPath = req.path;
+  // Shown as "Received by" on payments (the resort's cashier); who typed an entry is kept as "Recorded by".
+  res.locals.paymentReceiver = process.env.PAYMENT_RECEIVER_NAME || 'Maria Nora Miciano';
 
   res.locals.activeTab              = null;
   res.locals.unreadNotifCount       = 0;

@@ -797,3 +797,27 @@ a.ap-kpi:hover { background: var(--color-seaglass-100); }
 .crm-split .ap-history > li:first-child::before { top: 18px; }
 .crm-split .ap-history > li:last-child::before { bottom: calc(100% - 22px); }
 .crm-split .ap-history > li { border-bottom: 0; }
+
+/* ── Reports: one labelled card per report (icon, name, what it shows, button) ── */
+.rpt-lede { margin: -6px 0 var(--br-space-5, 20px); color: var(--br-ink-2); }
+.rpt-cards { list-style: none; margin: 0 0 var(--br-space-6, 24px); padding: 0; display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.rpt-card {
+  --tone: #0f5c66; --tone-tint: #e7f3f0; --tone-hover: #0b4a52;
+  display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 24px 22px 22px; text-align: center;
+  border: 1px solid var(--br-hairline); border-radius: 18px; background: var(--br-surface, #fff);
+  box-shadow: 0 1px 2px rgba(20, 52, 58, .04), 0 8px 24px rgba(20, 52, 58, .05);
+}
+.rpt-card--sales { --tone: #047857; --tone-tint: #d9f5e9; --tone-hover: #065f46; }
+.rpt-card--res   { --tone: #4f46e5; --tone-tint: #e7e6fd; --tone-hover: #4338ca; }
+.rpt-card--event { --tone: #b45309; --tone-tint: #fdf0d2; --tone-hover: #92400e; }
+.rpt-card-icon { display: grid; place-items: center; width: 60px; height: 60px; margin-bottom: 6px; border-radius: 16px; background: var(--tone-tint); color: var(--tone); font-size: 1.5rem; }
+.rpt-card-title { margin: 0; font-size: 1.25rem; font-weight: 700; color: var(--br-ink); }
+.rpt-card-text { flex: 1; margin: 0 0 10px; font-size: var(--br-fs-small); line-height: 1.5; color: var(--br-ink-2); }
+.rpt-card-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 16px;
+  border-radius: 12px; background: var(--tone); color: #fff; font-weight: 600; text-decoration: none;
+  transition: background-color .15s ease, transform .15s ease;
+}
+.rpt-card-btn:hover, .rpt-card-btn:focus-visible { background: var(--tone-hover); color: #fff; text-decoration: none; }
+.rpt-card-btn:active { transform: scale(.98); }
+.rpt-card-btn:focus-visible { outline: 3px solid var(--br-focus, #e0a73a); outline-offset: 2px; }

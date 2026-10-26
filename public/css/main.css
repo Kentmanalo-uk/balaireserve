@@ -1572,7 +1572,7 @@ a.ops-row.is-attention:hover { background: #faf1df; }
 /* ── Inline field validation (walk-in and other staff forms) ─── */
 .field-msg { display: none; margin-top: 4px; font-size: var(--br-fs-meta); color: var(--br-danger); }
 .field-msg.is-shown { display: flex; gap: 6px; align-items: flex-start; }
-.field-msg.is-shown::before { content: '\f06a'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: .8em; margin-top: 2px; }
+.field-msg.is-shown::before { content: ''; display: inline-block; flex-shrink: 0; width: 1.05em; height: 1.05em; background-color: currentColor; -webkit-mask: url('/images/icons/error.svg') center / contain no-repeat; mask: url('/images/icons/error.svg') center / contain no-repeat; margin-top: 1px; }
 .form-control.is-invalid, .form-select.is-invalid { border-color: var(--br-danger); }
 .form-block.has-error { border-color: #f2c4bf; }
 .form-error-summary { margin-bottom: var(--br-space-4); }
@@ -1734,7 +1734,7 @@ a.ops-row.is-attention:hover { background: #faf1df; }
     border-bottom: 1px solid var(--color-divider);
   }
   .cal-options > summary::-webkit-details-marker { display: none; }
-  .cal-options > summary::after { content: '\f078'; font-family: 'Font Awesome 6 Free'; font-weight: 900; font-size: 12px; color: var(--color-secondary); transition: transform var(--dur-press) var(--ease-out); }
+  .cal-options > summary::after { content: ''; display: inline-block; flex-shrink: 0; width: 14px; height: 14px; background-color: currentColor; -webkit-mask: url('/images/icons/chevron-down.svg') center / contain no-repeat; mask: url('/images/icons/chevron-down.svg') center / contain no-repeat; color: var(--color-secondary); transition: transform var(--dur-press) var(--ease-out); }
   .cal-options[open] > summary::after { transform: rotate(180deg); }
 }
 

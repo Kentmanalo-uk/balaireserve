@@ -1005,7 +1005,7 @@ html.ps-lock, html.ps-lock body { overflow: hidden; }
 .search-submit:active { transform: scale(.98); }
 .search-error { border-radius: 14px; }
 .search-help { position: relative; padding-left: 22px; font-size: .8125rem; line-height: 1.5; }
-.search-help::before { content: '\f05a'; font-family: 'Font Awesome 6 Free'; font-weight: 900; color: var(--color-ocean-700); opacity: .7; position: absolute; left: 0; top: 1px; }
+.search-help::before { content: ''; display: inline-block; flex-shrink: 0; width: 15px; height: 15px; background-color: currentColor; -webkit-mask: url('/images/icons/info.svg') center / contain no-repeat; mask: url('/images/icons/info.svg') center / contain no-repeat; color: var(--color-ocean-700); opacity: .75; position: absolute; left: 0; top: 2px; }
 
 /* Desktop: segmented track + one capsule with the button inside */
 @media (min-width: 1024px) {

@@ -320,3 +320,14 @@
 .app-install strong { font-weight: 700; }
 .app-install small { font-size: .8125rem; color: var(--color-secondary); }
 .app-install > i { color: var(--color-ocean-700); }
+
+/* ── Ikions icons (ikions.cloud) ─────────────────────────────────────
+   Markup stays <i class="fas fa-…">; the server (src/utils/ikions.js) and public/js/ikions.js put the
+   matching Ikions SVG inside. The SVG is sized by font-size and coloured by currentColor, like the
+   icon font it replaces, so existing rules on the <i> (size, colour, boxes) still work. */
+i.ik, i[class*="fa-"] { display: inline-block; font-style: normal; line-height: 1; vertical-align: -.125em; }
+/* Ikions draw inside a padded 24px grid; 1.2em with -.1em margins matches the old glyphs' visual size
+   while the icon still takes a 1em box, so spacing around it is unchanged. */
+i.ik > svg { display: block; width: 1.2em; height: 1.2em; margin: -.1em; overflow: visible; }
+i.ik.fa-fw { width: 1.25em; }
+i.ik.fa-fw > svg { margin: -.1em auto; }

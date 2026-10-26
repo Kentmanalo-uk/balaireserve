@@ -120,3 +120,51 @@
   .bw-page .wiz-sum-toggle .v { min-width: 0; font-size: var(--text-meta); }
   .bw-page .wiz-sum-toggle .v .pt-meta { font-size: 12px; }
 }
+
+/* ── Progress, labelled: numbered steps joined by a line, each with its name ──
+   (the "Step 2 of 4" caption stays for screen readers; the labels say it visually) */
+.bw-progress .wiz-caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.bw-progress .wiz-progress { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
+.bw-progress .wiz-progress .wizard-step-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; height: auto; padding: 0 4px;
+  border: 0; border-radius: 0; background: none; overflow: visible; text-align: center;
+}
+.bw-progress .wizard-step-btn.done, .bw-progress .wizard-step-btn.active { background: none; }
+.bw-progress .wizard-step-btn::before {   /* the line from the previous step */
+  content: ''; position: absolute; top: 17px; right: 50%; left: -50%; height: 2px; margin: 0 22px;
+  background: var(--color-divider); transition: background-color var(--dur-panel) var(--ease-out);
+}
+.bw-progress .wizard-step-btn:first-child::before { display: none; }
+.bw-progress .wizard-step-btn.done::before, .bw-progress .wizard-step-btn.active::before { background: var(--color-ocean-700); }
+.bw-progress .wizard-step-btn .step-num, .bw-progress .wizard-step-btn .step-label {
+  position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal;
+}
+.bw-progress .wizard-step-btn .step-num {
+  display: grid; place-items: center; width: 36px; height: 36px; border: 2px solid var(--color-divider); border-radius: 50%;
+  background: var(--color-white); color: var(--color-secondary); font-size: .9375rem; font-weight: 700; font-variant-numeric: tabular-nums;
+  transition: background-color var(--dur-panel) var(--ease-out), border-color var(--dur-panel) var(--ease-out), color var(--dur-panel) var(--ease-out), box-shadow var(--dur-panel) var(--ease-out);
+}
+.bw-progress .wizard-step-btn .step-label { display: block; font-size: .8125rem; font-weight: 600; line-height: 1.25; color: var(--color-secondary); }
+.bw-progress .wizard-step-btn.done .step-num { border-color: var(--color-ocean-700); background: var(--color-seaglass-100); color: var(--color-ocean-700); }
+.bw-progress .wizard-step-btn.active .step-num { border-color: var(--color-ocean-700); background: var(--color-ocean-700); color: #fff; box-shadow: 0 0 0 5px var(--color-seaglass-100); }
+.bw-progress .wizard-step-btn.done .step-label { color: var(--color-ocean-700); }
+.bw-progress .wizard-step-btn.active .step-label { color: var(--color-ocean-900); font-weight: 700; }
+@media (max-width: 575.98px) {
+  .bw-progress .wizard-step-btn .step-num { width: 32px; height: 32px; font-size: .875rem; }
+  .bw-progress .wizard-step-btn::before { top: 15px; margin: 0 20px; }
+  .bw-progress .wizard-step-btn .step-label { font-size: .75rem; }
+}
+
+/* ── Locked choice (arrived from a listing's Book button) ── */
+.lock-note {
+  display: flex; gap: 10px; align-items: flex-start; margin: var(--space-4) 0 0; padding: 10px 14px;
+  border: 1px solid rgba(15, 92, 102, .22); border-radius: 12px; background: var(--color-seaglass-100);
+  font-size: var(--text-small); color: var(--color-ocean-900);
+}
+.lock-note > i { margin-top: 3px; color: var(--color-ocean-700); }
+.lock-note--step2 { margin-top: var(--space-3); }
+#itemCard.is-locked { position: relative; border-color: rgba(15, 92, 102, .35); }
+.sel-item-lock {
+  position: absolute; top: 10px; right: 10px; display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+  border-radius: 999px; background: var(--color-ocean-700); color: #fff; font-size: .75rem; font-weight: 700;
+}

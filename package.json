@@ -10,7 +10,8 @@
         "migrate:sqlite": "node src/database/sqlite-to-mysql.js",
         "seed": "node src/database/seed.js",
         "setup": "node src/database/migrate.js && node src/database/seed.js",
-        "fresh-start": "node src/database/fresh-start.js"
+        "fresh-start": "node src/database/fresh-start.js",
+        "build:icons": "node scripts/build-icons.js"
     },
     "dependencies": {
         "bcryptjs": "^2.4.3",
@@ -35,6 +36,7 @@
         "uuid": "^9.0.0"
     },
     "devDependencies": {
+        "@ikions/icons": "^0.2.0",
         "better-sqlite3": "^11.10.0",
         "nodemon": "^3.0.2"
     },

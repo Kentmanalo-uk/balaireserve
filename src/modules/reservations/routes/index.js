@@ -7,7 +7,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
-const { generateBookingRef }       = require('../../../utils/bookingRef');
+const { generateBookingRef, generateCustomerCode } = require('../../../utils/bookingRef');
 const { generateReservationQR }    = require('../../../utils/qrGenerator');
 const { verifyPayment }            = require('../../../utils/paymentVerification');
 const { notifyStaff, notifyCustomer, notifyAllAdmins, notifyReservationCustomer } = require('../../../utils/notifications');
@@ -175,10 +175,30 @@ async function recordStaffPayment(reservationId, { amount, method, date, type, n
   });
 }
 
+// Walk-in guest → customer record. Reuses an existing customer only when the name matches AND the
+// email or mobile number matches (so two guests sharing a name are never merged); otherwise adds one.
+async function findOrCreateWalkInCustomer(f, code) {
+  const digits = v => String(v || '').replace(/\D/g, '').slice(-10);
+  const email = f.guest_email.toLowerCase(), phone = digits(f.guest_phone);
+  if (email || phone) {
+    const sameName = await db.prepare(
+      `SELECT id, first_name, last_name, email, phone FROM customers
+       WHERE LOWER(TRIM(first_name)) = ? AND LOWER(TRIM(last_name)) = ? AND status <> 'blacklisted' ORDER BY id`
+    ).all(f.guest_first_name.toLowerCase(), f.guest_last_name.toLowerCase());
+    const hit = sameName.find(c => (email && String(c.email || '').toLowerCase() === email) || (phone.length >= 7 && digits(c.phone) === phone));
+    if (hit) return hit;
+  }
+  const id = (await db.prepare(`
+    INSERT INTO customers (customer_code, first_name, last_name, email, phone, preferred_contact, customer_type, notes)
+    VALUES (?, ?, ?, ?, ?, ?, 'regular', 'Added from a walk-in reservation.')
+  `).run(code, f.guest_first_name, f.guest_last_name, f.guest_email || '', f.guest_phone || '', f.guest_phone ? 'phone' : 'email')).lastInsertRowid;
+  return { id, first_name: f.guest_first_name, last_name: f.guest_last_name, email: f.guest_email || '', phone: f.guest_phone || '' };
+}
+
 // Walk-in form fields, normalised (also used as `old` when re-rendering).
 function readWalkInForm(body) {
   const f = {};
-  for (const key of ['customer_id','reservation_type','room_id','cottage_id','venue_id','package_id',
+  for (const key of ['customer_id','guest_first_name','guest_last_name','guest_phone','guest_email','reservation_type','room_id','cottage_id','venue_id','package_id',
     'check_in_date','check_out_date','start_time','end_time','num_guests','payment_method',
     'total_amount','downpayment_req','payment_now','initial_status','special_requests']) {
     f[key] = field(body[key]);
@@ -197,7 +217,14 @@ async function downpaymentPercent() {
 }
 
 async function renderWalkInForm(res, { old = {}, errors = [] } = {}) {
-  const customers = await db.prepare(`SELECT id, customer_code, first_name, last_name, email FROM customers WHERE status = 'active' ORDER BY first_name`).all();
+  // Opened from a customer's profile ("New reservation"): book for that customer.
+  const linkedCustomer = /^\d+$/.test(old.customer_id || '')
+    ? (await db.prepare(`SELECT id, customer_code, first_name, last_name, email, phone FROM customers WHERE id = ?`).get(old.customer_id)) || null
+    : null;
+  if (linkedCustomer) {
+    old.guest_first_name = linkedCustomer.first_name; old.guest_last_name = linkedCustomer.last_name;
+    old.guest_phone = linkedCustomer.phone || ''; old.guest_email = linkedCustomer.email || '';
+  }
   const rooms     = await db.prepare(`SELECT * FROM rooms WHERE is_active = 1 ORDER BY room_number`).all();
   const cottages  = await db.prepare(`SELECT * FROM cottages WHERE is_active = 1 ORDER BY name, id`).all();
   const venues    = await db.prepare(`SELECT * FROM venues WHERE is_active = 1 ORDER BY name, id`).all();
@@ -205,7 +232,7 @@ async function renderWalkInForm(res, { old = {}, errors = [] } = {}) {
   res.render('reservations/form', {
     title: 'New Reservation',
     layout: 'layouts/main',
-    reservation: null, customers, rooms, cottages, venues, packages,
+    reservation: null, linkedCustomer, rooms, cottages, venues, packages,
     paymentMethods: STAFF_PAYMENT_METHODS,
     downpaymentPercent: await downpaymentPercent(),
     errors, old,
@@ -266,7 +293,8 @@ router.get('/', requireAuth, async (req, res) => {
 
 // GET /reservations/new
 router.get('/new', requireAuth, requireRole('admin','staff'), async (req, res) => {
-  await renderWalkInForm(res, { old: { num_guests: '1', payment_method: 'cash', initial_status: 'pending', source: 'walk_in' } });
+  const customerId = /^\d+$/.test(String(req.query.customer_id || '')) ? String(req.query.customer_id) : '';
+  await renderWalkInForm(res, { old: { customer_id: customerId, num_guests: '1', payment_method: 'cash', initial_status: 'pending', source: 'walk_in' } });
 });
 
 // POST /reservations — walk-in booking entered by staff at the front desk.
@@ -277,10 +305,17 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
   const errors = [];
   const fail   = (list) => renderWalkInForm(res, { old: f, errors: list });
 
-  const customer = /^\d+$/.test(f.customer_id)
+  // Guest: the customer from a profile link, or the details typed at the desk.
+  let customer = /^\d+$/.test(f.customer_id)
     ? await db.prepare(`SELECT id, first_name, last_name, email, phone FROM customers WHERE id = ?`).get(f.customer_id)
     : null;
-  if (!customer) errors.push({ msg: 'Select a customer.' });
+  if (!customer) {
+    if (!f.guest_first_name) errors.push({ msg: "Enter the guest's first name." });
+    if (!f.guest_last_name) errors.push({ msg: "Enter the guest's last name." });
+    if (f.guest_first_name.length > 100 || f.guest_last_name.length > 100) errors.push({ msg: 'Names can be at most 100 characters.' });
+    if (f.guest_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.guest_email)) errors.push({ msg: 'Enter a valid email address, or leave it empty.' });
+    if (f.guest_phone.length > 50) errors.push({ msg: 'The mobile number is too long.' });
+  }
   if (!['room','cottage','venue','event'].includes(type)) errors.push({ msg: 'Select a reservation type.' });
 
   // No upper limit and no capacity check for staff bookings.
@@ -335,6 +370,8 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
   };
   const bookingRef = await generateBookingRef();
 
+  const newCustomerCode = customer ? null : await generateCustomerCode();
+
   const result = await db.transaction(async () => {
     // Prevent double booking (pending, pencil, on-hold, confirmed ... all block).
     if (resource) {
@@ -342,6 +379,8 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
       const conflict = await findBookingConflict(resourceType, resource.id, requested);
       if (conflict) return { error: `This ${resourceType} is already booked (${conflict.booking_ref}) for the selected dates and times.` };
     }
+    // Only once the booking can go ahead, so a refused booking never leaves a new customer behind.
+    if (!customer) customer = await findOrCreateWalkInCustomer(f, newCustomerCode);
 
     const resId = (await db.prepare(`
       INSERT INTO reservations

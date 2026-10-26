@@ -13,7 +13,7 @@
 <h1 class="ph-title">Dashboard</h1>
 <div class="ph-actions">
   <a href="/reports" class="btn btn-secondary-quiet">Reports</a>
-  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New walk-in</a>
+  <a href="/reservations/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>New reservation</a>
 </div>
 <!--/page-head-->
 
