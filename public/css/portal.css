@@ -1332,3 +1332,19 @@ a.pn-row.is-unread:hover { background: #dcefea; }
 .pt-menu-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .pt-menu-brand .brand-logo { width: 40px; height: 40px; }
 @media (max-width: 399.98px) { .pt-brand > .brand-logo { width: 38px; height: 38px; } .pt-brand { column-gap: 8px; } }
+
+/* ── Checked in: time-in / time-out / time left (views/portal/reservation-detail.xian) ── */
+.stay-live { border-left: 4px solid var(--br-success, #1f7a4d); }
+.stay-live.is-done { border-left-color: var(--br-deep-sea); }
+.stay-live-state { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 1.125rem; font-weight: 700; color: var(--br-ink-teal); }
+.stay-live-state > i { color: var(--br-success, #1f7a4d); }
+.stay-live-times { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 0; }
+.stay-live-times > div { padding: 10px 12px; border-radius: 12px; background: var(--br-surface-alt, #f4f6f5); }
+.stay-live-times dt { margin: 0 0 2px; font-size: var(--br-fs-meta); font-weight: 600; color: var(--br-ink-2); text-transform: uppercase; letter-spacing: .04em; }
+.stay-live-times dd { margin: 0; font-weight: 600; color: var(--br-ink); font-variant-numeric: tabular-nums; }
+.stay-live.is-over .stay-live-left dd { color: var(--br-danger); }
+.stay-live-note { display: flex; gap: 8px; align-items: flex-start; margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: #fdf3dc; color: #7a4a05; font-size: var(--br-fs-small); }
+.arrive-steps { max-width: 44ch; margin: 0 auto var(--space-4); padding-left: 1.3rem; text-align: left; }
+.arrive-steps li + li { margin-top: 6px; }
+.arrive-when, .arrive-help { max-width: 48ch; margin: var(--space-4) auto 0; font-size: var(--text-small); color: var(--br-ink-2); }
+.arrive-block .qr-actions { margin-top: var(--space-4); }

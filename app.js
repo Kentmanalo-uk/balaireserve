@@ -308,80 +308,10 @@ app.use('/profile',       profileRoutes);
 app.use('/settings',      settingsRoutes);
 
 // ΓöÇΓöÇ QR Check-in (public — no auth required) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-const { validateQRToken, consumeQRToken, renderQRPng } = require('./src/utils/qrGenerator');
-const { requireAuth, requireRole } = require('./src/middleware/auth');
-const { notifyReservationCustomer } = require('./src/utils/notifications');
-
-const renderInvalidQR = (res, reason) => res.render('guests/checkin-invalid', {
-  title:  'Invalid QR Code',
-  layout: 'layouts/minimal',
-  reason,
-});
-
-// QR image is rendered on demand so it always encodes the current public address.
-app.get('/checkin/:token/qr.png', async (req, res) => {
-  const qr = await db.prepare('SELECT id FROM qr_codes WHERE token = ?').get(req.params.token);
-  if (!qr) return res.status(404).end();
-  res.type('png').set('Cache-Control', 'no-store').send(await renderQRPng(req.params.token));
-});
-
-// Anyone can open the scanned link; only staff can confirm the check-in.
-app.get('/checkin/:token', async (req, res) => {
-  const result = await validateQRToken(req.params.token);
-  if (!result.valid) return renderInvalidQR(res, result.reason);
-
-  const reservation = await db.prepare(`
-    SELECT r.*, c.first_name, c.last_name, c.phone, c.email
-    FROM reservations r JOIN customers c ON c.id = r.customer_id
-    WHERE r.id = ?
-  `).get(result.qr.reservation_id);
-
-  const role = req.session?.user?.role;
-  res.render('guests/checkin-scan', {
-    title:       'QR Check-in',
-    layout:      'layouts/minimal',
-    reservation,
-    token:       req.params.token,
-    isStaff:     role === 'admin' || role === 'staff',
-    isLoggedIn:  !!role,
-  });
-});
-
-// Staff who scan while logged out sign in here and come back to the check-in page.
-app.get('/checkin/:token/staff', requireAuth, (req, res) => res.redirect(`/checkin/${req.params.token}`));
-
-app.post('/checkin/:token', requireAuth, requireRole('admin', 'staff'), async (req, res) => {
-  const result = await validateQRToken(req.params.token);
-  if (!result.valid) return renderInvalidQR(res, result.reason);
-
-  const resId = result.qr.reservation_id;
-  const checkedIn = await db.transaction(async () => {
-    if (!(await consumeQRToken(req.params.token))) return false;
-    await db.prepare(`UPDATE reservations SET status='checked_in', updated_at=NOW() WHERE id=?`).run(resId);
-    await db.prepare(`
-      INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes)
-      VALUES (?, ?, 'checked_in', ?, 'Checked in via QR scan')
-    `).run(resId, result.qr.status, req.session.user.id);
-    const items = await db.prepare(`SELECT item_type, item_id FROM reservation_items WHERE reservation_id = ?`).all(resId);
-    for (const item of items) {
-      if (item.item_type === 'room')    await db.prepare(`UPDATE rooms SET status='occupied' WHERE id=?`).run(item.item_id);
-      if (item.item_type === 'venue')   await db.prepare(`UPDATE venues SET status='occupied' WHERE id=?`).run(item.item_id);
-      if (item.item_type === 'cottage') await db.prepare(`UPDATE cottages SET status='occupied' WHERE id=?`).run(item.item_id);
-    }
-    await db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_by) VALUES (?, 'qr', ?)`).run(resId, req.session.user.id);
-    await db.prepare(`UPDATE guests SET status='checked_in' WHERE reservation_id=?`).run(resId);
-    return true;
-  });
-  if (!checkedIn) return renderInvalidQR(res, 'This QR code has already been used or is no longer valid.');
-
-  await notifyReservationCustomer(resId, 'reservation', 'Checked In',
-    `You are checked in for booking ${result.qr.booking_ref}. Enjoy your stay!`, `/portal/my-reservations/${resId}`);
-  await req.audit('qr_checkin', 'reservations', resId, null, { token: req.params.token });
-
-  res.render('guests/checkin-success', {
-    title: 'Check-in Successful', layout: 'layouts/minimal', reservationId: resId, bookingRef: result.qr.booking_ref,
-  });
-});
+// Check-in desk with the resort QR, check-in by booking ref, older booking QRs (src/modules/checkin).
+app.use('/checkin', require('./src/modules/checkin/routes'));
+// Guests scan the resort QR with their own phone to check themselves in (src/modules/arrive).
+app.use('/arrive', require('./src/modules/arrive/routes'));
 
 // ΓöÇΓöÇ 404 ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 app.use((req, res) => {

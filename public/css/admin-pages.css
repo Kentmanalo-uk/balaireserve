@@ -821,3 +821,54 @@ a.ap-kpi:hover { background: var(--color-seaglass-100); }
 .rpt-card-btn:hover, .rpt-card-btn:focus-visible { background: var(--tone-hover); color: #fff; text-decoration: none; }
 .rpt-card-btn:active { transform: scale(.98); }
 .rpt-card-btn:focus-visible { outline: 3px solid var(--br-focus, #e0a73a); outline-offset: 2px; }
+
+/* ── Check-in desk (views/checkin/desk.xian, public/js/checkin-desk.js) ── */
+.ck-layout { display: grid; gap: 20px; align-items: start; }
+@media (min-width: 1100px) { .ck-layout { grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); } }
+.ck-main { display: grid; gap: 20px; min-width: 0; }
+.ck-body { padding: 16px; display: grid; gap: 16px; }
+.ck-show-body { display: grid; justify-items: center; gap: 12px; padding: 20px 16px 24px; text-align: center; }
+.ck-qr { width: min(100%, 360px); aspect-ratio: 1; padding: 12px; border-radius: 18px; background: #fff; box-shadow: 0 0 0 1px var(--br-hairline); }
+.ck-qr svg { display: block; width: 100%; height: 100%; }
+.ck-qr.is-stale { opacity: .35; }
+.ck-qr-timer { width: min(100%, 360px); height: 4px; overflow: hidden; border-radius: 4px; background: var(--br-hairline); }
+.ck-qr-timer span { display: block; height: 100%; background: var(--br-deep-sea); transform-origin: left center; will-change: transform; }
+.ck-show-lead { margin: 4px 0 0; max-width: 40ch; font-size: 1.0625rem; color: var(--br-ink); }
+.ck-show-note { margin: 0; font-size: var(--br-fs-meta); color: var(--br-ink-2); }
+/* Full screen on a tablet that faces the guest: the code as big as the screen allows. */
+.ck-show.is-full { display: flex; flex-direction: column; justify-content: center; background: #fff; }
+.ck-show.is-full .ap-panel-head { border: 0; justify-content: flex-end; }
+.ck-show.is-full .ap-panel-head h2 { display: none; }
+.ck-show.is-full .ck-qr, .ck-show.is-full .ck-qr-timer { width: min(78vh, 90vw); }
+.ck-show.is-full .ck-show-lead { font-size: 1.5rem; }
+.ck-list li.is-new { animation: ck-new 2.4s ease-out; }
+@keyframes ck-new { from { background-color: rgba(34, 139, 94, .12); } to { background-color: transparent; } }
+.ck-manual-row { display: flex; gap: 8px; }
+.ck-manual-row .form-control { text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.ck-loading { margin: 0; color: var(--br-ink-2); }
+.ck-card { padding: 16px; border: 1px solid var(--br-hairline); border-left: 4px solid var(--br-success); border-radius: 14px; background: var(--br-surface, #fff); }
+.ck-card.is-bad { border-left-color: var(--br-danger); }
+.ck-card.is-done { border-left-color: var(--br-deep-sea); }
+.ck-card-state { display: flex; gap: 8px; align-items: flex-start; margin: 0 0 6px; font-weight: 600; }
+.ck-card-state.is-ok { color: var(--br-success); }
+.ck-card-state.is-bad, .ck-card.is-bad .ck-card-state { color: var(--br-danger); }
+.ck-card-name { margin: 0 0 10px; font-size: 1.25rem; font-weight: 700; color: var(--br-ink-teal); }
+.ck-card-facts { display: grid; gap: 6px; margin: 0 0 12px; }
+.ck-card-facts > div { display: grid; grid-template-columns: 84px 1fr; gap: 10px; }
+.ck-card-facts dt { margin: 0; font-weight: 500; color: var(--br-ink-2); font-size: var(--br-fs-small); }
+.ck-card-facts dd { margin: 0; }
+.ck-due { color: #8a5a12; font-weight: 600; }
+.ck-warn { list-style: none; margin: 0 0 12px; padding: 10px 12px; border-radius: 10px; background: #fdf3dc; color: #7a4a05; font-size: var(--br-fs-small); }
+.ck-warn li { display: flex; gap: 8px; align-items: flex-start; }
+.ck-warn li + li { margin-top: 4px; }
+.ck-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ck-actions .btn-lg { flex: 1 1 220px; }
+.ck-lists { display: grid; gap: 20px; }
+.ck-list { list-style: none; margin: 0; padding: 0; }
+.ck-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-top: 1px solid var(--br-hairline); }
+.ck-li-main { display: grid; gap: 2px; min-width: 0; }
+.ck-li-name { font-weight: 600; color: var(--br-ink); }
+.ck-li-meta, .ck-li-time { font-size: var(--br-fs-meta); color: var(--br-ink-2); }
+.ck-list li.is-soon .ck-li-time { color: #8a5a12; }
+.ck-list li.is-over .ck-li-time { color: var(--br-danger); font-weight: 600; }
+.ck-empty { margin: 0; padding: 14px 16px; color: var(--br-ink-2); }

@@ -1,0 +1,32 @@
+<% layout('layouts/minimal') %>
+<%# After a guest checks themselves in (src/modules/arrive). The time left counts down to time-out (resort time, UTC+8). %>
+<%
+  const t12 = t => { if (!t) return ''; const p = String(t).split(':'); const h = Number(p[0]); return (h % 12 || 12) + ':' + p[1] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const due = s.dueOut ? formatDate(s.dueOut.slice(0, 10), 'ddd, MMM D') + ' · ' + t12(s.dueOut.slice(11, 16)) : '';
+%>
+<section class="checkin-sheet ar-sheet" aria-labelledby="arTitle" role="status">
+  <div class="ck-state is-ok"><i class="fas fa-circle-check" aria-hidden="true"></i>You’re checked in</div>
+  <h1 id="arTitle">Enjoy your stay, <%= s.guest.split(' ')[0] %>!</h1>
+  <p class="ck-lead">Booking <strong class="tnum"><%= s.ref %></strong> is checked in and the front desk has been told you’re here.</p>
+  <dl class="ar-times" id="arTimes" data-due="<%= s.dueOut || '' %>">
+    <dt>Time in</dt><dd><%= s.checkedInAtDb ? formatDateTime(s.checkedInAtDb, 'ddd, MMM D · h:mm A') : 'Now' %></dd>
+    <% if (due) { %><dt>Time out</dt><dd><%= due %></dd>
+    <dt>Time left</dt><dd data-ar-left>—</dd><% } %>
+    <% if (s.items.length) { %><dt>Booked</dt><dd><%= s.items.join(', ') %></dd><% } %>
+  </dl>
+  <% if (notes.length) { %><ul class="ck-warn"><% for (const n of notes) { %><li><i class="fas fa-circle-info" aria-hidden="true"></i><%= n %></li><% } %></ul><% } %>
+  <div class="d-grid gap-2">
+    <a href="/portal/my-reservations/<%= s.id %>" class="btn btn-primary btn-lg">View my booking</a>
+  </div>
+  <p class="ck-note mb-0">Please check out at the front desk when you leave.</p>
+</section>
+<script>
+(function () {
+  var box = document.getElementById('arTimes'), out = box && box.querySelector('[data-ar-left]');
+  if (!out || !box.getAttribute('data-due')) return;
+  var due = new Date(box.getAttribute('data-due') + ':00+08:00').getTime();
+  var fmt = function (ms) { var m = Math.max(0, Math.round(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60; return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + mm + 'm' : mm + 'm'; };
+  var tick = function () { var diff = due - Date.now(); out.textContent = diff >= 0 ? fmt(diff) : 'Time is up — please check out at the front desk'; };
+  tick(); setInterval(tick, 30000);
+})();
+</script>

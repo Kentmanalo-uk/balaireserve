@@ -36,7 +36,7 @@ const MAP = {
   'cloud-arrow-up': 'cloud-upload', 'cloud-upload-alt': 'cloud-upload', coins: 'coins', comment: 'comment',
   'comment-dots': 'chat-dots', copy: 'copy', 'credit-card': 'credit-card', crown: 'diamond-value',
   'diamond-turn-right': 'direction-sign', 'door-open': 'log-out', download: 'download', envelope: 'mail',
-  'exclamation-circle': 'error', 'exclamation-triangle': 'warning', 'external-link-alt': 'external-link', eye: 'eye',
+  'exclamation-circle': 'error', 'exclamation-triangle': 'warning', expand: 'arrows-maximize', 'external-link-alt': 'external-link', eye: 'eye',
   'eye-slash': 'eye-off', 'file-csv': 'file-csv', 'file-excel': 'file-spreadsheet', 'file-lines': 'file-text',
   'file-pdf': 'file-pdf', 'file-word': 'file-text', 'floppy-disk': 'save', gauge: 'speedometer',
   'gauge-high': 'speedometer', gear: 'settings', 'hand-holding-dollar': 'payment', 'heart-crack': 'heart-off',

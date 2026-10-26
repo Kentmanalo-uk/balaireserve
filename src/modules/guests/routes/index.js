@@ -6,6 +6,7 @@
 const express = require('express');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { notifyReservationCustomer } = require('../../../utils/notifications');
 
 const router = express.Router();
 
@@ -93,6 +94,9 @@ router.post('/:id/checkout', requireAuth, requireRole('admin','staff'), async (r
     // ΓöÇΓöÇ Fix 5: Set status=completed AND payment_status=fully_paid on checkout
     await db.prepare(`UPDATE reservations SET status='completed', payment_status='fully_paid', updated_at=NOW() WHERE id=?`).run(guest.reservation_id);
     await db.prepare(`INSERT INTO check_outs (reservation_id, guest_id, checked_out_by) VALUES (?,?,?)`).run(guest.reservation_id, guest.id, req.session.user.id);
+    // Time-out on the booking's timeline, like every other status change.
+    await db.prepare(`INSERT INTO reservation_status_history (reservation_id, from_status, to_status, changed_by, notes) VALUES (?, ?, 'completed', ?, 'Checked out at the front desk')`)
+      .run(guest.reservation_id, reservation ? reservation.status : null, req.session.user.id);
     // Free up the room
     // Free the resource back to available right after checkout completes.
     const items = await db.prepare(`SELECT * FROM reservation_items WHERE reservation_id=?`).all(guest.reservation_id);
@@ -103,6 +107,11 @@ router.post('/:id/checkout', requireAuth, requireRole('admin','staff'), async (r
     }
   });
 
+  await req.audit('checkout', 'reservations', guest.reservation_id, reservation ? { status: reservation.status } : null, { status: 'completed' });
+  if (reservation) {
+    await notifyReservationCustomer(guest.reservation_id, 'reservation', 'Checked Out',
+      `You're checked out of booking ${reservation.booking_ref}. Thank you for staying with us — we'd love your feedback!`, `/portal/my-reservations/${guest.reservation_id}`);
+  }
   req.session.flash = { success: 'Guest checked out successfully.' };
   res.redirect(`/guests/${guest.id}`);
 });

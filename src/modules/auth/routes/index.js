@@ -210,11 +210,12 @@ router.get('/google/callback', async (req, res, next) => {
       return res.redirect('/auth/login');
     }
 
-    const returnTo = req.session.returnTo;
+    const { returnTo, arrivalPass } = req.session;
     return req.session.regenerate(error => {
       if (error) return next(error);
       req.session.user = buildSessionUser(user);
       if (returnTo) req.session.returnTo = returnTo;
+      if (arrivalPass) req.session.arrivalPass = arrivalPass;   // scanned the resort's check-in QR before signing in
       return postLoginRedirect(req, res, user.role);
     });
   } catch (error) {
@@ -258,12 +259,13 @@ router.post('/login',
       }
 
       await db.prepare('UPDATE users SET last_login = NOW() WHERE id = ?').run(user.id);
-      const returnTo = req.session.returnTo;
+      const { returnTo, arrivalPass } = req.session;
       return req.session.regenerate(error => {
         if (error) return next(error);
 
         req.session.user = buildSessionUser(user);
         if (returnTo) req.session.returnTo = returnTo;
+        if (arrivalPass) req.session.arrivalPass = arrivalPass;   // scanned the resort's check-in QR before signing in
         return postLoginRedirect(req, res, user.role);
       });
     } catch (error) {

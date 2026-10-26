@@ -5,9 +5,9 @@
   <h1 id="ckTitle">This QR code can't be used</h1>
   <p class="ck-lead"><%= reason || 'This QR code is not valid or has already been used.' %></p>
   <% if (staffViewer) { %>
-  <p class="small text-muted mb-4">Each booking QR works once and expires after the stay. You can still find the booking by its reference and manage it from the reservation page.</p>
+  <p class="small text-muted mb-4">Each booking QR works once and only during the stay. You can still check the guest in by their booking reference on the check-in desk.</p>
   <div class="d-grid gap-2">
-    <a href="/reservations" class="btn btn-primary btn-lg">Find the booking</a>
+    <a href="/checkin/desk" class="btn btn-primary btn-lg"><i class="fas fa-qrcode me-2" aria-hidden="true"></i>Check in by booking ref</a>
     <a href="/dashboard" class="btn btn-outline-secondary">Back to dashboard</a>
   </div>
   <% } else { %>

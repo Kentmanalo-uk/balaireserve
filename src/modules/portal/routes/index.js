@@ -19,6 +19,7 @@ const { notifyAllAdmins, notifyUser } = require('../../../utils/notifications');
 const { validateGcashScreenshot }     = require('../../../utils/gcashValidator');
 const { calculateCottageTotal, validateCottageTimeRange } = require('../../../utils/cottagePricing');
 const { publicSettings } = require('../../../utils/publicSettings');
+const checkin = require('../../../utils/checkin');
 const { uniqueCatalogRows, imageExists, withExistingPhotos, photosFirst } = require('../../../utils/catalog');
 
 const router = express.Router();
@@ -844,7 +845,20 @@ router.get('/my-reservations/:id', requireCustomer, async (req, res) => {
   const mainItem = items.find(i => ['room', 'cottage', 'venue'].includes(i.item_type));
   const [photoRow] = await attachItemPhotos([{ main_item_type: mainItem && mainItem.item_type, main_item_id: mainItem && mainItem.item_id }]);
   const itemPhoto = photoRow.photo;
-  res.render('portal/reservation-detail', { title: 'Booking ' + reservation.booking_ref, layout: 'layouts/portal', reservation, items, payments, qrCode, amountPaid, totalAmount, balance, isFullyPaid, hasAnyPayment, pendingProof, feedback, customer, refundRequest, canRequestRefund, rejectedProof, cancellationPolicy, statusHistory, paymentActivity, itemPhoto });
+  // Time-in / time-out for the "You're checked in" card.
+  const ckCtx = await checkin.loadContext(reservation.id);
+  const stayTimes = ckCtx ? { checkedInAt: ckCtx.checkIn ? checkin.utcIso(ckCtx.checkIn.checked_in_at) : null, checkedOutAt: ckCtx.checkOut ? checkin.utcIso(ckCtx.checkOut.checked_out_at) : null, dueOut: checkin.dueOut(ckCtx) } : {};
+  res.render('portal/reservation-detail', { title: 'Booking ' + reservation.booking_ref, layout: 'layouts/portal', reservation, items, payments, qrCode, amountPaid, totalAmount, balance, isFullyPaid, hasAnyPayment, pendingProof, feedback, customer, refundRequest, canRequestRefund, rejectedProof, cancellationPolicy, statusHistory, paymentActivity, itemPhoto, stayTimes });
+});
+
+// Small status check for the booking page: it notices the moment the guest is checked in (by scanning the
+// resort QR on their phone, or at the front desk) and switches to the checked-in view.
+router.get('/my-reservations/:id/live', requireCustomer, async (req, res) => {
+  const customer = await db.prepare('SELECT id FROM customers WHERE user_id = ?').get(req.session.user.id);
+  const r = customer && await db.prepare('SELECT id, status FROM reservations WHERE id = ? AND customer_id = ?').get(req.params.id, customer.id);
+  if (!r) return res.status(404).json({ found: false });
+  const ci = await db.prepare('SELECT checked_in_at FROM check_ins WHERE reservation_id = ? ORDER BY id DESC LIMIT 1').get(r.id);
+  res.set('Cache-Control', 'no-store').json({ found: true, status: r.status, checkedInAt: ci ? checkin.utcIso(ci.checked_in_at) : null });
 });
 
 router.get('/feedback/:reservationId', requireCustomer, async (req, res) => {

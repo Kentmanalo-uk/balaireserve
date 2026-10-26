@@ -1,11 +1,22 @@
 <% layout('layouts/minimal') %>
+<%
+  const s = summary;
+  const t12 = t => { if (!t) return ''; const p = String(t).split(':'); const h = Number(p[0]); return (h % 12 || 12) + ':' + p[1] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const due = s.dueOut ? formatDate(s.dueOut.slice(0, 10), 'ddd, MMM D') + ' · ' + t12(s.dueOut.slice(11, 16)) : '';
+%>
 <section class="checkin-sheet" aria-labelledby="ckTitle" role="status">
   <div class="ck-state is-ok"><i class="fas fa-circle-check" aria-hidden="true"></i>Guest checked in</div>
-  <h1 id="ckTitle">Check-in Successful!</h1>
-  <p class="ck-lead">Booking <strong class="tnum"><%= bookingRef %></strong> is now checked in. Its room, cottage or venue is marked occupied and the guest has been notified.</p>
+  <h1 id="ckTitle">Welcome, <%= s.guest.split(' ')[0] %>!</h1>
+  <p class="ck-lead">Booking <strong class="tnum"><%= bookingRef %></strong> is checked in. The place is marked occupied and the guest has been notified.</p>
+  <dl>
+    <dt>Time in</dt><dd><%= s.checkedInAtDb ? formatDateTime(s.checkedInAtDb) : 'Now' %></dd>
+    <% if (due) { %><dt>Time out</dt><dd><%= due %></dd><% } %>
+    <% if (s.items.length) { %><dt>Booked</dt><dd><%= s.items.join(', ') %></dd><% } %>
+    <% if (s.balance > 0) { %><dt>Balance</dt><dd class="ck-due tnum"><%= formatPeso(s.balance) %> — collect before check-out</dd><% } %>
+  </dl>
   <div class="d-grid gap-2">
-    <a href="/reservations/<%= reservationId %>" class="btn btn-primary btn-lg">Open reservation</a>
-    <a href="/dashboard" class="btn btn-outline-secondary">Back to dashboard</a>
+    <a href="/checkin/desk" class="btn btn-primary btn-lg"><i class="fas fa-qrcode me-2" aria-hidden="true"></i>Back to the check-in desk</a>
+    <a href="/reservations/<%= reservationId %>" class="btn btn-outline-secondary">Open reservation</a>
   </div>
-  <p class="ck-note mb-0">This QR code has now been used and won't work again.</p>
+  <p class="ck-note mb-0">This booking’s QR code has now been used and won’t work again.</p>
 </section>

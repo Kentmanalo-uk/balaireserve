@@ -17,7 +17,12 @@
   const underReview  = (payments || []).filter(p => p.status === 'received').reduce((s, p) => s + (Number(p.amount) || 0), 0);
   const dpDue = reservation.downpayment_req > 0 ? Number(reservation.downpayment_req) : Math.ceil((totalAmount || 0) * downpaymentPercent / 100);
   const canPay = ['awaiting_payment', 'pending'].includes(st) && !pendingProof;
-  const showQr = qrCode && ['confirmed', 'awaiting_payment'].includes(st);
+  // "Check in when you arrive": the guest scans the resort's QR at the front desk (src/modules/arrive).
+  const showQr = ['confirmed', 'awaiting_payment', 'pending'].includes(st);
+  const resortToday = new Date(Date.now() + 8 * 3600000).toISOString().slice(0, 10);
+  const firstDay = String(reservation.check_in_date || reservation.event_date || '').slice(0, 10);
+  const lastDay = String(reservation.check_out_date || reservation.event_date || reservation.check_in_date || '').slice(0, 10) || firstDay;
+  const arrivalOpen = !!firstDay && resortToday >= firstDay && resortToday <= lastDay;
   const amountNow = amountPaid > 0 ? Math.max(balance, 0) : dpDue;
   const isPlaceholder = (v) => !v || v === '—' || /^[X\-\s—]+$/i.test(String(v));
   const t12 = (v) => { if (!v) return ''; const [h, m] = String(v).split(':'); const n = parseInt(h, 10); return isNaN(n) ? String(v).slice(0, 5) : ((n % 12) || 12) + ':' + (m || '00') + ' ' + (n < 12 ? 'AM' : 'PM'); };
@@ -249,29 +254,42 @@
       </div>
       <% } %>
 
+      <%# ── Checked in: time-in, time-out and time left (src/utils/checkin.js) ── %>
+      <% const sTimes = (typeof stayTimes !== 'undefined' && stayTimes) || {}; %>
+      <% if (sTimes.checkedInAt && (st === 'checked_in' || st === 'completed')) { %>
+      <section class="pt-surface stay-live<%= st === 'completed' ? ' is-done' : '' %>" id="stayLive" aria-labelledby="stayLiveTitle" data-due="<%= sTimes.dueOut || '' %>" data-live="<%= st === 'checked_in' ? '1' : '' %>">
+        <h2 class="stay-live-state" id="stayLiveTitle"><i class="fas fa-clock" aria-hidden="true"></i>Your stay times</h2>
+        <dl class="stay-live-times">
+          <div><dt>Time in</dt><dd><%= formatDateTime(String(sTimes.checkedInAt).slice(0, 19).replace('T', ' '), 'ddd, MMM D · h:mm A') %></dd></div>
+          <% if (sTimes.checkedOutAt) { %><div><dt>Time out</dt><dd><%= formatDateTime(String(sTimes.checkedOutAt).slice(0, 19).replace('T', ' '), 'ddd, MMM D · h:mm A') %></dd></div>
+          <% } else if (sTimes.dueOut) { %><div><dt>Time out</dt><dd><%= formatDate(sTimes.dueOut.slice(0, 10), 'ddd, MMM D') %> · <%= t12(sTimes.dueOut.slice(11, 16)) %></dd></div>
+          <div class="stay-live-left" hidden><dt>Time left</dt><dd data-stay-left>—</dd></div><% } %>
+        </dl>
+      </section>
+      <% } %>
+
       <%# ── Check-in QR (first once the booking is confirmed) ─────────── %>
       <% for (const part of (st === 'confirmed' ? ['qr', 'pay'] : ['pay', 'qr'])) { %>
 
       <% if (part === 'qr' && showQr) { %>
-      <section class="pt-surface qr-block" id="qr" aria-labelledby="qrHeading">
-        <h2 class="pt-h2" id="qrHeading">Check-in QR code</h2>
-        <% if (st === 'awaiting_payment' && amountPaid <= 0) { %>
-        <p class="qr-note qr-note--warn">Your booking isn’t confirmed yet — pay the downpayment and upload your proof first. The QR only works once staff have verified a payment.</p>
+      <section class="pt-surface qr-block arrive-block" id="qr" aria-labelledby="qrHeading">
+        <h2 class="pt-h2" id="qrHeading">Check in when you arrive</h2>
+        <% if (['awaiting_payment', 'pending'].includes(st) && amountPaid <= 0) { %>
+        <p class="qr-note qr-note--warn">Pay the downpayment and upload your proof first — you can check in once staff have verified it.</p>
         <% } %>
-        <div class="qr-frame">
-          <img src="<%= qrCode.qr_path %>" alt="Check-in QR code for booking <%= ref %>" width="320" height="320" />
-        </div>
+        <ol class="arrive-steps">
+          <li>At the front desk, scan the <strong>check-in QR</strong> with your phone camera.</li>
+          <li>Tap <strong>Check in</strong> on this booking. Your time-in starts right then.</li>
+        </ol>
         <p class="qr-ref"><span class="booking-ref"><%= ref %></span> <%- statusBadge(reservation.status) %></p>
-        <p class="qr-staff"><i class="fas fa-user-check" aria-hidden="true"></i>Show this at the front desk — <strong>staff scan and confirm it</strong>.</p>
-        <ul class="qr-rules">
-          <li>Bring it on <strong><%= stayDate ? formatDate(stayDate, 'ddd, MMM D') : 'your booking date' %></strong>. Turn up your screen brightness if it doesn’t scan.</li>
-          <li>Scanning or opening it yourself doesn’t check you in — only resort staff can.</li>
-          <li>It works once<% if (qrCode.expires_at) { %> and expires on <strong><%= formatDate(qrCode.expires_at, 'MMM D, YYYY') %></strong><% } %>.</li>
-        </ul>
+        <% if (arrivalOpen) { %>
         <div class="qr-actions pt-no-print">
-          <a href="<%= qrCode.qr_path %>" download="<%= ref %>-check-in-qr.png" class="btn btn-secondary-quiet"><i class="fas fa-download" aria-hidden="true"></i>Save QR image</a>
-          <button type="button" class="btn btn-secondary-quiet" data-action="print"><i class="fas fa-print" aria-hidden="true"></i>Print</button>
+          <a href="/arrive/scan" class="btn btn-primary"><i class="fas fa-qrcode" aria-hidden="true"></i>Scan the check-in QR</a>
         </div>
+        <% } else { %>
+        <p class="arrive-when">Check-in opens on <strong><%= firstDay ? formatDate(firstDay, 'ddd, MMM D') : 'your booking date' %></strong>.</p>
+        <% } %>
+        <p class="arrive-help">No phone or no signal? The front desk can check you in with your booking reference. This page updates by itself once you’re checked in.</p>
       </section>
       <% } %>
 
@@ -811,10 +829,46 @@
     <span class="pt-meta"><%= ref %></span><strong><%= statusLabel(st) %></strong>
     <% } %>
   </div>
-  <a href="<%= canPay ? '#pay' : '#qr' %>" class="btn btn-primary"><%= canPay ? 'Upload proof' : 'Show QR' %></a>
+  <a href="<%= canPay ? '#pay' : '#qr' %>" class="btn btn-primary"><%= canPay ? 'Upload proof' : 'Check in' %></a>
 </div>
 <% } %>
 
+<script>
+(function () {
+  // Until the guest is checked in (by scanning the resort QR on their phone, or at the front desk),
+  // notice the moment it happens and switch to the checked-in view.
+  // Checks every 8 seconds, only while this page is visible.
+  var qr = document.getElementById('qr');
+  if (qr) {
+    // (No regex here: the template engine drops backslashes from page text.)
+    var path = location.pathname; if (path.charAt(path.length - 1) === '/') path = path.slice(0, -1);
+    var url = path + '/live', t = 0;
+    var check = function () {
+      if (document.hidden) return;
+      fetch(url, { headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (d) { if (d && d.status === 'checked_in') { clearInterval(t); location.reload(); } })
+        .catch(function () {});
+    };
+    t = setInterval(check, 8000);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) check(); });
+  }
+  // Checked in: time left until time-out (resort time, UTC+8).
+  var live = document.getElementById('stayLive');
+  var leftBox = live && live.querySelector('.stay-live-left'), leftOut = live && live.querySelector('[data-stay-left]');
+  if (live && live.getAttribute('data-live') && live.getAttribute('data-due') && leftOut) {
+    var due = new Date(live.getAttribute('data-due') + ':00+08:00').getTime();
+    var fmt = function (ms) { var m = Math.max(0, Math.round(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor((m % 1440) / 60), mm = m % 60; return d ? d + 'd ' + h + 'h' : h ? h + 'h ' + mm + 'm' : mm + 'm'; };
+    var tickLeft = function () {
+      var diff = due - Date.now();
+      leftOut.textContent = diff >= 0 ? fmt(diff) : 'Time is up — please check out at the front desk';
+      live.classList.toggle('is-over', diff < 0);
+      leftBox.hidden = false;
+    };
+    tickLeft(); setInterval(tickLeft, 30000);
+  }
+})();
+</script>
 <script>
 (function () {
   // Print button for the QR, copy buttons for account numbers / reference, hide broken QR images.

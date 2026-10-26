@@ -16,6 +16,7 @@
     groups.push({ label: 'Bookings', items: [
       { href: '/reservations', icon: 'fa-calendar-check', text: 'Reservations', on: navOn('/reservations', '/reservations/view/calendar'),
         badge: pendingReservationsCount, badgeText: 'need attention', badgeTitle: pendingReservationsCount + ' reservation(s) need attention (pending review or awaiting payment)' },
+      { href: '/checkin/desk', icon: 'fa-qrcode', text: 'Check-in desk', on: navOn('/checkin') },
       { href: '/reservations/view/calendar', icon: 'fa-calendar-days', text: 'Booking Calendar', on: navOn('/reservations/view/calendar') },
       { href: '/guests', icon: 'fa-people-roof', text: 'Guests', on: navOn('/guests') },
       { href: '/payments', icon: 'fa-money-bill-wave', text: 'Payments', on: navOn('/payments', '/payments/refunds/requests') },
@@ -111,7 +112,7 @@
   <% for (const t of [
        { href: '/dashboard', icon: 'fa-gauge', text: 'Home', on: navOn('/dashboard') },
        { href: '/reservations', icon: 'fa-calendar-check', text: 'Bookings', on: navOn('/reservations', '/reservations/view/calendar'), badge: pendingReservationsCount, badgeText: 'need attention' },
-       { href: '/reservations/view/calendar', icon: 'fa-calendar-days', text: 'Calendar', on: navOn('/reservations/view/calendar') },
+       { href: '/checkin/desk', icon: 'fa-qrcode', text: 'Check-in', on: navOn('/checkin') },
        { href: '/payments', icon: 'fa-money-bill-wave', text: 'Payments', on: navOn('/payments') },
        { href: '/inquiries', icon: 'fa-inbox', text: 'Inquiries', on: navOn('/inquiries'), badge: pendingInquiriesCount, badgeText: 'open' },
      ]) { %>

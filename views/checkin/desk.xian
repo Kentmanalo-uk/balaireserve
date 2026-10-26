@@ -1,0 +1,69 @@
+<% layout('layouts/main') %>
+<%# Check-in desk: the QR guests scan with their own phone to check themselves in (src/modules/arrive).
+    It changes every 30 seconds (public/js/checkin-desk.js), so a photo of it soon stops working. Staff can
+    still check a guest in by booking ref. The lists refresh by themselves as guests check in. %>
+<div class="ap-page ck-page">
+
+<!--page-head-->
+<h1 class="ph-title">Check-in desk</h1>
+<!--/page-head-->
+
+<div class="ck-layout">
+  <div class="ck-main">
+    <section class="ap-panel ck-show" id="ckShow" aria-labelledby="ckShowTitle">
+      <div class="ap-panel-head">
+        <h2 id="ckShowTitle">Guests scan to check in</h2>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="ckFull"><i class="fas fa-expand me-1" aria-hidden="true"></i>Full screen</button>
+      </div>
+      <div class="ck-show-body">
+        <div class="ck-qr" id="ckQr" data-refresh="<%= refreshInMs %>" data-window="<%= windowMs %>" role="img" aria-label="Check-in QR code for guests"><%- qr %></div>
+        <div class="ck-qr-timer" aria-hidden="true"><span id="ckQrBar"></span></div>
+        <p class="ck-show-lead">Point your phone camera at the code, then tap <strong>Check in</strong> on your booking.</p>
+        <p class="ck-show-note" id="ckQrNote">The code changes every 30 seconds.</p>
+      </div>
+    </section>
+
+    <section class="ap-panel" aria-labelledby="ckRefTitle">
+      <div class="ap-panel-head"><h2 id="ckRefTitle">Check a guest in yourself</h2></div>
+      <div class="ck-body">
+        <form class="ck-manual" id="ckManual" autocomplete="off" data-no-autosubmit-lock>
+          <label class="form-label" for="ckCode">Guest without a phone? Enter the booking reference</label>
+          <div class="ck-manual-row">
+            <input type="text" class="form-control" id="ckCode" name="code" placeholder="BK-2026-0026" autocapitalize="characters" spellcheck="false" />
+            <button type="submit" class="btn btn-outline-primary"><i class="fas fa-magnifying-glass me-1" aria-hidden="true"></i>Find</button>
+          </div>
+        </form>
+        <div class="ck-result" id="ckResult" aria-live="polite" hidden></div>
+      </div>
+    </section>
+
+    <section class="ap-panel" aria-labelledby="ckSetTitle">
+      <div class="ap-panel-head"><h2 id="ckSetTitle">Printed poster</h2></div>
+      <div class="ck-body">
+        <p class="mb-0"><%= mode === 'poster'
+          ? 'Guests can also check in from a printed poster at the desk — handy when this screen is off. Its code doesn’t change, so keep it inside the resort.'
+          : 'Printed posters are turned off: guests can check in only from the QR on this screen.' %></p>
+        <div class="ck-actions">
+          <% if (mode === 'poster') { %><a href="/checkin/desk/poster" class="btn btn-outline-primary" target="_blank" rel="noopener"><i class="fas fa-print me-1" aria-hidden="true"></i>Print the poster</a><% } %>
+          <% if (isAdmin) { %>
+          <form action="/checkin/desk/settings" method="POST">
+            <input type="hidden" name="mode" value="<%= mode === 'poster' ? 'screen' : 'poster' %>" />
+            <button type="submit" class="btn btn-outline-secondary"><%= mode === 'poster' ? 'Turn off the poster' : 'Allow a printed poster' %></button>
+          </form>
+          <form action="/checkin/desk/settings" method="POST" onsubmit="return confirm('Make new check-in codes? Printed posters stop working and must be printed again.');">
+            <input type="hidden" name="regenerate" value="1" />
+            <button type="submit" class="btn btn-outline-danger">Retire old codes</button>
+          </form>
+          <% } %>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <aside class="ck-lists" id="ckLists" aria-live="polite">
+    <%include('checkin/desk-lists')%>
+  </aside>
+</div>
+</div>
+
+<script src="/js/checkin-desk.js" defer></script>

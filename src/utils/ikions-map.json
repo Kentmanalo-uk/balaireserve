@@ -1,5 +1,5 @@
 {
-  "sprite": "/images/icons/ikions.svg?v=af54f86f87",
+  "sprite": "/images/icons/ikions.svg?v=4654061508",
   "map": {
     "address-book": "address-book",
     "angles-left": "chevrons-left",
@@ -60,6 +60,7 @@
     "envelope": "mail",
     "exclamation-circle": "error",
     "exclamation-triangle": "warning",
+    "expand": "arrows-maximize",
     "external-link-alt": "external-link",
     "eye": "eye",
     "eye-slash": "eye-off",

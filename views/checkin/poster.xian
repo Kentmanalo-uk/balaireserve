@@ -1,0 +1,22 @@
+<% layout('layouts/minimal') %>
+<%# Printable front-desk poster with the fixed check-in QR (src/utils/arrivalCode.js). %>
+<section class="ck-poster" aria-labelledby="pTitle">
+  <% if (mode !== 'poster') { %>
+  <h1 id="pTitle">Posters are turned off</h1>
+  <p>Guests can check in only from the QR on the check-in desk screen. An admin can allow a printed poster on the <a href="/checkin/desk">check-in desk</a>.</p>
+  <% } else { %>
+  <p class="ck-poster-kicker">Welcome to Balai Resort</p>
+  <h1 id="pTitle">Check in with your phone</h1>
+  <div class="ck-poster-qr" role="img" aria-label="Check-in QR code"><%- qr %></div>
+  <ol class="ck-poster-steps">
+    <li>Open your phone’s camera and point it at the code.</li>
+    <li>Tap the link and sign in to your Balai-Reserve account.</li>
+    <li>Tap <strong>Check in</strong> on your booking — your time-in starts now.</li>
+  </ol>
+  <p class="ck-poster-help">No phone or no account? Our front desk staff will check you in.</p>
+  <div class="ck-poster-tools">
+    <button type="button" class="btn btn-primary" onclick="window.print()"><i class="fas fa-print me-2" aria-hidden="true"></i>Print</button>
+    <a href="/checkin/desk" class="btn btn-outline-secondary">Back to the desk</a>
+  </div>
+  <% } %>
+</section>

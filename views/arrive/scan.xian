@@ -1,0 +1,20 @@
+<% layout('layouts/minimal') %>
+<%# Guest scanner for the resort's check-in QR (public/js/arrive-scanner.js). %>
+<section class="checkin-sheet ar-sheet" aria-labelledby="arTitle">
+  <div class="ck-state is-info"><i class="fas fa-qrcode" aria-hidden="true"></i>Self check-in</div>
+  <h1 id="arTitle">Scan the front-desk QR</h1>
+  <p class="ck-lead">Point your camera at the check-in QR at the front desk.</p>
+  <div class="ar-viewfinder" id="arViewfinder" data-state="idle">
+    <video id="arVideo" playsinline muted aria-label="Camera preview"></video>
+    <div class="ar-frame" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="ar-idle" id="arIdle">
+      <p id="arIdleText">Allow the camera when your browser asks.</p>
+      <button type="button" class="btn btn-primary btn-lg" id="arStart"><i class="fas fa-camera me-2" aria-hidden="true"></i>Start camera</button>
+    </div>
+  </div>
+  <p class="ar-msg" id="arMsg" aria-live="polite" hidden></p>
+  <div class="d-grid mt-3">
+    <a href="<%= currentUser ? '/portal/my-reservations' : '/' %>" class="btn btn-outline-secondary"><%= currentUser ? 'My reservations' : 'Back to the resort site' %></a>
+  </div>
+</section>
+<script src="/js/arrive-scanner.js" defer></script>

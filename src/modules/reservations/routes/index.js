@@ -568,6 +568,8 @@ router.post('/:id/status', requireAuth, requireRole('admin','staff'), async (req
       }
       await db.prepare(`INSERT INTO check_ins (reservation_id, method, checked_in_by) VALUES (?, 'manual', ?)`).run(req.params.id, req.session.user.id);
       await db.prepare(`UPDATE guests SET status='checked_in' WHERE reservation_id=?`).run(req.params.id);
+      // The booking's QR can't be used again once the guest is in (same as a QR check-in).
+      await db.prepare(`UPDATE qr_codes SET used = 1, used_at = NOW() WHERE reservation_id = ? AND used = 0`).run(req.params.id);
     }
 
     if (status === 'completed') {

@@ -1,0 +1,52 @@
+<%# Today's arrivals and the guests in-house (views/checkin/desk.xian; refreshed alone from /checkin/desk/lists). %>
+<%
+  const t12 = t => { if (!t) return ''; const p = String(t).split(':'); const h = Number(p[0]); return (h % 12 || 12) + ':' + p[1] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const ymd = v => (v instanceof Date ? new Date(v.getTime() + 8 * 3600000).toISOString().slice(0, 10) : String(v || '').slice(0, 10));
+  const dueOutOf = r => {
+    const day = ymd(r.check_out_date || r.event_date || r.check_in_date);
+    const time = r.reservation_type === 'room' ? checkOutTime : (r.end_time || '');
+    return day && time ? day + 'T' + String(time).slice(0, 5) : '';
+  };
+  const typeLabel = { room: 'Room', cottage: 'Cottage', venue: 'Venue', event: 'Event' };
+%>
+<section class="ap-panel" aria-labelledby="ckArrTitle">
+  <div class="ap-panel-head"><h2 id="ckArrTitle">Arriving today</h2><span class="ap-meta"><%= formatDate(today, 'ddd, MMM D') %> · <%= arrivals.length %></span></div>
+  <% if (!arrivals.length) { %>
+  <p class="ck-empty">No more arrivals today.</p>
+  <% } else { %>
+  <ul class="ck-list" id="ckArrivals">
+    <% for (const a of arrivals) { %>
+    <li data-id="<%= a.id %>">
+      <div class="ck-li-main">
+        <span class="ck-li-name"><%= a.first_name %> <%= a.last_name %></span>
+        <span class="ck-li-meta"><span class="ap-code"><%= a.booking_ref %></span> · <%= a.items || typeLabel[a.reservation_type] %><% if (a.start_time) { %> · <%= t12(a.start_time) %><% } %></span>
+      </div>
+      <button type="button" class="btn btn-sm btn-outline-primary" data-ck-lookup="<%= a.booking_ref %>">Check in</button>
+    </li>
+    <% } %>
+  </ul>
+  <% } %>
+</section>
+
+<section class="ap-panel" aria-labelledby="ckInTitle">
+  <div class="ap-panel-head"><h2 id="ckInTitle">In-house now</h2><span class="ap-meta"><%= inHouse.length %></span></div>
+  <% if (!inHouse.length) { %>
+  <p class="ck-empty">No guests checked in right now.</p>
+  <% } else { %>
+  <ul class="ck-list" id="ckInHouse">
+    <% for (const g of inHouse) { const due = dueOutOf(g); %>
+    <li data-id="<%= g.id %>" data-in="<%= g.checked_in_at ? String(g.checked_in_at).replace(' ', 'T') + 'Z' : '' %>" data-due="<%= due %>">
+      <div class="ck-li-main">
+        <span class="ck-li-name"><a href="/reservations/<%= g.id %>"><%= g.first_name %> <%= g.last_name %></a></span>
+        <span class="ck-li-meta"><span class="ap-code"><%= g.booking_ref %></span> · <%= g.items || typeLabel[g.reservation_type] %><% if (g.checkin_method === 'self') { %> · checked in by phone<% } %></span>
+        <span class="ck-li-time">
+          <% if (g.checked_in_at) { %>In <%= formatDateTime(g.checked_in_at, 'h:mm A') %> · <span data-ck-elapsed></span><% } %>
+          <% if (due) { %> · Out <%= formatDate(due.slice(0, 10), 'MMM D') %> <%= t12(due.slice(11, 16)) %> <span data-ck-left></span><% } %>
+        </span>
+      </div>
+      <% if (g.payment_status !== 'fully_paid') { %><span class="status-chip st-amber" title="Balance due before check-out">Balance due</span><% } %>
+    </li>
+    <% } %>
+  </ul>
+  <% } %>
+</section>

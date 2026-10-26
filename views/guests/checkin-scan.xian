@@ -1,45 +1,62 @@
 <% layout('layouts/minimal') %>
+<%# Opened by scanning a booking QR with a phone camera. Staff can confirm here; everyone else sees a short notice.
+    Rules: src/utils/checkin.js (summary / el come from src/modules/checkin/routes). %>
 <%
-  const stay = reservation.check_in_date
-    ? formatDate(reservation.check_in_date) + (reservation.check_out_date && String(reservation.check_out_date) !== String(reservation.check_in_date) ? ' – ' + formatDate(reservation.check_out_date) : '')
-    : (reservation.event_date ? formatDate(reservation.event_date) : '—');
-  const times = [reservation.start_time, reservation.end_time].filter(Boolean).join(' – ');
+  const s = summary;
+  const t12 = t => { if (!t) return ''; const p = String(t).split(':'); const h = Number(p[0]); return (h % 12 || 12) + ':' + p[1] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const dayRange = s.startDate === s.endDate ? formatDate(s.startDate, 'ddd, MMM D') : formatDate(s.startDate, 'MMM D') + ' – ' + formatDate(s.endDate, 'MMM D');
+  const timeRange = [s.startTime && t12(s.startTime), s.endTime && t12(s.endTime)].filter(Boolean).join(' – ');
+  const already = el.code === 'already';
 %>
 <section class="checkin-sheet" aria-labelledby="ckTitle">
+  <% if (already) { %>
+  <div class="ck-state is-ok"><i class="fas fa-circle-check" aria-hidden="true"></i>Already checked in</div>
+  <% } else if (el.ok) { %>
   <div class="ck-state is-info"><i class="fas fa-qrcode" aria-hidden="true"></i>Valid booking QR</div>
-  <h1 id="ckTitle">QR check-in</h1>
-  <% if (isStaff) { %>
-  <p class="ck-lead">Confirm the guest in front of you matches this booking, then check them in.</p>
   <% } else { %>
-  <p class="ck-lead">This QR code is valid. Only resort staff can confirm a check-in.</p>
+  <div class="ck-state is-invalid"><i class="fas fa-circle-exclamation" aria-hidden="true"></i>Can’t check in yet</div>
+  <% } %>
+  <h1 id="ckTitle">QR check-in</h1>
+  <% if (isStaff && el.ok) { %>
+  <p class="ck-lead">Make sure the guest in front of you matches this booking, then check them in. Their time-in starts now.</p>
+  <% } else if (isStaff && !already) { %>
+  <p class="ck-lead"><%= el.reason %></p>
+  <% } else if (!isStaff) { %>
+  <p class="ck-lead">This QR code is valid. Only resort staff can confirm a check-in — please show it at the front desk.</p>
   <% } %>
 
   <dl>
-    <dt>Booking</dt><dd class="tnum"><%= reservation.booking_ref %></dd>
-    <dt>Guest</dt><dd><%= reservation.first_name %> <%= reservation.last_name %></dd>
-    <% if (isStaff && reservation.phone) { %><dt>Mobile</dt><dd class="tnum"><%= reservation.phone %></dd><% } %>
-    <dt>Stay</dt><dd><%= stay %><% if (times) { %><span class="d-block small text-muted fw-normal"><%= times %></span><% } %></dd>
-    <% if (isStaff) { %><dt>Status</dt><dd><%- statusBadge(reservation.status) %> <%- statusBadge(reservation.payment_status) %></dd><% } %>
+    <dt>Booking</dt><dd class="tnum"><%= s.ref %></dd>
+    <dt>Guest</dt><dd><%= s.guest %><% if (isStaff && s.guests) { %><span class="d-block small text-muted fw-normal"><%= s.guests %> guest<%= s.guests == 1 ? '' : 's' %></span><% } %></dd>
+    <% if (isStaff && s.phone) { %><dt>Mobile</dt><dd class="tnum"><%= s.phone %></dd><% } %>
+    <% if (s.items.length) { %><dt>Booked</dt><dd><%= s.items.join(', ') %></dd><% } %>
+    <dt>Stay</dt><dd><%= dayRange %><% if (timeRange) { %><span class="d-block small text-muted fw-normal"><%= timeRange %></span><% } %></dd>
+    <% if (isStaff) { %>
+    <dt>Status</dt><dd><%- statusBadge(s.status) %> <%- statusBadge(s.paymentStatus) %></dd>
+    <dt>Paid</dt><dd class="tnum"><%= formatPeso(s.paid) %> of <%= formatPeso(s.total) %><% if (s.balance > 0) { %><span class="d-block small fw-normal ck-due">Balance <%= formatPeso(s.balance) %></span><% } %></dd>
+    <% } %>
+    <% if (already && s.checkedInAt) { %><dt>Time in</dt><dd><%= formatDateTime(s.checkedInAtDb) %><% if (s.checkedInBy) { %><span class="d-block small text-muted fw-normal">by <%= s.checkedInBy %></span><% } %></dd><% } %>
   </dl>
 
   <% if (isStaff) { %>
-  <form action="/checkin/<%= token %>" method="POST" class="d-grid" onsubmit="var b=this.querySelector('button');b.disabled=true;b.setAttribute('aria-busy','true');">
-    <button type="submit" class="btn btn-primary btn-lg">
-      <i class="fas fa-check me-2" aria-hidden="true"></i>Confirm Check-in
-    </button>
-  </form>
-  <div class="d-grid mt-2"><a href="/reservations/<%= reservation.id %>" class="btn btn-outline-secondary">View reservation details</a></div>
-  <% if (reservation.payment_status !== 'fully_paid' && reservation.payment_status !== 'refunded') { %>
-  <p class="ck-note mb-0"><i class="fas fa-circle-info me-1" aria-hidden="true"></i>This booking still has a balance. It can be collected from the reservation page before check-out.</p>
-  <% } %>
+    <% if (el.ok) { %>
+    <% if (el.warnings.length) { %><ul class="ck-warn"><% for (const w of el.warnings) { %><li><i class="fas fa-triangle-exclamation" aria-hidden="true"></i><%= w %></li><% } %></ul><% } %>
+    <form action="/checkin/<%= token %>" method="POST" class="d-grid" onsubmit="var b=this.querySelector('button');b.disabled=true;b.setAttribute('aria-busy','true');">
+      <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-check me-2" aria-hidden="true"></i>Check in now</button>
+    </form>
+    <% } else if (el.code === 'unpaid') { %>
+    <div class="d-grid"><a href="/reservations/<%= s.id %>#payments" class="btn btn-primary btn-lg"><i class="fas fa-money-bill-wave me-2" aria-hidden="true"></i>Record the payment</a></div>
+    <% } %>
+    <div class="d-grid gap-2 mt-2">
+      <a href="/reservations/<%= s.id %>" class="btn btn-outline-secondary">Open reservation</a>
+      <a href="/checkin/desk" class="btn btn-outline-secondary"><i class="fas fa-qrcode me-1" aria-hidden="true"></i>Check-in desk</a>
+    </div>
   <% } else if (isLoggedIn) { %>
   <p class="mb-0">Please show this QR code to our front desk staff so they can check you in.</p>
   <% } else { %>
   <p class="small text-muted">Guests: show this QR code at the front desk.</p>
   <div class="d-grid">
-    <a href="/checkin/<%= token %>/staff" class="btn btn-primary btn-lg">
-      <i class="fas fa-right-to-bracket me-2" aria-hidden="true"></i>Staff: sign in to check this guest in
-    </a>
+    <a href="/checkin/<%= token %>/staff" class="btn btn-primary btn-lg"><i class="fas fa-right-to-bracket me-2" aria-hidden="true"></i>Staff: sign in to check this guest in</a>
   </div>
   <% } %>
 </section>

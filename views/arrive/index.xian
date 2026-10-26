@@ -1,0 +1,74 @@
+<% layout('layouts/minimal') %>
+<%# Guest self check-in (src/modules/arrive). state: nopass | invalid | staff | list %>
+<%
+  const t12 = t => { if (!t) return ''; const p = String(t).split(':'); const h = Number(p[0]); return (h % 12 || 12) + ':' + p[1] + ' ' + (h >= 12 ? 'PM' : 'AM'); };
+  const dayRange = s => s.startDate === s.endDate ? formatDate(s.startDate, 'ddd, MMM D') : formatDate(s.startDate, 'MMM D') + ' – ' + formatDate(s.endDate, 'MMM D');
+  const err = flash && flash.error;
+%>
+<section class="checkin-sheet ar-sheet" aria-labelledby="arTitle">
+  <% if (state === 'nopass' || state === 'invalid') { %>
+    <% if (state === 'invalid') { %>
+    <div class="ck-state is-invalid"><i class="fas fa-circle-xmark" aria-hidden="true"></i>Code not accepted</div>
+    <h1 id="arTitle">Scan the QR again</h1>
+    <p class="ck-lead"><%= reason %></p>
+    <% } else { %>
+    <div class="ck-state is-info"><i class="fas fa-qrcode" aria-hidden="true"></i>Self check-in</div>
+    <h1 id="arTitle">Check in with your phone</h1>
+    <% if (err) { %><p class="ar-flash" role="alert"><%= err %></p><% } %>
+    <p class="ck-lead">When you arrive, scan the check-in QR at the front desk. Your time-in starts the moment you check in.</p>
+    <% } %>
+    <ol class="ar-steps">
+      <li>Open your phone’s camera and point it at the QR at the front desk.</li>
+      <li>Tap the link that appears, and sign in if you’re asked.</li>
+      <li>Tap <strong>Check in</strong> on your booking.</li>
+    </ol>
+    <div class="d-grid gap-2">
+      <a href="/arrive/scan" class="btn btn-primary btn-lg"><i class="fas fa-camera me-2" aria-hidden="true"></i>Scan with this page instead</a>
+      <a href="<%= currentUser ? '/portal/my-reservations' : '/' %>" class="btn btn-outline-secondary"><%= currentUser ? 'My reservations' : 'Back to the resort site' %></a>
+    </div>
+
+  <% } else if (state === 'staff') { %>
+    <div class="ck-state is-info"><i class="fas fa-circle-info" aria-hidden="true"></i>This QR is for guests</div>
+    <h1 id="arTitle">You’re signed in as staff</h1>
+    <p class="ck-lead">Guests scan this QR with their own phone to check themselves in. To check a guest in yourself, use the check-in desk.</p>
+    <div class="d-grid gap-2">
+      <a href="/checkin/desk" class="btn btn-primary btn-lg"><i class="fas fa-qrcode me-2" aria-hidden="true"></i>Open the check-in desk</a>
+    </div>
+
+  <% } else { %>
+    <div class="ck-state is-ok"><i class="fas fa-circle-check" aria-hidden="true"></i>Front-desk QR scanned</div>
+    <h1 id="arTitle">Welcome<%= name ? ', ' + name : '' %>!</h1>
+    <% if (err) { %><p class="ar-flash" role="alert"><%= err %></p><% } %>
+    <% if (!bookings.length) { %>
+    <p class="ck-lead">We couldn’t find a booking for today under this account. Please see the front desk — they can find it by your name or booking reference.</p>
+    <p class="ck-note">Signed in as <strong><%= currentUser.email %></strong>. <a href="/auth/logout">Not you? Sign out</a></p>
+    <% } else if (!hasToday) { %>
+    <p class="ck-lead">You don’t have a booking starting today. Check-in opens on the first day of your booking.</p>
+    <% } else { %>
+    <p class="ck-lead"><%= bookings.filter(b => b.ok).length ? 'Tap Check in on your booking. Your time-in starts now.' : 'Here’s your booking for today.' %></p>
+    <% } %>
+
+    <ul class="ar-list">
+      <% for (const b of bookings) { const s = b.s; const times = [s.startTime && t12(s.startTime), s.endTime && t12(s.endTime)].filter(Boolean).join(' – '); %>
+      <li class="ar-booking<%= b.ok ? ' is-ready' : '' %>">
+        <p class="ar-booking-what"><%= s.items.length ? s.items.join(', ') : 'Booking' %></p>
+        <p class="ar-booking-meta"><span class="tnum"><%= s.ref %></span> · <%= dayRange(s) %><% if (times) { %> · <%= times %><% } %></p>
+        <% if (b.already) { %>
+        <p class="ar-booking-state is-ok"><i class="fas fa-circle-check" aria-hidden="true"></i>Checked in<% if (s.checkedInAtDb) { %> at <%= formatDateTime(s.checkedInAtDb, 'h:mm A') %><% } %></p>
+        <a href="/arrive/done/<%= s.id %>" class="btn btn-outline-primary w-100">See your stay times</a>
+        <% } else if (b.ok) { %>
+        <% if (b.notes.length) { %><ul class="ck-warn"><% for (const n of b.notes) { %><li><i class="fas fa-circle-info" aria-hidden="true"></i><%= n %></li><% } %></ul><% } %>
+        <form action="/arrive/booking/<%= s.id %>" method="POST" class="d-grid" onsubmit="var x=this.querySelector('button');x.disabled=true;x.setAttribute('aria-busy','true');x.lastChild.textContent='Checking in…';">
+          <button type="submit" class="btn btn-primary btn-lg"><i class="fas fa-check me-2" aria-hidden="true"></i><span>Check in now</span></button>
+        </form>
+        <% } else { %>
+        <p class="ar-booking-state is-bad"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><%= b.reason %></p>
+        <% } %>
+      </li>
+      <% } %>
+    </ul>
+    <div class="d-grid">
+      <a href="/portal/my-reservations" class="btn btn-outline-secondary">My reservations</a>
+    </div>
+  <% } %>
+</section>
