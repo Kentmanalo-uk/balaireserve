@@ -4,8 +4,8 @@
  * - Pages always come from the network (they carry sessions, CSRF tokens and live
  *   availability), so nothing personal or stale is ever served from the cache. When the
  *   network is down, a page request gets the offline page instead.
- * - The site's own styles and scripts come from the network first (so a new deploy shows at
- *   once) and fall back to the cache offline.
+ * - The site's own styles and scripts: versioned URLs (?v=<hash>, new on every deploy) come straight
+ *   from the cache; anything unversioned comes from the network first and falls back to the cache.
  * - Images, catalogue photos and versioned CDN files (Bootstrap, Font Awesome, fonts) are
  *   served from the cache and refreshed in the background, so repeat visits load fast.
  * - Never cached: anything that isn't GET, payment proofs, booking QR codes, and API/JSON.
@@ -13,7 +13,7 @@
  * Bump VERSION to drop every old cache on the next visit.
  */
 'use strict';
-const VERSION = 'v2';
+const VERSION = 'v3';
 const CORE = 'balai-core-' + VERSION;
 const ASSETS = 'balai-assets-' + VERSION;
 const OFFLINE_URL = '/offline.html';
@@ -64,6 +64,15 @@ async function staleWhileRevalidate(event) {
   return fresh;
 }
 
+async function cacheFirst(request) {
+  const cache = await caches.open(ASSETS);
+  const hit = await cache.match(request);
+  if (hit) return hit;
+  const res = await fetch(request);
+  if (res && res.ok) cache.put(request, res.clone()).then(() => trim(cache));
+  return res;
+}
+
 async function networkFirstAsset(request) {
   const cache = await caches.open(ASSETS);
   try {
@@ -91,5 +100,8 @@ self.addEventListener('fetch', (event) => {
   if (request.mode === 'navigate') { event.respondWith(networkFirstPage(request)); return; }
   if (!isAsset(url)) return;
   const own = url.origin === self.location.origin && /^\/(css|js)\//.test(url.pathname);
+  // Versioned own files (?v=<content hash>) never change at that URL: serve them from the cache
+  // without asking the network (the CDN drops our long cache headers for CSS/JS).
+  if (own && url.searchParams.has('v')) { event.respondWith(cacheFirst(request)); return; }
   event.respondWith(own ? networkFirstAsset(request) : staleWhileRevalidate(event));
 });
