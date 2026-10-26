@@ -17,7 +17,6 @@
 
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" />
   <script src="/js/ikions.js" defer></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.css" />
   <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="preload" href="/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin />
   <link rel="stylesheet" href="/css/fonts.css" />
@@ -26,12 +25,22 @@
   <link rel="stylesheet" href="/css/admin-pages.css" />
   <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 575.98px)" />
 
-  <%# Scripts in head so Bootstrap/Chart.js/FullCalendar are defined before any inline page script runs %>
+  <%# Scripts in head so Bootstrap/Chart.js/FullCalendar are defined before any inline page script runs.
+      Chart.js and FullCalendar are large: only pages that use them load them. %>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <% if (body.indexOf('new Chart(') !== -1 || body.indexOf('Chart.defaults') !== -1) { %><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    // Phones, touch screens and reduced motion: charts draw at once instead of animating in.
+    if (window.Chart) {
+      if (matchMedia('(hover: none), (max-width: 767.98px), (prefers-reduced-motion: reduce)').matches) Chart.defaults.animation = false;
+      else Chart.defaults.animation.duration = 450;
+    }
+  </script><% } %>
+  <% if (body.indexOf('FullCalendar') !== -1) { %><script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script><% } %>
   <%# Apply the remembered sidebar width before first paint (no jump on load) %>
   <script>try { if (localStorage.getItem('br.sidebar') === 'collapsed') document.documentElement.classList.add('sb-collapsed'); } catch (e) {}</script>
+  <%# Touch screens: transitions limited to GPU properties (scripts/build-touch-css.js) %>
+  <link rel="stylesheet" href="/css/touch.css" media="(hover: none)" />
 </head>
 <%
   // The back-office shell (sidebar + top bar) is for staff and admins. Anyone
@@ -209,7 +218,9 @@
     new MutationObserver(function () {
       var open = sb.classList.contains('open');
       tg.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) { var c = document.getElementById('sidebarClose'); if (c) c.focus(); }
+      // Move focus once the slide-in has started: focusing in the same frame forces a style/layout pass
+      // that would drop the drawer's first frames.
+      if (open) { var c = document.getElementById('sidebarClose'); if (c) requestAnimationFrame(function () { setTimeout(function () { if (sb.classList.contains('open')) c.focus({ preventScroll: true }); }, 0); }); }
     }).observe(sb, { attributes: true, attributeFilter: ['class'] });
     document.addEventListener('keydown', function (e) {
       if (!sb.classList.contains('open')) return;

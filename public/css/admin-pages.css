@@ -674,7 +674,7 @@ a.ap-kpi.is-current .ap-kpi-label { color: var(--br-deep-sea); font-weight: 600;
 .ap-page .btn-toggle-pass { min-width: 44px; }
 @media (min-width: 768px) and (max-width: 1199.98px) { .usr-col-phone { display: none; } }
 .prof-strength { height: 4px; border-radius: 2px; background: var(--br-hairline); overflow: hidden; margin-top: var(--br-space-2); }
-.prof-strength > div { height: 100%; width: 0; transition: width var(--br-dur) var(--br-ease), background-color var(--br-dur) var(--br-ease); }
+.prof-strength > div { height: 100%; width: 100%; transform: scaleX(0); transform-origin: 0 50%; transition: transform var(--br-dur) var(--br-ease), background-color var(--br-dur) var(--br-ease); }
 .prof-sub { font-size: var(--br-fs-small); font-weight: 600; color: var(--br-ink-teal); margin: var(--br-space-5) 0 var(--br-space-1); }
 .prof-history > li { padding-left: 0; padding-right: 0; }
 

@@ -181,7 +181,7 @@
     const colors = ['#b42318','#a15c07','#8a5a12','#1f7a4d'];
     const labels = ['Weak','Fair','Good','Strong'];
 
-    fill.style.width      = pct + '%';
+    fill.style.transform  = 'scaleX(' + (pct / 100) + ')';
     fill.style.background = colors[strength - 1] || '#e5e9e7';
     label.textContent     = v.length === 0 ? '' : 'Strength: ' + (labels[strength - 1] || 'Too short');
     label.style.color     = colors[strength - 1] || '';

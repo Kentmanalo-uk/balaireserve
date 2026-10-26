@@ -41,7 +41,8 @@
     mobileMenu.hidden = false;
     document.body.classList.add('menu-open');
     if (toggle) toggle.setAttribute('aria-expanded', 'true');
-    if (menuClose) menuClose.focus();
+    // Focus after the drawer's first frame (focusing now forces a style/layout pass in that frame).
+    if (menuClose) requestAnimationFrame(function () { setTimeout(function () { menuClose.focus({ preventScroll: true }); }, 0); });
   }
   window.closeMobileMenu = function (restoreFocus) {
     if (!mobileMenu || mobileMenu.hidden) return;

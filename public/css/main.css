@@ -97,7 +97,7 @@ a:hover { color: var(--br-deep-sea-dark); text-decoration: underline; }
   display: flex;
   flex-direction: column;
   z-index: 1040;
-  transition: transform var(--dur-panel) var(--ease-out), width var(--dur-panel) var(--ease-out);
+  transition: transform var(--dur-panel) var(--ease-out);   /* not width: that re-lays out the page every frame */
 }
 .sidebar-scroll {
   flex: 1; min-height: 0;
@@ -1795,3 +1795,8 @@ body.has-unsaved #chatbotWidget { display: none; }
 .plain-brand > .brand-logo, .minimal-top > .brand-logo { grid-column: 1; grid-row: 1 / span 2; width: 40px; height: 40px; }
 .plain-brand > :not(.brand-logo), .minimal-top > :not(.brand-logo) { grid-column: 2; }
 .sidebar-brand img.brand-mark { width: 38px; height: 38px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px rgba(255, 255, 255, .18); }
+
+/* Touch screens: the sticky top bar and the tab bar are near-opaque; no live blur while the page scrolls under them. */
+@media (hover: none), (max-width: 1023.98px) {
+  .top-navbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(252, 251, 248, .99); }
+}

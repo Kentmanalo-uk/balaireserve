@@ -23,6 +23,8 @@
   <link rel="stylesheet" href="/css/portal.css" />
   <link rel="stylesheet" href="/css/listing.css" />
   <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 575.98px)" />
+  <%# Touch screens: transitions limited to GPU properties (scripts/build-touch-css.js) %>
+  <link rel="stylesheet" href="/css/touch.css" media="(hover: none)" />
 </head>
 <body class="portal-body">
 <%
@@ -301,15 +303,26 @@
   // Header: hairline once the page scrolls; menu sheet with focus trap, Esc and focus return.
   (function () {
     var header = document.getElementById('ptHeader');
-    function onScroll() { if (header) header.classList.toggle('is-scrolled', window.scrollY > 4); }
-    window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+    // A marker at the top of the page: when it leaves the screen the page has scrolled. No scroll listener,
+    // so scrolling never waits for this script.
+    if (header && 'IntersectionObserver' in window) {
+      var mark = document.createElement('div');
+      mark.setAttribute('aria-hidden', 'true');
+      mark.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:4px;pointer-events:none;visibility:hidden';
+      document.body.insertBefore(mark, document.body.firstChild);
+      new IntersectionObserver(function (e) { header.classList.toggle('is-scrolled', !e[0].isIntersecting); }).observe(mark);
+    } else if (header) {
+      var onScroll = function () { header.classList.toggle('is-scrolled', window.scrollY > 4); };
+      window.addEventListener('scroll', onScroll, { passive: true }); onScroll();
+    }
 
     var btn = document.getElementById('ptMenuBtn'), sheet = document.getElementById('ptMobileMenu'), close = document.getElementById('ptMenuClose');
     if (!btn || !sheet) return;
     function focusables() { return Array.prototype.filter.call(sheet.querySelectorAll('a[href], button:not([disabled])'), function (el) { return el.offsetParent !== null; }); }
     function open() {
       sheet.hidden = false; document.body.classList.add('pt-menu-open'); btn.setAttribute('aria-expanded', 'true');
-      var f = focusables(); if (close) close.focus(); else if (f[0]) f[0].focus();
+      // Focus after the sheet's first frame (focusing now forces a style/layout pass in that frame).
+      requestAnimationFrame(function () { setTimeout(function () { var f = focusables(); if (close) close.focus({ preventScroll: true }); else if (f[0]) f[0].focus({ preventScroll: true }); }, 0); });
     }
     function shut(restore) {
       if (sheet.hidden) return;

@@ -24,6 +24,8 @@
   <link rel="stylesheet" href="/css/listing.css" />
   <link rel="stylesheet" href="/css/mobile.css" media="(max-width: 575.98px)" />
   <script>document.documentElement.classList.add('js');</script>
+  <%# Touch screens: transitions limited to GPU properties (scripts/build-touch-css.js) %>
+  <link rel="stylesheet" href="/css/touch.css" media="(hover: none)" />
 </head>
 <body class="landing-body<%= typeof bodyClass !== 'undefined' && bodyClass ? ' ' + bodyClass : '' %>">
 <%

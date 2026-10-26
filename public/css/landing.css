@@ -1172,3 +1172,10 @@ html.pk-lock { overflow: hidden; }
 .js .events:not(.is-playing) .ev-words,
 .js .events:not(.is-playing) .ev-art *,
 .js .events:not(.is-playing) .ev-ill * { animation-play-state: paused !important; }
+
+/* Touch screens: the floating header pill is already 96% white, so drop its live blur (the page moving
+   underneath would be re-blurred every frame while scrolling). */
+@media (hover: none), (max-width: 1023.98px) {
+  .site-header .header-inner, .site-header { -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .site-header .header-inner { background: rgba(255, 255, 255, .985); }
+}

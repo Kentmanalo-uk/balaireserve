@@ -121,7 +121,7 @@
     if (/[A-Z]/.test(value)) score++;
     if (/[0-9]/.test(value)) score++;
     if (/[^A-Za-z0-9]/.test(value)) score++;
-    bar.style.width = (score * 25) + '%';
+    bar.style.transform = 'scaleX(' + (score / 4) + ')';
     bar.className = ['', 'is-weak', 'is-fair', 'is-good', 'is-good'][score] || 'is-weak';
   });
 

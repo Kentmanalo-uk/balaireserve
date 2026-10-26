@@ -354,19 +354,21 @@
   highlightSearchTerms();
 
   // ── Responsive Table Scroll Hint ──────────────────────────
-  document.querySelectorAll('.table-responsive').forEach(wrapper => {
-    function checkScroll() {
-      if (wrapper.scrollWidth > wrapper.clientWidth) {
-        wrapper.classList.add('can-scroll');
-        wrapper.title = 'Scroll horizontally to see more →';
-      } else {
-        wrapper.classList.remove('can-scroll');
-        wrapper.title = '';
-      }
-    }
-    checkScroll();
-    window.addEventListener('resize', checkScroll);
-  });
+  // Measure every table first, then update them all: interleaving reads and writes would make the
+  // browser lay the page out again for each table. On resize, at most once per frame.
+  const scrollWrappers = Array.from(document.querySelectorAll('.table-responsive'));
+  function checkTableScroll() {
+    const wide = scrollWrappers.map(w => w.scrollWidth > w.clientWidth);
+    scrollWrappers.forEach((w, i) => {
+      w.classList.toggle('can-scroll', wide[i]);
+      w.title = wide[i] ? 'Scroll horizontally to see more →' : '';
+    });
+  }
+  if (scrollWrappers.length) {
+    requestAnimationFrame(checkTableScroll);
+    let tableRq = false;
+    window.addEventListener('resize', () => { if (!tableRq) { tableRq = true; requestAnimationFrame(() => { tableRq = false; checkTableScroll(); }); } });
+  }
 
   // ── Print Support ─────────────────────────────────────────
   const printBtn = document.querySelector('.btn-print');

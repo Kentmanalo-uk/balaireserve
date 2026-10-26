@@ -176,3 +176,6 @@ body.pt-menu-open .m-tabbar, body.modal-open .m-tabbar { visibility: hidden; }
 /* Hero copy, phones: the header already names the place, so keep just the title and tagline */
 .hero-place, .hero-intro-more { display: none; }
 .hero-intro { font-size: 1.125rem; }
+
+/* No live blur under the fixed tab bar (it is 97% opaque already). */
+.m-tabbar { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(252, 251, 248, .99); }
