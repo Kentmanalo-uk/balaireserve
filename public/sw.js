@@ -13,7 +13,7 @@
  * Bump VERSION to drop every old cache on the next visit.
  */
 'use strict';
-const VERSION = 'v1';
+const VERSION = 'v2';
 const CORE = 'balai-core-' + VERSION;
 const ASSETS = 'balai-assets-' + VERSION;
 const OFFLINE_URL = '/offline.html';
@@ -41,7 +41,7 @@ self.addEventListener('activate', (event) => {
 function isAsset(url) {
   if (url.origin === self.location.origin) {
     if (url.pathname.startsWith('/uploads/payment_proofs') || url.pathname.startsWith('/qrcodes')) return false;
-    return /^\/(css|js|images|uploads)\//.test(url.pathname) || url.pathname === '/favicon.svg';
+    return /^\/(css|js|images|img|uploads)\//.test(url.pathname) || url.pathname === '/favicon.svg';
   }
   return CDN_HOSTS.includes(url.hostname);
 }

@@ -99,7 +99,7 @@
     <h2 class="br-sr-only" id="tripHeading"><%= next.status === 'checked_in' ? 'Your stay now' : 'Your next trip' %></h2>
     <div class="trip-photo pt-photo">
       <% if (next.photo) { %>
-      <img src="<%= next.photo %>" alt="<%= next.item_names || typeLabel[next.reservation_type] %>" width="900" height="675" />
+      <img src="<%= next.photo %>" alt="<%= next.item_names || typeLabel[next.reservation_type] %>" width="900" height="675" sizes="(max-width: 767px) 100vw, 50vw" />
       <% } else { %>
       <div class="photo-pending"><i class="far fa-image" aria-hidden="true"></i>Photos coming soon</div>
       <% } %>

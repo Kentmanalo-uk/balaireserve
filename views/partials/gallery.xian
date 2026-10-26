@@ -15,7 +15,7 @@
     <% _ph.forEach(function (src, i) { %>
     <button type="button" class="dg-item<%= i === 0 ? ' dg-main' : '' %><%= i > 4 ? ' dg-extra' : '' %>" data-photo-index="<%= i %>"
       aria-label="Open photo <%= i + 1 %> of <%= _ph.length %> full size">
-      <img src="<%= src %>" alt="<%= _nm %> — photo <%= i + 1 %> of <%= _ph.length %>" <%- i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' %> decoding="async" width="1200" height="900" />
+      <img src="<%= src %>" alt="<%= _nm %> — photo <%= i + 1 %> of <%= _ph.length %>" <%- i === 0 ? 'fetchpriority="high"' : 'loading="lazy"' %> decoding="async" width="1200" height="900" sizes="(max-width: 1023px) 100vw, <%= i === 0 ? '60vw' : '25vw' %>" />
     </button>
     <% }) %>
   </div>

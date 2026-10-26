@@ -567,3 +567,14 @@ body.sheet-open, body.lb-open { overflow: hidden; }
 }
 .lst--tile .photo-pending i { color: #fff; opacity: .6; }
 .lst--tile.is-unavailable .lst-slide img { opacity: 1; }
+
+/* ── Phones / touch screens: no stacked blurs on every card ──
+   Each tile's progressive blur is 4 live backdrop-filter layers plus 2 frosted chips; across a page of
+   cards that is the main cause of scroll stutter on phones. The dark gradient underneath keeps the
+   text readable, so touch screens get the gradient alone. Desktop keeps the full effect. */
+@media (hover: none), (max-width: 1023.98px) {
+  .lst-shade i { display: none; }
+  .lst-shade::after { background: linear-gradient(0deg, rgba(11, 28, 32, .8) 0%, rgba(11, 28, 32, .46) 42%, rgba(11, 28, 32, 0) 100%); }
+  .lst--tile .lst-count { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(11, 28, 32, .62); }
+  .lst--tile .lst-go { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, .2); }
+}

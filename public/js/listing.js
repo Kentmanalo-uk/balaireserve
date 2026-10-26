@@ -58,12 +58,27 @@
     var next = box.querySelector('[data-carousel-step="1"]');
     var out  = box.querySelector('[data-carousel-index]');
     var slides = track.children;
+    // Photos after the first wait until the carousel is used (they have data-src / data-srcset).
+    var hydrated = false;
+    function hydrate() {
+      if (hydrated) return;
+      hydrated = true;
+      box.querySelectorAll('img[data-src]').forEach(function (img) {
+        if (img.dataset.srcset) img.srcset = img.dataset.srcset;
+        img.src = img.dataset.src;
+        img.removeAttribute('data-src'); img.removeAttribute('data-srcset');
+      });
+    }
+    ['pointerenter', 'touchstart', 'focusin'].forEach(function (ev) { box.addEventListener(ev, hydrate, { passive: true, once: true }); });
+    track.addEventListener('scroll', hydrate, { passive: true, once: true });
     function index() { return Math.round(track.scrollLeft / Math.max(1, track.clientWidth)); }
     function sync() {
-      var i = index();
-      if (out) out.textContent = String(Math.min(slides.length, i + 1));
-      if (prev) prev.disabled = track.scrollLeft < 4;
-      if (next) next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 4;
+      // Read all positions first, then write: interleaving them makes the browser lay out the page
+      // again for every carousel.
+      var left = track.scrollLeft, w = Math.max(1, track.clientWidth), sw = track.scrollWidth;
+      if (out) out.textContent = String(Math.min(slides.length, Math.round(left / w) + 1));
+      if (prev) prev.disabled = left < 4;
+      if (next) next.disabled = left + w >= sw - 4;
     }
     var t;
     track.addEventListener('scroll', function () { clearTimeout(t); t = setTimeout(sync, 60); }, { passive: true });
@@ -75,8 +90,12 @@
       var target = Math.max(0, Math.min(slides.length - 1, index() + step));
       track.scrollTo({ left: target * track.clientWidth, behavior: behavior });
     });
-    window.addEventListener('resize', sync);
-    sync();
+    var rq = false;
+    window.addEventListener('resize', function () { if (!rq) { rq = true; requestAnimationFrame(function () { rq = false; sync(); }); } });
+    // Starting state is known without measuring: first photo, so "previous" is off.
+    if (out) out.textContent = '1';
+    if (prev) prev.disabled = true;
+    if (next) next.disabled = slides.length < 2;
   });
 
   // ── 2. Photo viewer ────────────────────────────────────────────────────────

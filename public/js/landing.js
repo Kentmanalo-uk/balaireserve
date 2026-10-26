@@ -10,11 +10,21 @@
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // ── Header: solid surface + hairline once the page scrolls ───────────────
+  // A 1px marker at the top of the page: when it leaves the screen the page has scrolled. No scroll
+  // listener, so nothing reads layout while the page scrolls.
   var nav = document.getElementById('topNav');
   if (nav) {
-    var onScroll = function () { nav.classList.toggle('scrolled', window.scrollY > 8); };
-    window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll();
+    if ('IntersectionObserver' in window) {
+      var mark = document.createElement('div');
+      mark.setAttribute('aria-hidden', 'true');
+      mark.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:8px;pointer-events:none;visibility:hidden';
+      document.body.insertBefore(mark, document.body.firstChild);
+      new IntersectionObserver(function (entries) { nav.classList.toggle('scrolled', !entries[0].isIntersecting); }).observe(mark);
+    } else {
+      var onScroll = function () { nav.classList.toggle('scrolled', window.scrollY > 8); };
+      window.addEventListener('scroll', onScroll, { passive: true });
+      onScroll();
+    }
   }
 
   // ── Mobile navigation drawer ─────────────────────────────────────────────
@@ -263,17 +273,28 @@
     } else {
       evReveal();
     }
+    if ('IntersectionObserver' in window) {
+      // The illustrations loop forever; off screen they would still cost a style + SVG layout every frame.
+      new IntersectionObserver(function (entries) {
+        evSection.classList.toggle('is-playing', entries[0].isIntersecting);
+        // Measure the package row when the section nears the screen rather than at load.
+        if (entries[0].isIntersecting && typeof evSync === 'function') evSync();
+      }, { rootMargin: '80px 0px' }).observe(evSection);
+    }
 
     var evRow = document.getElementById('evCards'), evNav = evSection.querySelector('[data-ev-nav]');
     if (evRow && evNav) {
       var evBtns = evNav.querySelectorAll('[data-ev-step]');
-      var evSync = function () {
-        var max = evRow.scrollWidth - evRow.clientWidth - 4;
-        evNav.hidden = max <= 0;
-        evBtns[0].disabled = evRow.scrollLeft <= 4;
-        evBtns[1].disabled = evRow.scrollLeft >= max;
-        evRow.classList.toggle('is-end', evRow.scrollLeft >= max);
+      var evQueued = false;
+      var evSyncNow = function () {
+        evQueued = false;
+        var max = evRow.scrollWidth - evRow.clientWidth - 4, left = evRow.scrollLeft;   // reads first…
+        evNav.hidden = max <= 0;                                                         // …then writes
+        evBtns[0].disabled = left <= 4;
+        evBtns[1].disabled = left >= max;
+        evRow.classList.toggle('is-end', left >= max);
       };
+      var evSync = function () { if (!evQueued) { evQueued = true; requestAnimationFrame(evSyncNow); } };
       evBtns.forEach(function (b) {
         b.addEventListener('click', function () {
           var card = evRow.querySelector('.ev-card');
@@ -284,7 +305,8 @@
       });
       evRow.addEventListener('scroll', evSync, { passive: true });
       window.addEventListener('resize', evSync);
-      evSync();
+      // First measured when the section nears the screen (observer above): no layout read during load.
+      if (!('IntersectionObserver' in window)) evSync();
     }
   }
 

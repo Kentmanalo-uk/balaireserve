@@ -44,7 +44,9 @@
     }
     galleryPhotos = galleryPhotos.map(p => ({ src: p.path, caption: p.caption, alt: p.caption + ' at Balai-Reserve' }));
   }
-  const galleryJson = JSON.stringify(galleryPhotos);
+  // The full-screen viewer gets 1600px WebP copies (src/utils/images.js) instead of the originals.
+  const viewerSrc = s => /^\/(uploads|images\/landing)\/[\w./-]+\.(jpe?g|png|webp)$/i.test(s || '') ? '/img/1600' + s : s;
+  const galleryJson = JSON.stringify(galleryPhotos.map(p => ({ ...p, src: viewerSrc(p.src) })));
   const mosaic = galleryPhotos.slice(0, 5);
 
   // Amenities appear only once the resort lists them (Settings > Landing Page, one per line).
@@ -247,7 +249,7 @@
   <div class="wrap about-grid">
     <% if (aboutImage) { %>
     <figure class="about-photo">
-      <img src="<%= aboutImage %>" alt="<%= aboutAlt %>" loading="lazy" decoding="async" width="1200" height="1500" />
+      <img src="<%= aboutImage %>" alt="<%= aboutAlt %>" loading="lazy" decoding="async" width="1200" height="1500" sizes="(max-width: 1023px) 100vw, 45vw" />
       <% if (aboutCaption) { %><figcaption><%= aboutCaption %></figcaption><% } %>
     </figure>
     <% } %>
@@ -288,7 +290,7 @@
       <figure class="gal-item<%= i === 0 ? ' gal-main' : '' %>">
         <%# Plain link to the full image; listing.js opens it in the photo viewer instead. %>
         <a href="<%= photo.src %>" class="gal-open" data-photo-index="<%= i %>" aria-label="Open photo <%= i + 1 %> of <%= galleryPhotos.length %><%= photo.caption ? ': ' + photo.caption : '' %>">
-          <img src="<%= photo.src %>" alt="<%= photo.alt %>" loading="lazy" decoding="async" width="1200" height="900" />
+          <img src="<%= photo.src %>" alt="<%= photo.alt %>" loading="lazy" decoding="async" width="1200" height="900" <%- i === 0 ? 'sizes="(max-width: 575px) 85vw, (max-width: 1023px) 60vw, 50vw"' : 'data-maxw="800" sizes="(max-width: 575px) 85vw, (max-width: 1023px) 40vw, 25vw"' %> />
         </a>
         <% if (photo.caption) { %><span class="gal-shade" aria-hidden="true"><i></i><i></i><i></i></span><figcaption><%= photo.caption %></figcaption><% } %>
       </figure>

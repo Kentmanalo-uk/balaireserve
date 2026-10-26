@@ -46,7 +46,8 @@
       <% if (_photos.length) { %>
         <% _photos.forEach(function (src, i) { %>
         <a class="lst-slide" href="<%= _href %>" tabindex="-1" aria-hidden="true">
-          <img src="<%= src %>" alt="" loading="lazy" decoding="async" width="900" height="675" />
+          <%# Only the first photo loads with the page; the others load when the carousel is touched (listing.js). %>
+          <img <%= i === 0 ? 'src' : 'data-src' %>="<%= src %>" alt="" loading="lazy" decoding="async" width="900" height="675" data-maxw="800" sizes="(max-width: 575px) 85vw, (max-width: 1023px) 48vw, 34vw" />
         </a>
         <% }) %>
       <% } else { %>

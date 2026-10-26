@@ -1158,3 +1158,17 @@ html.pk-lock { overflow: hidden; }
     .dock-wrap .search { animation: br-par-card linear both; animation-timeline: scroll(root block); animation-range: 0px 440px; }
   }
 }
+
+/* ── Phones / touch screens: lighter effects (see the note in listing.css) ── */
+@media (hover: none), (max-width: 1023.98px) {
+  .hero-blur { display: none; }
+  .gal-shade i { display: none; }
+  .gal-shade::after { background: linear-gradient(0deg, rgba(11, 28, 32, .7) 0%, rgba(11, 28, 32, .3) 50%, rgba(11, 28, 32, 0) 100%); }
+  .gal .gal-all { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, .92); }
+}
+
+/* Events illustrations loop forever; they only run while the section is on screen
+   (landing.js toggles .is-playing), so they cost nothing while the rest of the page scrolls. */
+.js .events:not(.is-playing) .ev-words,
+.js .events:not(.is-playing) .ev-art *,
+.js .events:not(.is-playing) .ev-ill * { animation-play-state: paused !important; }

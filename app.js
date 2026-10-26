@@ -103,7 +103,7 @@ app.use(rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
   max:      isDev ? 10000 : parseInt(process.env.RATE_LIMIT_MAX || '500'),
   standardHeaders: true, legacyHeaders: false,
-  skip: (req) => /^\/(css|js|images|qrcodes|uploads)/.test(req.path),
+  skip: (req) => /^\/(css|js|images|img|qrcodes|uploads)\//.test(req.path),
   handler: (req, res) => {
     if (req.session?.user) {
       return res.status(429).render('errors/429', {
@@ -121,6 +121,22 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
 
+// ── Static files (before the session, so files never touch the session store) ──
+// Versioned URLs (?v=<hash>, added by src/utils/pageOptimizer.js) can be cached for a year; anything
+// else is cached for a day and revalidated. Uploads have unique file names.
+const staticLong  = express.static(path.join(__dirname, 'public'), { maxAge: '365d', immutable: true });
+const staticShort = express.static(path.join(__dirname, 'public'), {
+  maxAge: '1d',
+  setHeaders: (res, file) => { if (/[\\/]sw\.js$/.test(file)) res.setHeader('Cache-Control', 'no-cache'); },   // app updates reach installed apps at once
+});
+app.use((req, res, next) => (req.query.v ? staticLong : staticShort)(req, res, next));
+app.get('/img/:w/*', require('./src/utils/images').imageRoute);   // resized WebP photos
+
+app.use('/uploads/payment_proofs', async (req, res) => {
+  res.status(403).send('Forbidden');
+});
+app.use('/uploads', express.static(UPLOAD_ROOT, { maxAge: '30d' }));
+
 // ΓöÇΓöÇ Session ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 app.use(session({
   store: new MySqlSessionStore(db, { clearIntervalMs: 900000 }),
@@ -135,17 +151,12 @@ app.use(session({
   },
 }));
 
-// ΓöÇΓöÇ Static Files ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.use('/uploads/payment_proofs', async (req, res) => {
-  res.status(403).send('Forbidden');
-});
-app.use('/uploads', express.static(UPLOAD_ROOT));
 
 // ΓöÇΓöÇ Xianfire Template Engine ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 // Ikions icons: <i class="fas fa-…"> in rendered pages gets the matching SVG (src/utils/ikions.js).
 app.use(require('./src/utils/ikions').ikionsMiddleware);
+// Responsive photos, lazy images and versioned CSS/JS links on every page (src/utils/pageOptimizer.js).
+app.use(require('./src/utils/pageOptimizer').pageOptimizerMiddleware);
 
 xianfire.register(app, { viewsDir: path.join(__dirname, 'views') });
 

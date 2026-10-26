@@ -370,3 +370,8 @@ body.auth-body .auth-back-home .fa-arrow-left { display: inline-block; }
 @media (min-width: 992px) { body.auth-body .auth-shell { box-sizing: border-box; } }
 @media (min-width: 992px) { body.auth-body .auth-main, body.auth-body .auth-wrapper { min-height: 0; } }
 @media (min-width: 992px) { body.auth-body .auth-shell { grid-template-rows: auto minmax(0, 1fr); } }
+
+/* Phones / touch screens: the photo's gradient alone, without the stacked blur layers. */
+@media (hover: none), (max-width: 1023.98px) {
+  .auth-blur i { display: none; }
+}

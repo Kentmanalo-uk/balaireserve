@@ -502,6 +502,10 @@
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  // A resized WebP copy of a catalogue photo (src/utils/images.js); other images unchanged.
+  function sized(src, w) {
+    return /^\/(uploads|images\/landing)\/[\w./-]+\.(jpe?g|png|webp)$/i.test(src || '') ? '/img/' + w + src : src;
+  }
   function fmtDate(ymd) {
     if (!ymd) return '';
     var d = new Date(ymd + 'T00:00:00Z');
@@ -1270,7 +1274,7 @@
     var ao = selOpt(type === 'room' ? roomSel : type === 'cottage' ? cottageSel : venueSel);
     var aImgs = [];
     try { aImgs = JSON.parse(decodeURIComponent((ao && ao.value && ao.dataset.images) || '%5B%5D')); } catch (e) { aImgs = []; }
-    if (aImgs && aImgs.length) html = '<div class="sum-photo pt-photo"><img src="' + esc(aImgs[0]) + '" alt="" /></div>' + html;
+    if (aImgs && aImgs.length) html = '<div class="sum-photo pt-photo"><img src="' + esc(sized(aImgs[0], 800)) + '" alt="" /></div>' + html;
 
     document.getElementById('summaryContent').innerHTML = html;
     setMini(total, dp);
@@ -1346,7 +1350,7 @@
     if (!opt || !opt.value) { itemCard.hidden = true; itemCard.innerHTML = ''; return; }
     var t = resTypeInput.value, cap = opt.dataset.cap;
     var photo = imgs && imgs.length
-      ? '<img src="' + esc(imgs[0]) + '" alt="' + esc(opt.dataset.name || '') + '" />'
+      ? '<img src="' + esc(sized(imgs[0], 320)) + '" alt="' + esc(opt.dataset.name || '') + '" />'
       : '<div class="photo-pending"><i class="far fa-image" aria-hidden="true"></i>Photos coming soon</div>';
     itemCard.innerHTML = '<div class="sel-item-photo pt-photo">' + photo + '</div>' +
       '<div class="sel-item-body"><p class="sel-item-name">' + esc(opt.dataset.name || opt.text) + '</p>' +
@@ -1367,7 +1371,7 @@
     var name = opt.dataset.name || '';
     galleryThumbs.innerHTML = imgs.map(function (src, i) {
       return '<button type="button" data-book-photo="' + esc(src) + '" aria-label="Enlarge photo ' + (i + 1) + ' of ' + esc(name) + '">' +
-        '<img src="' + esc(src) + '" alt="" loading="lazy" /></button>';
+        '<img src="' + esc(sized(src, 320)) + '" alt="" loading="lazy" /></button>';
     }).join('');
     galleryWrap.classList.remove('d-none');
   }

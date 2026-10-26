@@ -69,7 +69,7 @@
             <div class="cat-item">
               <div class="cat-thumb">
                 <% if (room.imagesList && room.imagesList.length > 0) { %>
-                <img src="<%= room.imagesList[0] %>" alt="" loading="lazy" />
+                <img src="<%= room.imagesList[0] %>" alt="" loading="lazy" sizes="240px" />
                 <% } else { %>
                 <div class="photo-pending"><span>Photos coming soon</span></div>
                 <% } %>
