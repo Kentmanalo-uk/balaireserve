@@ -872,3 +872,18 @@ a.ap-kpi:hover { background: var(--color-seaglass-100); }
 .ck-list li.is-soon .ck-li-time { color: #8a5a12; }
 .ck-list li.is-over .ck-li-time { color: var(--br-danger); font-weight: 600; }
 .ck-empty { margin: 0; padding: 14px 16px; color: var(--br-ink-2); }
+
+/* ── Event packages (views/packages/*.xian, public/js/package-form.js) ── */
+.pkg-rows { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+.pkg-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; }
+.pkg-row-check { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 0; white-space: nowrap; font-size: var(--br-fs-small); color: var(--br-ink-2); }
+.pkg-row-check .form-check-input { float: none; margin: 0; }
+.pkg-row-price { width: 160px; }
+.pkg-empty { margin: 0 0 12px; color: var(--br-ink-2); font-size: var(--br-fs-small); }
+@media (max-width: 575.98px) {
+  .pkg-row { grid-template-columns: minmax(0, 1fr) auto; padding-bottom: 10px; border-bottom: 1px solid var(--br-hairline); }
+  .pkg-row > .form-control { grid-column: 1 / -1; }
+}
+tr.pkg-hidden .ap-name, tr.pkg-hidden td { color: var(--br-ink-2); }
+.pkg-table .ap-name { white-space: normal; }
+.pkg-table td.num, .pkg-table .ap-row-actions { white-space: nowrap; }

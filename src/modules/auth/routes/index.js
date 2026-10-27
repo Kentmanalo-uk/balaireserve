@@ -43,7 +43,7 @@ function buildSessionUser(user) {
 function postLoginRedirect(req, res, role) {
   const staffPaths = ['/dashboard', '/rooms', '/venues', '/events', '/inventory',
     '/crm', '/reports', '/analytics', '/users', '/payments',
-    '/guests', '/reservations', '/inquiries', '/feedback', '/cottages'];
+    '/guests', '/reservations', '/inquiries', '/feedback', '/cottages', '/packages', '/checkin'];
   const returnTo = req.session.returnTo;
 
   if (returnTo) {

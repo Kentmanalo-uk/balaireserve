@@ -1,0 +1,192 @@
+<% layout('layouts/main') %>
+<%# Add / edit an event package (src/modules/packages). Rows for included items and add-ons are added
+    and removed by public/js/package-form.js; fields are named included[i][…] and addons[i][…]. %>
+<% const action = pkg ? '/packages/' + pkg.id + '/edit' : '/packages'; %>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/packages" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Event packages</a>
+<h1 class="ph-title"><%= pkg ? 'Edit ' + pkg.name : 'Add event package' %></h1>
+<% if (pkg && pkg.is_active) { %><div class="ph-actions"><a href="/stay/package/<%= pkg.id %>" class="btn btn-secondary-quiet" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Guest view<span class="visually-hidden"> — opens the public package page in a new tab</span></a></div><% } %>
+<!--/page-head-->
+<p class="page-intro">What you save here shows on the website and in the booking form straight away. Bookings already made keep the name and prices they were booked with.</p>
+
+<% if (errors && errors.length > 0) { %>
+<div class="alert alert-danger ap-errors" role="alert">
+  <strong>Please fix the following:</strong>
+  <ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul>
+</div>
+<% } %>
+
+<form data-guard="this package" action="<%= action %>" method="POST" enctype="multipart/form-data" id="packageForm" class="ap-form">
+  <input type="hidden" name="_form" value="1" />
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Package</h2>
+      <p>The name and occasion guests see, e.g. “Birthday Package” for birthdays.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-8">
+          <label class="form-label required" for="pkgName">Package name</label>
+          <input type="text" name="name" id="pkgName" class="form-control" value="<%= old.name || '' %>" maxlength="255" placeholder="e.g. Birthday Package" required />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label required" for="pkgType">For</label>
+          <select name="event_type" id="pkgType" class="form-select" required>
+            <% for (const [k, l] of occasions) { %><option value="<%= k %>" <%= (old.event_type || 'other') === k ? 'selected' : '' %>><%= l %></option><% } %>
+          </select>
+        </div>
+        <div class="col-12">
+          <label class="form-label" for="pkgDesc">Description</label>
+          <textarea name="description" id="pkgDesc" class="form-control" rows="3" placeholder="What the celebration looks like and who it suits. The first line shows in package lists."><%= old.description || '' %></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Price and guests</h2>
+      <p>One price for the whole package. The downpayment is worked out from it, plus any add-ons the guest picks.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="row g-3">
+        <div class="col-md-6">
+          <label class="form-label required" for="pkgPrice">Package price</label>
+          <div class="input-group">
+            <span class="input-group-text">₱</span>
+            <input type="number" name="price" id="pkgPrice" class="form-control" value="<%= old.price != null ? old.price : '' %>" min="0" step="0.01" placeholder="0.00" required />
+          </div>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label" for="pkgCap">Up to (guests)</label>
+          <input type="number" name="capacity" id="pkgCap" class="form-control" value="<%= old.capacity || '' %>" min="1" max="5000" placeholder="e.g. 30" aria-describedby="pkgCapHelp" />
+          <div class="form-text" id="pkgCapHelp">Used to suggest a hall that fits. Leave empty if there’s no limit.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Included in the price</h2>
+      <p>Everything the package price covers, e.g. “Venue (4 hrs)”, “Catering (30 pax)”, “Birthday cake”. Tick <em>Guest can remove</em> for items a guest may leave out when booking.</p>
+    </div>
+    <div class="ap-section-body">
+      <ul class="pkg-rows" id="pkgIncluded" data-kind="included" role="list">
+        <% included.forEach((r, i) => { %>
+        <li class="pkg-row">
+          <label class="visually-hidden" for="inc<%= i %>">Included item <%= i + 1 %></label>
+          <input type="text" class="form-control" id="inc<%= i %>" name="included[<%= i %>][name]" value="<%= r.name %>" maxlength="120" placeholder="e.g. Catering (30 pax)" />
+          <label class="form-check pkg-row-check"><input type="checkbox" class="form-check-input" name="included[<%= i %>][removable]" value="1" <%= r.removable ? 'checked' : '' %> /> <span>Guest can remove</span></label>
+          <button type="button" class="ap-act is-danger" data-pkg-remove>Remove</button>
+        </li>
+        <% }) %>
+      </ul>
+      <p class="pkg-empty" data-empty-for="pkgIncluded"<%- included.length ? ' hidden' : '' %>>Nothing listed yet.</p>
+      <button type="button" class="btn btn-secondary-quiet btn-sm" data-pkg-add="pkgIncluded"><i class="fas fa-plus" aria-hidden="true"></i>Add included item</button>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Paid add-ons</h2>
+      <p>Optional extras guests can pick when booking, each with its own price, e.g. “Photo booth (3 hrs)” for ₱3,500.</p>
+    </div>
+    <div class="ap-section-body">
+      <ul class="pkg-rows" id="pkgAddons" data-kind="addons" role="list">
+        <% addons.forEach((r, i) => { %>
+        <li class="pkg-row">
+          <label class="visually-hidden" for="add<%= i %>">Add-on <%= i + 1 %></label>
+          <input type="text" class="form-control" id="add<%= i %>" name="addons[<%= i %>][name]" value="<%= r.name %>" maxlength="120" placeholder="e.g. Photo booth (3 hrs)" />
+          <div class="input-group pkg-row-price">
+            <span class="input-group-text">₱</span>
+            <input type="number" class="form-control" name="addons[<%= i %>][price]" value="<%= r.price %>" min="1" step="0.01" placeholder="0.00" aria-label="Price of add-on <%= i + 1 %>" />
+          </div>
+          <button type="button" class="ap-act is-danger" data-pkg-remove>Remove</button>
+        </li>
+        <% }) %>
+      </ul>
+      <p class="pkg-empty" data-empty-for="pkgAddons"<%- addons.length ? ' hidden' : '' %>>No add-ons.</p>
+      <button type="button" class="btn btn-secondary-quiet btn-sm" data-pkg-add="pkgAddons"><i class="fas fa-plus" aria-hidden="true"></i>Add add-on</button>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>Photos</h2>
+      <p>Up to 5 photos, 5 MB each (JPG, PNG or WEBP), e.g. a past set-up. The first one is the cover. Without photos the website shows a drawing for the occasion.</p>
+    </div>
+    <div class="ap-section-body">
+      <% if (images.length) { %>
+      <div class="cat-photo-block">
+        <h3>Current photos</h3>
+        <div class="ap-thumb-grid">
+          <% images.forEach((img, i) => { %>
+          <div class="ap-thumb-item existing-img-item">
+            <div class="ap-thumb">
+              <img src="<%= img %>" alt="Package photo <%= i + 1 %>" />
+              <% if (i === 0) { %><span class="cat-thumb-tag">Cover</span><% } %>
+            </div>
+            <input type="hidden" name="keep_images" value="<%= img %>" class="keep-img-input" />
+            <button type="button" class="ap-act is-danger remove-img-btn" aria-pressed="false">Remove</button>
+          </div>
+          <% }) %>
+        </div>
+      </div>
+      <% } %>
+      <div class="cat-photo-block">
+        <h3><%= images.length ? 'Add more photos' : 'Upload photos' %></h3>
+        <div class="upload-dropzone cat-dropzone" id="dropZone">
+          <i class="fas fa-cloud-upload-alt" aria-hidden="true"></i>
+          <span>Drag photos here, or</span>
+          <label for="imageInput" class="btn btn-secondary-quiet btn-sm mb-0">Choose files</label>
+          <input type="file" id="imageInput" name="images" multiple accept="image/*" class="d-none" />
+        </div>
+        <div class="ap-thumb-grid mt-3" id="newImagesPreview" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
+      <h2>On the website</h2>
+      <p>Hidden packages can’t be booked, but bookings already made are kept.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="pkgActive" name="is_active" value="1" <%= String(old.is_active) === '1' ? 'checked' : '' %> />
+        <label class="form-check-label" for="pkgActive">Show this package on the website and in the booking form</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="ap-form-actions">
+    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> are required.</span>
+    <a href="/packages" class="btn btn-secondary-quiet">Cancel</a>
+    <button type="submit" class="btn btn-primary"><%= pkg ? 'Save changes' : 'Create package' %></button>
+  </div>
+</form>
+
+<template id="tplIncluded">
+  <li class="pkg-row">
+    <input type="text" class="form-control" data-field="name" maxlength="120" placeholder="e.g. Catering (30 pax)" aria-label="Included item" />
+    <label class="form-check pkg-row-check"><input type="checkbox" class="form-check-input" data-field="removable" value="1" /> <span>Guest can remove</span></label>
+    <button type="button" class="ap-act is-danger" data-pkg-remove>Remove</button>
+  </li>
+</template>
+<template id="tplAddons">
+  <li class="pkg-row">
+    <input type="text" class="form-control" data-field="name" maxlength="120" placeholder="e.g. Photo booth (3 hrs)" aria-label="Add-on" />
+    <div class="input-group pkg-row-price">
+      <span class="input-group-text">₱</span>
+      <input type="number" class="form-control" data-field="price" min="1" step="0.01" placeholder="0.00" aria-label="Add-on price" />
+    </div>
+    <button type="button" class="ap-act is-danger" data-pkg-remove>Remove</button>
+  </li>
+</template>
+
+</div>
+<script src="/js/package-form.js" defer></script>

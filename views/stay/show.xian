@@ -53,13 +53,14 @@
     </p>
   </header>
 
+  <% if (!isPkg || (item.imagesList && item.imagesList.length)) { %>
+  <%include('partials/gallery', Object.assign({}, __locals, { gallery: { photos: item.imagesList, name: item.name } }))%>
+  <% } %>
   <% if (isPkg) { %>
   <div class="sd-band">
     <p><strong><%= included.length ? included.length + ' item' + (included.length === 1 ? '' : 's') + ' included' : 'Inclusions confirmed with the resort' %></strong><%= venueTime ? ' · venue for ' + venueTime : '' %><%= item.capacity ? ' · up to ' + item.capacity + ' guests' : '' %><%= addons.length ? ' · ' + addons.length + ' optional add-on' + (addons.length === 1 ? '' : 's') : '' %></p>
-    <p>We haven’t published photos for this package yet. Ask us for pictures of past set-ups through an <a href="/portal/inquire">inquiry</a>.</p>
+    <% if (!item.imagesList || !item.imagesList.length) { %><p>We haven’t published photos for this package yet. Ask us for pictures of past set-ups through an <a href="/portal/inquire">inquiry</a>.</p><% } %>
   </div>
-  <% } else { %>
-  <%include('partials/gallery', Object.assign({}, __locals, { gallery: { photos: item.imagesList, name: item.name } }))%>
   <% } %>
 
   <div class="sd-layout">

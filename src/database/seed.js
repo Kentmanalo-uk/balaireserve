@@ -112,8 +112,11 @@ const seedAll = async () => {
       WHERE name = ? AND COALESCE(event_type, '') = COALESCE(?, '')
     )
   `);
+  // Only a brand-new database gets the sample packages: once the resort has packages they are edited
+  // on /packages, and re-running the seed must not bring back ones that were renamed or deleted.
+  const hasPackages = (await db.prepare('SELECT COUNT(*) AS n FROM event_packages').get()).n > 0;
   const seedPackage = (name, description, eventType, price, inclusions, capacity) =>
-    insertPackage.run(name, description, eventType, price, inclusions, capacity, name, eventType);
+    hasPackages ? null : insertPackage.run(name, description, eventType, price, inclusions, capacity, name, eventType);
   await seedPackage('Wedding Package A', 'Basic wedding package for intimate celebrations', 'wedding', 50000,
     JSON.stringify([
       { name: 'Venue (4 hrs)',          price: 0,    is_default: 1, is_optional: 0 },

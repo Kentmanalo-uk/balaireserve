@@ -217,7 +217,7 @@ app.get('/', async (req, res) => {
 
   // Inclusions are stored as {name, price, is_default, is_optional}; very old
   // rows may still be plain strings, which count as included items.
-  const eventPackages = await db.prepare("SELECT * FROM event_packages WHERE is_active=1 ORDER BY price").all();
+  const eventPackages = withExistingPhotos(await db.prepare("SELECT * FROM event_packages WHERE is_active=1 ORDER BY price").all());
   for (const p of eventPackages) {
     let list = [];
     try { list = JSON.parse(p.inclusions || '[]'); } catch { list = []; }
@@ -295,6 +295,7 @@ app.use('/cottages',      staffArea, cottageRoutes);
 app.use('/reservations',  staffArea, reservationRoutes);
 app.use('/guests',        staffArea, guestRoutes);
 app.use('/events',        staffArea, eventRoutes);
+app.use('/packages',      staffArea, require('./src/modules/packages/routes'));   // event packages (Birthday, Wedding …)
 app.use('/inventory',     staffArea, inventoryRoutes);
 app.use('/payments',      paymentRoutes);
 app.use('/inquiries',     staffArea, inquiryRoutes);
@@ -337,6 +338,9 @@ try {
 } catch (err) {
   console.error('Could not copy catalog photos:', err.message);
 }
+
+// Columns added since the database was first set up (e.g. event package photos).
+require('./src/database/ensureSchema').ensureSchema().catch(err => console.error('[schema] check failed:', err.message));
 
 app.listen(PORT, () => {
   console.log('');

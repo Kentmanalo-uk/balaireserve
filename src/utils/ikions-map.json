@@ -1,5 +1,5 @@
 {
-  "sprite": "/images/icons/ikions.svg?v=4654061508",
+  "sprite": "/images/icons/ikions.svg?v=7a5b72c81e",
   "map": {
     "address-book": "address-book",
     "angles-left": "chevrons-left",
@@ -58,6 +58,7 @@
     "door-open": "log-out",
     "download": "download",
     "envelope": "mail",
+    "gift": "gift",
     "exclamation-circle": "error",
     "exclamation-triangle": "warning",
     "expand": "arrows-maximize",

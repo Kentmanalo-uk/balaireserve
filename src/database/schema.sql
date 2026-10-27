@@ -125,7 +125,8 @@ CREATE TABLE IF NOT EXISTS event_packages (
   description TEXT,
   event_type  VARCHAR(50),   -- wedding | birthday | corporate | debut | party | meeting | other
   price       DECIMAL(12,2) NOT NULL DEFAULT 0,
-  inclusions  TEXT,          -- JSON array of what is included
+  inclusions  TEXT,          -- JSON array of what is included (src/utils/eventPackages.js)
+  images      TEXT,          -- JSON array of photo paths
   capacity    INT,
   is_active   TINYINT NOT NULL DEFAULT 1,
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,

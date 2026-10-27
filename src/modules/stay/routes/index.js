@@ -203,7 +203,7 @@ router.get('/package/:id', async (req, res, next) => {
   const pkg = await loadItem('package', id);
   if (!pkg) return next();   // inactive or missing → 404
   withInclusions(pkg);
-  pkg.imagesList = [];       // packages have no photo field
+  withExistingPhotos([pkg]);   // photos added on /packages (none → the occasion drawing)
   pkg.amenitiesList = [];
 
   const settings = await siteSettings();

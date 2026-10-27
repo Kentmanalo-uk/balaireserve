@@ -1,0 +1,81 @@
+<% layout('layouts/main') %>
+<%
+  const occ = k => (occasions.find(o => o[0] === k) || [null, 'Gathering'])[1];
+  const shown = packages.filter(p => p.is_active);
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Event packages</h1>
+<div class="ph-actions">
+  <a href="/packages/new" class="btn btn-primary"><i class="fas fa-plus" aria-hidden="true"></i>Add package</a>
+</div>
+<!--/page-head-->
+<p class="page-intro">Birthday, wedding, debut and other event packages. What you save here is what guests see on the website and when they book. Bookings already made keep the price they were booked at.</p>
+
+<section class="ap-panel" aria-labelledby="pkgHeading">
+  <div class="ap-panel-head">
+    <h2 id="pkgHeading">All packages <span class="ap-meta"><%= shown.length %> on the website · <%= packages.length - shown.length %> hidden</span></h2>
+  </div>
+  <% if (!packages.length) { %>
+  <div class="ap-empty">
+    <strong>No event packages yet</strong>
+    Add the packages guests can book for birthdays, weddings and other events.
+    <div><a href="/packages/new" class="btn btn-primary btn-sm">Add package</a></div>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack pkg-table">
+      <thead>
+        <tr>
+          <th scope="col">Package</th>
+          <th scope="col" class="num">Up to</th>
+          <th scope="col" class="num">Price</th>
+          <th scope="col" class="num">Bookings</th>
+          <th scope="col">On website</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const p of packages) { %>
+        <tr<%- p.is_active ? '' : ' class="pkg-hidden"' %>>
+          <td class="ap-cell-title">
+            <div class="cat-item">
+              <div class="cat-thumb">
+                <% if (p.imagesList.length) { %><img src="<%= p.imagesList[0] %>" alt="" loading="lazy" sizes="240px" />
+                <% } else { %><div class="photo-pending"><span>No photo yet</span></div><% } %>
+              </div>
+              <div class="cat-item-text">
+                <a href="/packages/<%= p.id %>/edit" class="ap-name"><%= p.name %></a>
+                <span class="ap-line2"><%= occ(p.event_type) %> · <%= p.includedCount %> included<%= p.addonCount ? ' · ' + p.addonCount + ' add-on' + (p.addonCount === 1 ? '' : 's') : '' %></span>
+              </div>
+            </div>
+          </td>
+          <td class="num" data-label="Up to"><%= p.capacity ? p.capacity + ' guests' : '—' %></td>
+          <td class="num" data-label="Price"><strong><%= formatPeso(p.price) %></strong></td>
+          <td class="num" data-label="Bookings"><%= p.bookings %></td>
+          <td data-label="On website"><span class="status-chip <%= p.is_active ? 'st-teal' : 'st-gray' %>"><%= p.is_active ? 'Shown' : 'Hidden' %></span></td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <a href="/packages/<%= p.id %>/edit" class="ap-act">Edit<span class="br-sr-only"> <%= p.name %></span></a>
+              <% if (p.is_active) { %><a href="/stay/package/<%= p.id %>" class="ap-act" target="_blank" rel="noopener">Guest view<span class="br-sr-only"> of <%= p.name %> (new tab)</span></a><% } %>
+              <form action="/packages/<%= p.id %>/visibility" method="POST" class="d-inline">
+                <input type="hidden" name="show" value="<%= p.is_active ? '0' : '1' %>" />
+                <button type="submit" class="ap-act"><%= p.is_active ? 'Hide' : 'Show' %><span class="br-sr-only"> <%= p.name %></span></button>
+              </form>
+              <% if (!Number(p.bookings)) { %>
+              <form action="/packages/<%= p.id %>/delete" method="POST" class="d-inline">
+                <button type="submit" class="ap-act is-danger" data-confirm="Delete the package “<%= p.name %>”? This can’t be undone." data-confirm-type="danger" data-confirm-title="Delete package" data-confirm-ok="Delete">Delete<span class="br-sr-only"> <%= p.name %></span></button>
+              </form>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+</div>

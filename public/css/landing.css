@@ -770,6 +770,9 @@ body.menu-open { overflow: hidden; }
   content: ''; position: absolute; width: 68%; aspect-ratio: 1; left: 16%; top: 8%; border-radius: 50%;
   background: rgba(255, 255, 255, .6); filter: blur(2px);
 }
+.ev-media.has-photo::before { content: none; }
+.ev-media img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transition: transform .6s var(--ease-out); }
+.ev-card:hover .ev-media img { transform: scale(1.04); }
 .ev-ill { position: relative; width: 88%; height: auto; transition: transform .6s var(--ease-out); }
 .ev-card:hover .ev-ill { transform: scale(1.07) translateY(-3px); }
 .ev-ill .k { fill: var(--ev-ink); }

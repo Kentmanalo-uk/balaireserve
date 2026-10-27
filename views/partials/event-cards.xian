@@ -2,7 +2,7 @@
   Event packages as illustrated cards — homepage "Celebrate" section only.
   (The hall detail page and the portal venues page keep partials/package-rows.)
   Include with Object.assign({}, __locals, { evCards: { list, h } }).
-  Kept deliberately short: illustration, name, price, guests. The package page has the details.
+  Kept deliberately short: photo (or the occasion drawing), name, price, guests. The package page has the details.
 %>
 <%
   const _o = evCards || {};
@@ -42,8 +42,9 @@
 <ol class="ev-grid" role="list" id="evCards">
   <% _list.forEach((p, n) => { const t = _theme(p.event_type); %>
   <li class="ev-card ev-card--<%= t %>" id="pkg-<%= p.id %>" data-occasion="<%= p.event_type || 'other' %>" style="--i: <%= n %>">
-    <div class="ev-media" aria-hidden="true">
-      <svg class="ev-ill" viewBox="0 0 240 160" focusable="false"><%- _art[t] %></svg>
+    <div class="ev-media<%= p.imagesList && p.imagesList.length ? ' has-photo' : '' %>" aria-hidden="true">
+      <% if (p.imagesList && p.imagesList.length) { %><img src="<%= p.imagesList[0] %>" alt="" loading="lazy" decoding="async" width="800" height="600" sizes="(max-width: 575px) 100vw, 400px" />
+      <% } else { %><svg class="ev-ill" viewBox="0 0 240 160" focusable="false"><%- _art[t] %></svg><% } %>
     </div>
     <div class="ev-body">
       <p class="ev-occ"><%= _occ(p.event_type) %></p>
