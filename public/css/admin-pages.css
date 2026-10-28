@@ -896,3 +896,17 @@ tr.pkg-hidden .ap-name, tr.pkg-hidden td { color: var(--br-ink-2); }
   .pkg-row--place .pkg-row-note { grid-column: 1 / -1; grid-row: 2; }
 }
 .pkg-warn { display: flex; gap: 6px; align-items: baseline; color: #8a5a12; font-weight: 600; }
+
+/* Settings → Email (views/settings/email.xian) */
+.mail-checks { list-style: none; margin: 0; padding: 4px 16px; }
+.mail-checks li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 0; border-top: 1px solid var(--br-hairline); }
+.mail-checks li:first-child { border-top: 0; }
+.mail-checks li > i { margin-top: 3px; font-size: 1.1rem; }
+.mail-checks li.is-ok > i { color: var(--br-success); }
+.mail-checks li.is-bad > i { color: var(--br-danger); }
+.mail-checks strong { display: block; color: var(--br-ink); }
+.mail-checks span { color: var(--br-ink-2); font-size: var(--br-fs-small); }
+.mail-week { margin: 0; padding: 12px 16px; border-top: 1px solid var(--br-hairline); color: var(--br-ink-2); font-size: var(--br-fs-small); }
+.mail-test { padding: 16px; }
+.mail-test-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.mail-test-row .form-control { flex: 1 1 260px; }

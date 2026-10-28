@@ -12,6 +12,7 @@ const multer  = require('multer');
 const db      = require('../../../config/database');
 const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const mailer  = require('../../../utils/mailer');
 
 const router     = express.Router();
 const ADMIN_ONLY = requireRole('admin');
@@ -449,6 +450,33 @@ router.post('/landing/amenities', requireAuth, ADMIN_ONLY, async (req, res) => {
     { landing_amenities: oldValue || null }, { group: 'landing', landing_amenities: value });
   req.session.flash = { success: value ? 'Amenities list saved.' : 'Amenities list cleared.' };
   res.redirect(LANDING_TAB + '#landing-amenities');
+});
+
+// ── Settings → Email: is sending set up on this server, a test email, and the recent email log ──
+router.get('/email', requireAuth, ADMIN_ONLY, async (req, res) => {
+  const log = await db.prepare('SELECT * FROM email_log ORDER BY id DESC LIMIT 50').all();
+  const counts = await db.prepare(`
+    SELECT status, COUNT(*) AS n FROM email_log WHERE created_at > NOW() - INTERVAL 7 DAY GROUP BY status
+  `).all();
+  res.render('settings/email', {
+    title: 'Email – Settings', layout: 'layouts/main', activeTab: 'email',
+    mail: mailer.status(), log, counts: Object.fromEntries(counts.map(c => [c.status, Number(c.n)])),
+    testTo: req.session.user.email,
+  });
+});
+
+router.post('/email/test', requireAuth, ADMIN_ONLY, async (req, res) => {
+  const to = String(req.body.to || '').trim();
+  const result = await mailer.mailNotification({
+    to, name: req.session.user.firstName,
+    title: 'Test email from Balai-Reserve',
+    message: 'If you can read this, emails from the website reach this inbox: booking updates, payment notices, check-in details, email confirmation and password resets.',
+    link: '/settings/email',
+  });
+  req.session.flash = result.ok
+    ? { success: `Test email accepted by Resend for ${to}. It should arrive within a minute — check spam if not.` }
+    : { error: `Test email not sent to ${to || '(no address)'}: ${result.error || result.skipped}.` };
+  res.redirect('/settings/email');
 });
 
 module.exports = router;

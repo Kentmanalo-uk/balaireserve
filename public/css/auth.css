@@ -183,13 +183,18 @@ body.auth-body .auth-card .btn-auth {
 }
 body.auth-body .auth-card .btn-primary:hover,
 body.auth-body .auth-card .btn-auth:hover { background: var(--br-deep-sea-dark) !important; border-color: var(--br-deep-sea-dark) !important; }
+/* Google's own button colours (brand guidelines), not the resort theme. */
 .auth-google {
-  display: inline-flex; align-items: center; justify-content: center; gap: var(--br-space-2);
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
   min-height: 48px;
-  background: var(--br-surface); color: var(--br-ink);
-  border: 1px solid var(--br-hairline-2);
+  background: #ffffff; color: #1f1f1f;
+  border: 1px solid #747775;
+  font-family: Roboto, "Segoe UI", Arial, sans-serif; font-weight: 500; letter-spacing: .25px;
 }
-.auth-google:hover { background: var(--br-surface-alt); color: var(--br-ink); border-color: var(--br-hairline-2); }
+.auth-google:hover, .auth-google:focus-visible { background: #f8f9fa; color: #1f1f1f; border-color: #747775; box-shadow: 0 1px 2px rgba(60, 64, 67, .3), 0 1px 3px 1px rgba(60, 64, 67, .15); }
+.auth-google:active { background: #eceff1; color: #1f1f1f; border-color: #747775; }
+.auth-google:focus-visible { outline: 2px solid #4285f4; outline-offset: 2px; }
+.auth-google-g { flex: none; width: 20px; height: 20px; }
 
 .auth-divider { display: flex; align-items: center; gap: var(--br-space-3); margin: var(--br-space-4) 0; color: var(--br-ink-2); font-size: var(--br-fs-meta); }
 .auth-divider::before, .auth-divider::after { content: ''; flex: 1; height: 1px; background: var(--br-hairline); }
@@ -200,6 +205,8 @@ body.auth-body .auth-card a { color: var(--br-deep-sea); font-weight: 600; }
 body.auth-body .auth-card a:hover { color: var(--br-deep-sea-dark); }
 body.auth-body .auth-card a.auth-quiet-link { color: var(--br-ink-2); font-weight: 500; }
 body.auth-body .auth-card a.btn { text-decoration: none; }
+/* The Google button keeps Google's own colours, not the card's link colour. */
+body.auth-body .auth-card a.auth-google, body.auth-body .auth-card a.auth-google:hover { color: #1f1f1f; font-weight: 500; }
 
 /* Alerts */
 body.auth-body .auth-alert {

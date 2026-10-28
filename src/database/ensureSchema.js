@@ -32,6 +32,16 @@ const TABLES = [
     KEY idx_email_tokens_user (user_id, purpose),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  // Every email the app tried to send and what happened (src/utils/mailer.js; Settings → Email).
+  `CREATE TABLE IF NOT EXISTS email_log (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    to_address  VARCHAR(255) NOT NULL,
+    subject     VARCHAR(255) NOT NULL,
+    status      VARCHAR(10) NOT NULL,
+    detail      VARCHAR(500) NULL,
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_email_log_created (created_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
 ];
 
 // One-time data steps, each recorded in settings so it never runs twice.
@@ -65,6 +75,7 @@ async function ensureSchema() {
     }
   }
   for (const ddl of TABLES) await db.prepare(ddl).run();
+  await db.prepare('DELETE FROM email_log WHERE created_at < NOW() - INTERVAL 90 DAY').run();
   for (const step of STEPS) {
     const done = await db.prepare('SELECT 1 AS d FROM settings WHERE `key` = ?').get(step.key);
     if (done) continue;

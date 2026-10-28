@@ -1,0 +1,95 @@
+<% layout('layouts/main') %>
+<%# Settings → Email (src/modules/settings: /settings/email). Shows how sending is set up on this server,
+    sends a test, and lists the last emails with what happened to each (src/utils/mailer.js, email_log). %>
+<%
+  const TABS = [
+    { key: 'payment', label: 'Payment',      icon: 'fa-credit-card',    href: '/settings?tab=payment' },
+    { key: 'general', label: 'General',      icon: 'fa-building',       href: '/settings?tab=general' },
+    { key: 'booking', label: 'Booking',      icon: 'fa-calendar-check', href: '/settings?tab=booking' },
+    { key: 'landing', label: 'Landing page', icon: 'fa-image',          href: '/settings?tab=landing' },
+    { key: 'email',   label: 'Email',        icon: 'fa-envelope',       href: '/settings/email' },
+  ];
+  const ready = mail.keySet && mail.mode === 'live';
+  const chip = { sent: 'st-teal', failed: 'st-red', skipped: 'st-amber' };
+%>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">Settings</h1>
+<!--/page-head-->
+<p class="page-intro">Guests and staff get an email for every notification: email confirmation, welcome, bookings, payments, check-in and password resets.</p>
+
+<nav class="ap-tabs set-tabs" aria-label="Settings sections">
+  <% for (const t of TABS) { %>
+  <a class="<%= activeTab === t.key ? 'active' : '' %>" href="<%= t.href %>" <%- activeTab === t.key ? 'aria-current="page"' : '' %>><i class="fas <%= t.icon %>" aria-hidden="true"></i><%= t.label %></a>
+  <% } %>
+</nav>
+
+<section class="ap-panel" aria-labelledby="mailSetup">
+  <div class="ap-panel-head">
+    <h2 id="mailSetup">Email sending on this server</h2>
+    <span class="status-chip <%= ready ? 'st-teal' : 'st-red' %>"><%= ready ? 'Ready' : 'Not sending' %></span>
+  </div>
+  <ul class="mail-checks" role="list">
+    <li class="<%= mail.keySet ? 'is-ok' : 'is-bad' %>">
+      <i class="fas <%= mail.keySet ? 'fa-circle-check' : 'fa-circle-xmark' %>" aria-hidden="true"></i>
+      <div><strong>Resend API key</strong>
+        <% if (mail.keySet) { %><span>Set.</span>
+        <% } else { %><span>Not set, so no email can go out. In Hostinger hPanel open <em>Websites → this site → Node.js → Environment variables</em>, add <code>RESEND_API_KEY</code> with the key from your Resend account, save, and restart the app.</span><% } %>
+      </div>
+    </li>
+    <li class="<%= mail.mode === 'live' ? 'is-ok' : 'is-bad' %>">
+      <i class="fas <%= mail.mode === 'live' ? 'fa-circle-check' : 'fa-circle-xmark' %>" aria-hidden="true"></i>
+      <div><strong>Sending mode</strong>
+        <% if (mail.mode === 'live') { %><span>Live — emails go to guests and staff.</span>
+        <% } else { %><span>Local test mode: emails are only logged. This happens when <code>APP_URL</code> is a local address (now <code><%= mail.appUrl %></code>). On the live server set <code>APP_URL</code> to <code>https://balairesort.site</code>.</span><% } %>
+      </div>
+    </li>
+    <li class="is-ok">
+      <i class="fas fa-circle-info" aria-hidden="true"></i>
+      <div><strong>Sent from</strong><span><code><%= mail.from %></code><%= /resend\.dev/.test(mail.from) ? ' — Resend’s test sender: it only reaches the Resend account’s own email.' : ' — the domain must stay verified in Resend.' %></span></div>
+    </li>
+    <li class="is-ok">
+      <i class="fas fa-circle-info" aria-hidden="true"></i>
+      <div><strong>Links in emails open</strong><span><code><%= mail.appUrl %></code><%= mail.appUrlSet ? '' : ' (APP_URL isn’t set, so the public address is used)' %></span></div>
+    </li>
+  </ul>
+  <p class="mail-week">Last 7 days: <strong><%= counts.sent || 0 %></strong> sent · <strong><%= counts.failed || 0 %></strong> failed · <strong><%= counts.skipped || 0 %></strong> not sent</p>
+</section>
+
+<section class="ap-panel" aria-labelledby="mailTest">
+  <div class="ap-panel-head"><h2 id="mailTest">Send a test email</h2></div>
+  <form action="/settings/email/test" method="POST" class="mail-test" data-no-autosubmit-lock>
+    <label for="mailTo" class="form-label">Send to</label>
+    <div class="mail-test-row">
+      <input type="email" id="mailTo" name="to" class="form-control" value="<%= testTo %>" required autocomplete="email" />
+      <button type="submit" class="btn btn-primary"><i class="fas fa-paper-plane" aria-hidden="true"></i>Send test</button>
+    </div>
+    <p class="form-text mb-0">The result shows above, and in the log below.</p>
+  </form>
+</section>
+
+<section class="ap-panel" aria-labelledby="mailLog">
+  <div class="ap-panel-head"><h2 id="mailLog">Recent emails <span class="ap-meta">last 50</span></h2></div>
+  <% if (!log.length) { %>
+  <div class="ap-empty"><strong>No emails yet</strong>Emails appear here as the website sends them.</div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead><tr><th scope="col">When</th><th scope="col">To</th><th scope="col">Subject</th><th scope="col">Result</th></tr></thead>
+      <tbody>
+        <% for (const m of log) { %>
+        <tr>
+          <td data-label="When" class="text-nowrap"><%= formatDateTime(m.created_at, 'MMM D, h:mm A') %></td>
+          <td data-label="To"><%= m.to_address %></td>
+          <td data-label="Subject"><%= m.subject %></td>
+          <td data-label="Result"><span class="status-chip <%= chip[m.status] || 'st-gray' %>"><%= m.status === 'sent' ? 'Sent' : m.status === 'failed' ? 'Failed' : 'Not sent' %></span><% if (m.status !== 'sent' && m.detail) { %><span class="ap-line2"><%= m.detail %></span><% } %></td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+
+</div>

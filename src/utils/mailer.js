@@ -4,35 +4,50 @@
  *
  * Settings (environment variables; locally they can live in resend.env, which is not committed):
  *   RESEND_API_KEY   the API key (a "sending access" key is enough)
- *   MAIL_FROM        sender, e.g. "Balai-Reserve <no-reply@balairesort.site>" — the domain must be verified
- *                    in Resend. Without it the Resend test sender is used, which can only email the
- *                    Resend account's own address.
+ *   MAIL_FROM        sender. Default "Balai-Reserve <no-reply@<the site's domain>>" (the domain from APP_URL,
+ *                    which must be verified in Resend — balairesort.site is). On localhost the Resend test
+ *                    sender is used, which can only email the Resend account's own address.
  *   MAIL_SKIP_DOMAINS  never email these domains (comma-separated). Default "balai.com": the seeded staff
  *                    accounts use it, and it is someone else's domain.
  *   MAIL_MODE        "live" sends to everyone; "dev" sends only to MAIL_DEV_ALLOW (comma-separated) and logs
- *                    the rest. Default: live when APP_URL is a real address, dev on localhost — so local
- *                    testing never emails real guests.
- * Sending never blocks or breaks a page: mail goes out in the background and failures are only logged.
+ *                    the rest. Default: dev only when APP_URL is a localhost / home-network address (so local
+ *                    testing never emails real guests), live otherwise.
+ * Sending never blocks or breaks a page: mail goes out in the background. Every attempt — sent, failed or
+ * skipped, with the reason — is recorded in email_log and shown on Settings → Email (/settings/email).
  */
 'use strict';
 
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '..', 'resend.env') });   // never overrides real env vars
+const db = require('../config/database');
 
 const API = 'https://api.resend.com/emails';
 const RESERVED = /@(?:[^@]+\.)?(example\.(?:com|org|net)|example|test|invalid|localhost|local)$/i;
+const LOCAL_URL = /\/\/(localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:|\/|$)/i;
+const SITE_URL = 'https://balairesort.site';   // the public address when APP_URL isn't set
 
 function settings() {
-  const appUrl = (process.env.APP_URL || '').replace(/\/+$/, '');
-  const isLocal = !appUrl || /\/\/(localhost|127\.0\.0\.1|\[::1\])(:|\/|$)/i.test(appUrl);
+  const configured = (process.env.APP_URL || '').replace(/\/+$/, '');
+  const isLocal = !!configured && LOCAL_URL.test(configured);
+  const appUrl = configured || SITE_URL;
+  let domain = '';
+  try { domain = new URL(appUrl).hostname.replace(/^www\./, ''); } catch {}
   return {
     key: process.env.RESEND_API_KEY || '',
-    from: process.env.MAIL_FROM || 'Balai-Reserve <onboarding@resend.dev>',
+    from: process.env.MAIL_FROM || (isLocal || !domain ? 'Balai-Reserve <onboarding@resend.dev>' : `Balai-Reserve <no-reply@${domain}>`),
     mode: (process.env.MAIL_MODE || (isLocal ? 'dev' : 'live')).toLowerCase(),
     skip: (process.env.MAIL_SKIP_DOMAINS == null ? 'balai.com' : process.env.MAIL_SKIP_DOMAINS).split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
     allow: (process.env.MAIL_DEV_ALLOW || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
-    appUrl: appUrl || `http://localhost:${process.env.PORT || 3000}`,
+    appUrl,
   };
+}
+
+// One row per attempt, for Settings → Email. Never lets a logging problem affect sending.
+function record(to, subject, status, detail) {
+  db.prepare('INSERT INTO email_log (to_address, subject, status, detail) VALUES (?, ?, ?, ?)')
+    .run(String(to || '').slice(0, 255), String(subject || '').slice(0, 255), status, detail ? String(detail).slice(0, 500) : null)
+    .catch(() => {});
+  return { ok: status === 'sent', [status === 'sent' ? 'id' : status === 'failed' ? 'error' : 'skipped']: detail };
 }
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -71,12 +86,15 @@ function sendMail({ to, subject, html, text, devLink }) {
   const s = settings();
   const addr = String(to || '').trim();
   if (!addr || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(addr)) return Promise.resolve({ ok: false, skipped: 'no address' });
-  if (RESERVED.test(addr)) return Promise.resolve({ ok: false, skipped: 'reserved test address' });
-  if (s.skip.includes(addr.split('@')[1].toLowerCase())) return Promise.resolve({ ok: false, skipped: 'skipped domain' });
-  if (!s.key) return Promise.resolve({ ok: false, skipped: 'RESEND_API_KEY not set' });
+  if (RESERVED.test(addr)) return Promise.resolve({ ok: false, skipped: 'reserved test address' });   // test runs: not logged
+  if (s.skip.includes(addr.split('@')[1].toLowerCase())) return Promise.resolve(record(addr, subject, 'skipped', 'placeholder domain (MAIL_SKIP_DOMAINS)'));
+  if (!s.key) {
+    console.error(`[mail] not sent to ${addr}: RESEND_API_KEY is not set`);
+    return Promise.resolve(record(addr, subject, 'skipped', 'RESEND_API_KEY is not set on this server'));
+  }
   if (s.mode !== 'live' && !s.allow.includes(addr.toLowerCase())) {
     console.log(`[mail] dev mode — not sent to ${addr}: ${subject}${devLink ? ' — link: ' + devLink : ''}`);
-    return Promise.resolve({ ok: false, skipped: 'dev mode' });
+    return Promise.resolve(record(addr, subject, 'skipped', 'local dev mode (APP_URL is a local address)'));
   }
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 10000);
@@ -87,12 +105,23 @@ function sendMail({ to, subject, html, text, devLink }) {
     signal: ctrl.signal,
   }).then(async r => {
     const body = await r.json().catch(() => ({}));
-    if (!r.ok) { console.error(`[mail] not sent to ${addr} (${r.status}): ${body.message || body.name || 'error'}`); return { ok: false, error: body.message || String(r.status) }; }
-    return { ok: true, id: body.id };
+    if (!r.ok) {
+      const why = `Resend ${r.status}: ${body.message || body.name || 'error'}`;
+      console.error(`[mail] not sent to ${addr} — ${why}`);
+      return record(addr, subject, 'failed', why);
+    }
+    return record(addr, subject, 'sent', body.id || 'accepted by Resend');
   }).catch(err => {
-    console.error(`[mail] not sent to ${addr}: ${err.name === 'AbortError' ? 'timed out' : err.message}`);
-    return { ok: false, error: err.message };
+    const why = err.name === 'AbortError' ? 'timed out reaching Resend' : err.message;
+    console.error(`[mail] not sent to ${addr}: ${why}`);
+    return record(addr, subject, 'failed', why);
   }).finally(() => clearTimeout(timer));
+}
+
+// For Settings → Email: how sending is set up on this server (never the key itself).
+function status() {
+  const s = settings();
+  return { keySet: !!s.key, from: s.from, mode: s.mode, appUrl: s.appUrl, appUrlSet: !!process.env.APP_URL, skip: s.skip };
 }
 
 function mailNotification({ to, name, title, message, link, buttonText, note, subject }) {
@@ -100,4 +129,4 @@ function mailNotification({ to, name, title, message, link, buttonText, note, su
   return sendMail({ to, subject: subject || `${title} — Balai-Reserve`, html, text, devLink: link && /^https?:/i.test(link) ? link : undefined });
 }
 
-module.exports = { sendMail, mailNotification, renderNotification, settings };
+module.exports = { sendMail, mailNotification, renderNotification, settings, status };

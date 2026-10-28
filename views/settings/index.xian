@@ -5,6 +5,7 @@
     { key: 'general', label: 'General',      icon: 'fa-building' },
     { key: 'booking', label: 'Booking',      icon: 'fa-calendar-check' },
     { key: 'landing', label: 'Landing page', icon: 'fa-image' },
+    { key: 'email',   label: 'Email',        icon: 'fa-envelope', href: '/settings/email' },
   ];
   const looksPlaceholder = (v) => /x{3,}/i.test(String(v || ''));
   // Same rule as src/utils/publicSettings.js: seed placeholders are hidden from the public site.
@@ -23,7 +24,7 @@
 
 <nav class="ap-tabs set-tabs" id="settingsTabs" aria-label="Settings sections">
   <% for (const t of TABS) { %>
-  <a class="<%= activeTab === t.key ? 'active' : '' %>" href="/settings?tab=<%= t.key %>" <%- activeTab === t.key ? 'aria-current="page"' : '' %>>
+  <a class="<%= activeTab === t.key ? 'active' : '' %>" href="<%= t.href || '/settings?tab=' + t.key %>" <%- activeTab === t.key ? 'aria-current="page"' : '' %>>
     <i class="fas <%= t.icon %>" aria-hidden="true"></i><%= t.label %>
   </a>
   <% } %>
