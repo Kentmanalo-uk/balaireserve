@@ -48,7 +48,7 @@ async function sendVerification(user) {
     link: absolute('/auth/verify-email?token=' + encodeURIComponent(token)),
     buttonText: 'Confirm my email',
     note: 'If you didn’t create a Balai-Reserve account, you can ignore this email.',
-    subject: 'Confirm your email — Balai-Reserve',
+    subject: 'Confirm your email | Balai-Reserve',
   });
 }
 
@@ -67,8 +67,8 @@ async function sendPasswordReset(user) {
     message: 'We received a request to reset the password for your Balai-Reserve account. Choose a new password with the button below.\nThe link works for 1 hour and only once.',
     link: absolute('/auth/reset-password?token=' + encodeURIComponent(token)),
     buttonText: 'Choose a new password',
-    note: 'If you didn’t ask for this, you can ignore this email — your password stays the same.',
-    subject: 'Reset your password — Balai-Reserve',
+    note: 'If you didn’t ask for this, you can safely ignore this email. Your password stays the same.',
+    subject: 'Reset your password | Balai-Reserve',
   });
 }
 
