@@ -4,3 +4,5 @@ src/database/*.db
 uploads/
 public/qrcodes/
 *.log
+resend.env
+*.env

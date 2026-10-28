@@ -9,6 +9,7 @@ const bcrypt  = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { sendAccountCreated } = require('../../../utils/accountEmails');
 
 const router     = express.Router();
 const ADMIN_ONLY = requireRole('admin');
@@ -101,9 +102,10 @@ router.post('/',
 
     const hash = bcrypt.hashSync(password, 12);
     const id   = (await db.prepare(`
-      INSERT INTO users (role_id, first_name, last_name, email, password_hash, phone, is_active)
-      VALUES (?, ?, ?, ?, ?, ?, 1)
+      INSERT INTO users (role_id, first_name, last_name, email, password_hash, phone, is_active, email_verified)
+      VALUES (?, ?, ?, ?, ?, ?, 1, 1)
     `).run(role_id, first_name, last_name, email, hash, phone || '')).lastInsertRowid;
+    await sendAccountCreated(Number(id), 'staff');
 
     await req.audit('create', 'users', id, null, { first_name, last_name, email, role_id });
     req.session.flash = { success: `User "${first_name} ${last_name}" created successfully.` };

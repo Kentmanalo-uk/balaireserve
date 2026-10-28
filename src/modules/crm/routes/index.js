@@ -9,6 +9,7 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { generateCustomerCode } = require('../../../utils/bookingRef');
+const { sendAccountCreated } = require('../../../utils/accountEmails');
 
 const router     = express.Router();
 const CAN_MANAGE = ['admin','staff'];
@@ -89,17 +90,19 @@ router.post('/customers',
 
     const code = await generateCustomerCode();
 
+    let newUserId = null;
     try {
-      await db.transaction(async () => {
+      newUserId = await db.transaction(async () => {
         let userId = null;
 
         if (wantsLogin) {
           const customerRole = await db.prepare(`SELECT id FROM roles WHERE name = 'customer'`).get();
           if (!customerRole) throw new Error('Customer role is missing. Cannot create a login.');
           const hash = bcrypt.hashSync(loginPassword, 12);
+          // Staff entered the address for the guest, so it counts as confirmed.
           userId = (await db.prepare(`
-            INSERT INTO users (role_id, first_name, last_name, email, password_hash, phone, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, 1)
+            INSERT INTO users (role_id, first_name, last_name, email, password_hash, phone, is_active, email_verified)
+            VALUES (?, ?, ?, ?, ?, ?, 1, 1)
           `).run(customerRole.id, first_name, last_name, email, hash, phone || '')).lastInsertRowid;
         }
 
@@ -107,10 +110,12 @@ router.post('/customers',
           INSERT INTO customers (user_id, customer_code, first_name, last_name, email, phone, address, preferred_contact, customer_type, notes)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(userId, code, first_name, last_name, email || '', phone || '', address || '', preferred_contact || 'email', customer_type || 'regular', notes || '');
+        return userId;
       });
     } catch (e) {
       return renderErr('Could not add customer: ' + e.message);
     }
+    if (newUserId) await sendAccountCreated(Number(newUserId), 'guest');
 
     req.session.flash = {
       success: wantsLogin

@@ -17,6 +17,9 @@
   const notes = lines.filter(l => /^[-•*]\s*/.test(l)).map(l => l.replace(/^[-•*]\s*/, ''));
   const amen  = (item.amenitiesList || []).map(a => a.trim().charAt(0).toUpperCase() + a.trim().slice(1));
   const included = isPkg ? (item.includedItems || []) : [];
+  const places   = isPkg ? (item.places || []) : [];
+  const placeType = { venue: 'Function hall', room: 'Room', cottage: 'Cottage' };
+  const staffAssigned = places.some(pl => pl.item_type !== 'venue');
   const addons   = isPkg ? (item.addonItems || []) : [];
 
   const nightsBetween = (a, b) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000);
@@ -83,6 +86,29 @@
       </section>
       <% } %>
 
+      <% if (places.length) { %>
+      <section class="sd-sec" aria-labelledby="placesTitle">
+        <h2 class="sd-h2" id="placesTitle">Places included</h2>
+        <p class="sd-lede"><%= item.hall ? 'The ' + item.hall.name + ' is reserved for your event date and time when you book.' : 'These come with the package.' %><%= staffAssigned ? ' Rooms and cottages are set aside by the resort for your event.' : '' %></p>
+        <ul class="sd-places" role="list">
+          <% for (const pl of places) { const r = pl.row; const photo = (r.imagesList || [])[0]; %>
+          <li class="sd-place">
+            <a href="/stay/<%= pl.item_type %>/<%= r.id %>" class="sd-place-link">
+              <span class="sd-place-photo"><% if (photo) { %><img src="<%= photo %>" alt="" loading="lazy" decoding="async" width="480" height="360" sizes="160px" /><% } else { %><i class="fas <%= pl.item_type === 'room' ? 'fa-bed' : (pl.item_type === 'cottage' ? 'fa-umbrella-beach' : 'fa-building-columns') %>" aria-hidden="true"></i><% } %></span>
+              <span class="sd-place-body">
+                <span class="sd-place-type"><%= placeType[pl.item_type] %><%= pl.item_type === 'venue' ? ' · reserved for your event' : '' %></span>
+                <strong class="sd-place-name"><%= pl.quantity > 1 ? pl.quantity + ' × ' : '' %><%= r.name %></strong>
+                <span class="sd-place-meta"><%= pl.item_type === 'room' ? 'Sleeps up to ' + r.capacity : 'Up to ' + r.capacity + ' guests' %><%= r.type_name ? ' · ' + r.type_name : '' %></span>
+                <% if (pl.note) { %><span class="sd-place-note"><%= pl.note %></span><% } %>
+              </span>
+              <span class="sd-place-go" aria-hidden="true"><i class="fas fa-arrow-right"></i></span>
+            </a>
+          </li>
+          <% } %>
+        </ul>
+      </section>
+      <% } %>
+
       <% if (amen.length || included.length) { %>
       <section class="sd-sec" aria-labelledby="amenItem">
         <h2 class="sd-h2" id="amenItem">What you get</h2>
@@ -105,7 +131,9 @@
 
       <section class="sd-sec" id="availability" aria-labelledby="availTitle">
         <h2 class="sd-h2" id="availTitle"><%= isPkg ? 'Choose your event date' : 'Availability' %></h2>
-        <% if (isPkg) { %>
+        <% if (isPkg && item.hall) { %>
+        <p class="sd-lede">This package is held in the <%= item.hall.name %>. <%= shown.length ? 'Dates and times when the hall is already booked are marked — on partly booked days, other hours may still be open.' : 'No upcoming bookings hold the hall right now, so every date from today is open.' %></p>
+        <% } else if (isPkg) { %>
         <p class="sd-lede">Event packages aren’t tied to a single room, so this calendar can’t show other events. Staff review every event booking before it is confirmed.</p>
         <% } else if (shown.length) { %>
         <p class="sd-lede">Booked <%= isRoom ? 'nights' : 'dates' %> include bookings waiting for payment, pencil bookings and bookings on hold. <%= isRoom ? 'A check-out day can be your check-in day.' : 'On partly booked days, other hours may still be open.' %></p>

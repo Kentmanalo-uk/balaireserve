@@ -375,3 +375,6 @@ body.auth-body .auth-back-home .fa-arrow-left { display: inline-block; }
 @media (hover: none), (max-width: 1023.98px) {
   .auth-blur i { display: none; }
 }
+
+/* Forgot password link under the password field (views/auth/login.xian) */
+.auth-forgot { margin: -4px 0 var(--br-space-4); text-align: right; font-size: var(--br-fs-small); }

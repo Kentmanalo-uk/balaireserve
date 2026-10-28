@@ -3,7 +3,8 @@
   Include with Object.assign({}, __locals, { pkgRows: { list, dp, venueId, date, h, idPrefix, book } }).
     book: true also shows "Book this package" (portal); the main action is always the package detail page.
   Each package row needs p.includedItems and p.addonItems (see the landing/stay route handlers),
-  or p.inclusionsList, from which they are derived here.
+  or p.inclusionsList, from which they are derived here. p.places / p.hall (src/utils/eventPackages.js
+  attachPlaces) add the hall it is held in and the rooms or cottages it includes.
 %>
 <%
   const _o = pkgRows || {};
@@ -38,6 +39,8 @@
       <<%= _H %> class="pk-name"><a href="<%= detailHref %>"><%= p.name %></a></<%= _H %>>
       <p class="pk-meta"><% if (p.capacity) { %><span>Up to <%= p.capacity %> guests</span><% } %><span><%= p.includedItems.length ? p.includedItems.length + ' item' + (p.includedItems.length === 1 ? '' : 's') + ' included' : 'Inclusions confirmed with the resort' %></span><% if (p.addonItems.length) { %><span><%= p.addonItems.length %> optional add-on<%= p.addonItems.length === 1 ? '' : 's' %></span><% } %></p>
       <% if (first) { %><p class="pk-desc"><%= first %></p><% } %>
+      <% const _pl = p.places || []; const _other = _pl.filter(x => x.item_type !== 'venue'); %>
+      <% if (_pl.length) { %><p class="pk-places"><i class="fas fa-location-dot" aria-hidden="true"></i><span><%= p.hall ? 'Held in the ' + p.hall.name : '' %><%= p.hall && _other.length ? ' · ' : '' %><%= _other.length ? 'includes ' + _other.map(x => (x.quantity > 1 ? x.quantity + ' × ' : '') + x.row.name).join(', ') : '' %></span></p><% } %>
       <% if (p.includedItems.length) { %>
       <div class="pk-incl">
         <p class="pk-label">Included in the price</p>

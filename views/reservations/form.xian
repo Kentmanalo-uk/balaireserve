@@ -115,7 +115,7 @@
           <select name="package_id" id="packageId" class="form-select price-source">
             <option value="">No package</option>
             <% for (const p of packages) { %>
-            <option value="<%= p.id %>" data-price="<%= p.price %>" <%= sel(old.package_id, p.id) %>><%= p.name %> – <%= formatPeso(p.price) %></option>
+            <option value="<%= p.id %>" data-price="<%= p.price %>" data-hall="<%= p.hall ? p.hall.id : '' %>" <%= sel(old.package_id, p.id) %>><%= p.name %> – <%= formatPeso(p.price) %><%= p.hall ? ' · in ' + p.hall.name : '' %></option>
             <% } %>
           </select>
         </div>
@@ -294,8 +294,19 @@
       return n > 0 ? priceOf('room_id') * n : 0;
     }
     if (type === 'cottage') return priceOf('cottage_id');
-    if (type === 'venue' || type === 'event') return priceOf('venue_id') + priceOf('package_id');
+    if (type === 'venue' || type === 'event') return (venueIncluded() ? 0 : priceOf('venue_id')) + priceOf('package_id');
     return 0;
+  }
+
+  // An event package can include its own function hall: chosen automatically, and part of the package price.
+  function packageHall() {
+    var o = document.getElementById('packageId');
+    o = o && o.options[o.selectedIndex];
+    return resType.value === 'event' && o ? (o.getAttribute('data-hall') || '') : '';
+  }
+  function venueIncluded() {
+    var hall = packageHall(), v = document.getElementById('venueId');
+    return !!(hall && v && v.value === hall);
   }
 
   function fillDownpayment() {
@@ -326,6 +337,10 @@
   }
 
   resType.addEventListener('change', function () { toggleFields(); fillTotal(false); checkSchedule(); });
+  document.getElementById('packageId').addEventListener('change', function () {
+    var hall = packageHall(), v = document.getElementById('venueId');
+    if (hall && v && !v.value) v.value = hall;
+  });
   form.querySelectorAll('.price-source').forEach(function (s) { s.addEventListener('change', function () { fillTotal(false); }); });
   checkIn.addEventListener('change', function () {
     // Suggest a check-out: next day for rooms, same day otherwise.

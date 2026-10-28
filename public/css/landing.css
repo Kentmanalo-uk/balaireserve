@@ -1182,3 +1182,14 @@ html.pk-lock { overflow: hidden; }
   .site-header .header-inner, .site-header { -webkit-backdrop-filter: none; backdrop-filter: none; }
   .site-header .header-inner { background: rgba(255, 255, 255, .985); }
 }
+
+/* Privacy policy and booking terms (views/site/*.xian) */
+.legal { max-width: 760px; padding-top: 32px; padding-bottom: 64px; color: var(--color-text, #1d2b2e); line-height: 1.65; }
+.legal-kicker { margin: 0 0 4px; font-size: .8125rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--color-ocean-700); }
+.legal h1 { margin: 0 0 6px; font-family: var(--font-display); font-size: clamp(2rem, 5vw, 2.75rem); color: var(--color-ocean-900); }
+.legal-updated { margin: 0 0 28px; color: var(--color-secondary); font-size: .9375rem; }
+.legal h2 { margin: 32px 0 10px; font-size: 1.25rem; color: var(--color-ocean-900); }
+.legal ul { padding-left: 1.25rem; }
+.legal li + li { margin-top: 6px; }
+.legal-foot { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--color-divider, #e6e2d8); }
+.footer-base a { color: inherit; }

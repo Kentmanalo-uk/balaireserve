@@ -1,0 +1,29 @@
+<% layout('layouts/auth') %>
+<%# Choose a new password from the emailed link (src/modules/auth: POST /auth/reset-password). %>
+<% if (!valid) { %>
+<h1 class="auth-title">This link has expired</h1>
+<p class="auth-subtitle">Password reset links work for 1 hour and only once. Ask for a new one and use the newest email.</p>
+<a href="/auth/forgot-password" class="btn btn-primary btn-auth w-100">Send a new link</a>
+<p class="auth-alt"><a href="/auth/login">Back to sign in</a></p>
+<% } else { %>
+<% if (errors && errors.length > 0) { %>
+<div class="alert alert-danger auth-alert" role="alert">
+  <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+  <div><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div>
+</div>
+<% } %>
+<h1 class="auth-title">Choose a new password</h1>
+<p class="auth-subtitle">At least 8 characters. You’ll sign in with it from now on.</p>
+<form action="/auth/reset-password" method="POST" novalidate class="auth-form">
+  <input type="hidden" name="token" value="<%= token %>" />
+  <div class="auth-field">
+    <label for="password" class="form-label">New password</label>
+    <input type="password" id="password" name="password" class="form-control" minlength="8" required autocomplete="new-password" />
+  </div>
+  <div class="auth-field">
+    <label for="password_confirm" class="form-label">Confirm new password</label>
+    <input type="password" id="password_confirm" name="password_confirm" class="form-control" minlength="8" required autocomplete="new-password" />
+  </div>
+  <button type="submit" class="btn btn-primary btn-auth w-100">Save new password</button>
+</form>
+<% } %>

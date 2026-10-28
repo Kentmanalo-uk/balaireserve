@@ -1,0 +1,47 @@
+<%# Privacy policy (src/modules/site). Describes what the system actually stores; review it when features change. %>
+<%
+  const _name = site.resort_name || 'Balai-Reserve';
+  const _addr = site.resort_address || 'Brgy. San Antonio, Gloria, Oriental Mindoro, Philippines';
+%>
+<article class="legal wrap" aria-labelledby="legalTitle">
+  <p class="legal-kicker">Balai-Reserve</p>
+  <h1 id="legalTitle">Privacy policy</h1>
+  <p class="legal-updated">Last updated <%= formatDate(updated, 'MMMM D, YYYY') %></p>
+
+  <p><%= _name %> (“we”) runs this website so guests can see our rooms, cottages, function hall and event packages, check availability and book. This page explains what information we keep about you, why, and what you can ask us to do with it. We follow the Philippine Data Privacy Act of 2012 (Republic Act No. 10173).</p>
+
+  <h2>What we collect</h2>
+  <ul>
+    <li><strong>Your account:</strong> name, email address, mobile number and password (stored only in scrambled, one-way form). If you sign in with Google, we receive your name and email address from Google.</li>
+    <li><strong>Your bookings:</strong> what you booked, dates and times, number of guests, special requests, event package choices, and your check-in and check-out times.</li>
+    <li><strong>Payments:</strong> the payment method, amount, reference number and the screenshot or photo of your payment proof that you upload. You pay through GCash, Maya or your bank — we never see or store card numbers or e-wallet passwords.</li>
+    <li><strong>Messages:</strong> inquiries, chat messages and feedback you send us.</li>
+    <li><strong>Technical details:</strong> a cookie that keeps you signed in, and for security, the IP address and browser of actions taken in accounts. To load faster and work on weak connections, your browser may keep copies of our pages and images.</li>
+  </ul>
+
+  <h2>How we use it</h2>
+  <ul>
+    <li>To take, confirm and manage your booking, check you in and out, and verify your payments.</li>
+    <li>To send you updates about your booking and messages — in the website and by email.</li>
+    <li>To answer your inquiries and improve our service.</li>
+    <li>To keep the website and your account secure, and to keep the records the law requires.</li>
+  </ul>
+  <p>We don’t sell your information and we don’t use it for advertising.</p>
+
+  <h2>Who else handles it</h2>
+  <p>Only what is needed to run the service: our web hosting provider (where the website and its data are stored), our email delivery provider (to send your booking emails), and Google if you choose to sign in with Google. Resort staff see the details they need to serve your booking.</p>
+
+  <h2>How long we keep it</h2>
+  <p>We keep booking and payment records for as long as needed for your stay, for accounting and for legal requirements. You can ask us to delete your account; records we must keep by law are kept only for that purpose.</p>
+
+  <h2>Your rights</h2>
+  <p>You may ask to see the information we hold about you, correct it, have it deleted, or object to how we use it. You can also file a complaint with the National Privacy Commission.</p>
+
+  <h2>Contact us</h2>
+  <p><%= _name %>, <%= _addr %>.
+    <% if (site.resort_email) { %>Email <a href="mailto:<%= site.resort_email %>"><%= site.resort_email %></a>.<% } %>
+    <% if (site.resort_phone) { %>Phone <a href="tel:<%= String(site.resort_phone).replace(/[^\d+]/g, '') %>"><%= site.resort_phone %></a>.<% } %>
+    Or <a href="/portal/inquire">send us an inquiry</a>.</p>
+
+  <p class="legal-foot">See also our <a href="/terms">booking terms</a>.</p>
+</article>

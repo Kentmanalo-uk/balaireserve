@@ -8,6 +8,9 @@
 'use strict';
 
 require('dotenv').config();
+// Local key files (not committed). On the server the same names are real environment variables, which win.
+require('dotenv').config({ path: require('path').join(__dirname, 'google.env') });
+require('dotenv').config({ path: require('path').join(__dirname, 'resend.env') });
 
 const express     = require('express');
 require('express-async-errors'); // route async handler rejections to the error handler
@@ -173,6 +176,9 @@ app.use(async (req, res, next) => {
   res.locals.appName     = process.env.APP_NAME || 'Balai-Reserve';
   res.locals.currentUser = user;
   res.locals.currentPath = req.path;
+  // The public address (for absolute links in page metadata); the request's own host when APP_URL is local.
+  const _appUrl = (process.env.APP_URL || '').replace(/\/+$/, '');
+  res.locals.siteUrl = _appUrl && !/\/\/(localhost|127\.0\.0\.1)/i.test(_appUrl) ? _appUrl : `${req.protocol}://${req.get('host')}`;
   // Shown as "Received by" on payments (the resort's cashier); who typed an entry is kept as "Recorded by".
   res.locals.paymentReceiver = process.env.PAYMENT_RECEIVER_NAME || 'Maria Nora Miciano';
 
@@ -218,6 +224,7 @@ app.get('/', async (req, res) => {
   // Inclusions are stored as {name, price, is_default, is_optional}; very old
   // rows may still be plain strings, which count as included items.
   const eventPackages = withExistingPhotos(await db.prepare("SELECT * FROM event_packages WHERE is_active=1 ORDER BY price").all());
+  await require('./src/utils/eventPackages').attachPlaces(eventPackages);
   for (const p of eventPackages) {
     let list = [];
     try { list = JSON.parse(p.inclusions || '[]'); } catch { list = []; }
@@ -288,6 +295,7 @@ const staffArea = (req, res, next) => {
 app.use('/auth', authRoutes);
 app.use('/portal', portalRoutes);
 app.use('/stay', require('./src/modules/stay/routes'));   // public listing detail pages (no login)
+app.use('/', require('./src/modules/site/routes'));          // robots.txt, sitemap.xml, privacy, terms, security.txt
 app.use('/dashboard',     dashboardRoutes);
 app.use('/rooms',         staffArea, roomRoutes);
 app.use('/venues',        staffArea, venueRoutes);

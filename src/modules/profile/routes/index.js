@@ -13,6 +13,7 @@ const bcrypt  = require('bcryptjs');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth } = require('../../../middleware/auth');
+const { sendPasswordChanged } = require('../../../utils/accountEmails');
 
 const router = express.Router();
 
@@ -130,6 +131,7 @@ router.post('/password',
     await db.prepare(`UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?`).run(hash, user.id);
 
     await req.audit('password_change', 'profile', user.id, null, null);
+    await sendPasswordChanged({ id: user.id });   // security notice, in the bell and by email
     req.session.flash = { success: 'Password changed successfully.' };
     res.redirect('/profile');
   }

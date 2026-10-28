@@ -6,6 +6,29 @@
   <meta name="description" content="<%= typeof metaDescription !== 'undefined' && metaDescription ? metaDescription : 'Balai-Reserve — Your Home Away From Home. A beachfront resort in Brgy. San Antonio, Gloria, Oriental Mindoro. See rooms, cottages, the function hall and event packages with live prices, check availability and book online.' %>" />
   <meta name="theme-color" content="#fcfbf8" />
   <title><%= title || 'Balai-Reserve — Your Home Away From Home' %></title>
+  <link rel="canonical" href="<%= siteUrl + currentPath %>" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="Balai-Reserve" />
+  <meta property="og:title" content="<%= title || 'Balai-Reserve — Your Home Away From Home' %>" />
+  <meta property="og:url" content="<%= siteUrl + currentPath %>" />
+  <meta property="og:image" content="<%= siteUrl %>/images/brand/pwa-512.png" />
+  <%# The home page describes the business for search engines and web filters (schema.org). %>
+  <% if (currentPath === '/') {
+    const _s = (typeof site !== 'undefined' && site) || {};
+    const _ld = {
+      '@context': 'https://schema.org', '@type': 'Resort', name: 'Balai-Reserve',
+      description: 'Beachfront resort with rooms, cottages, a function hall and event packages, bookable online.',
+      url: siteUrl + '/', image: siteUrl + '/images/brand/pwa-512.png', logo: siteUrl + '/images/brand/pwa-512.png',
+      address: { '@type': 'PostalAddress', streetAddress: 'Brgy. San Antonio', addressLocality: 'Gloria', addressRegion: 'Oriental Mindoro', addressCountry: 'PH' },
+      checkinTime: _s.check_in_time || '14:00', checkoutTime: _s.check_out_time || '12:00',
+      currenciesAccepted: 'PHP', paymentAccepted: 'GCash, Maya, Bank transfer, Cash',
+      sameAs: ['https://www.facebook.com/BalaiMiciano'],
+    };
+    if (_s.resort_phone) _ld.telephone = _s.resort_phone;
+    if (_s.resort_email) _ld.email = _s.resort_email;
+  %>
+  <script type="application/ld+json"><%- JSON.stringify(_ld).split('<').join('\\u003c') %></script>
+  <% } %>
   <link rel="icon" type="image/png" sizes="32x32" href="/images/brand/balai-icon-32.png" />
   <link rel="apple-touch-icon" href="/images/brand/apple-touch-icon.png" />
   <link rel="manifest" href="/manifest.webmanifest" />
@@ -156,7 +179,7 @@
     </div>
   </div>
   <div class="wrap footer-base">
-    <span>&copy; <%= new Date().getFullYear() %> Balai-Reserve · Brgy. San Antonio, Gloria, Oriental Mindoro</span>
+    <span>&copy; <%= new Date().getFullYear() %> Balai-Reserve · Brgy. San Antonio, Gloria, Oriental Mindoro · <a href="/privacy">Privacy</a> · <a href="/terms">Booking terms</a></span>
     <% if (!currentUser) { %>
     <span class="footer-account"><a href="/auth/login">Sign in</a><a href="/auth/register">Create an account</a></span>
     <% } else if (_isCustomer) { %>

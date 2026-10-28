@@ -48,6 +48,8 @@
               <div class="cat-item-text">
                 <a href="/packages/<%= p.id %>/edit" class="ap-name"><%= p.name %></a>
                 <span class="ap-line2"><%= occ(p.event_type) %> · <%= p.includedCount %> included<%= p.addonCount ? ' · ' + p.addonCount + ' add-on' + (p.addonCount === 1 ? '' : 's') : '' %></span>
+                <% if (p.placesHidden.length) { %><span class="ap-line2 pkg-warn"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>Hidden: <%= p.placesHidden.join(', ') %> — edit the package or show it again</span><% } %>
+                <% if (p.placesText) { %><span class="ap-line2 pkg-places-line"><i class="fas fa-location-dot" aria-hidden="true"></i><%= p.placesText %></span><% } %>
               </div>
             </div>
           </td>

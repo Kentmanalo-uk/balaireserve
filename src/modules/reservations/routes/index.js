@@ -13,6 +13,7 @@ const { verifyPayment }            = require('../../../utils/paymentVerification
 const { notifyStaff, notifyCustomer, notifyAllAdmins, notifyReservationCustomer } = require('../../../utils/notifications');
 const { FINAL_RESERVATION_STATUSES } = require('../../../utils/reservationAvailability');
 const { statusLabel, formatDate } = require('../../../xianfire/helpers');
+const { attachPlaces, loadPlaces, placeText } = require('../../../utils/eventPackages');
 
 const router = express.Router();
 
@@ -108,6 +109,12 @@ function schedulesOverlap(itemType, existing, requested) {
   const a = bookingWindow(existing);
   const b = bookingWindow(requested);
   return Boolean(a && b && a.start < b.end && a.end > b.start);
+}
+
+// Rooms and cottages that come with an event package: noted on the booking for staff to set aside.
+function setAsideNote(places) {
+  const list = (places || []).filter(pl => pl.item_type !== 'venue');
+  return list.length ? 'Package includes (set aside for the event): ' + list.map(pl => placeText(pl) + (pl.note ? ' (' + pl.note + ')' : '')).join(', ') : '';
 }
 
 /**
@@ -228,7 +235,7 @@ async function renderWalkInForm(res, { old = {}, errors = [] } = {}) {
   const rooms     = await db.prepare(`SELECT * FROM rooms WHERE is_active = 1 ORDER BY room_number`).all();
   const cottages  = await db.prepare(`SELECT * FROM cottages WHERE is_active = 1 ORDER BY name, id`).all();
   const venues    = await db.prepare(`SELECT * FROM venues WHERE is_active = 1 ORDER BY name, id`).all();
-  const packages  = await db.prepare(`SELECT * FROM event_packages WHERE is_active = 1 ORDER BY name, id`).all();
+  const packages  = await attachPlaces(await db.prepare(`SELECT * FROM event_packages WHERE is_active = 1 ORDER BY name, id`).all());
   res.render('reservations/form', {
     title: 'New Reservation',
     layout: 'layouts/main',
@@ -325,7 +332,7 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
   const activeRow = async (table, id) => /^\d+$/.test(id)
     ? (await db.prepare(`SELECT * FROM ${table} WHERE id = ? AND is_active = 1`).get(id)) || null
     : null;
-  let resource = null, resourceType = null, pkg = null;
+  let resource = null, resourceType = null, pkg = null, pkgPlaces = [], pkgHall = null;
   if (type === 'room') {
     resourceType = 'room';
     resource = await activeRow('rooms', f.room_id);
@@ -341,6 +348,13 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
     if (type === 'event' && f.venue_id && !resource) errors.push({ msg: 'The selected venue is no longer available.' });
     pkg = await activeRow('event_packages', f.package_id);
     if (type === 'event' && !pkg) errors.push({ msg: 'Select an event package.' });
+    // A package that includes a function hall is held there unless staff pick another venue.
+    pkgPlaces = type === 'event' && pkg ? ((await loadPlaces([pkg.id])).get(pkg.id) || []) : [];
+    pkgHall = pkgPlaces.find(pl => pl.item_type === 'venue') || null;
+    if (pkgHall && !f.venue_id) {
+      resource = await activeRow('venues', String(pkgHall.item_id));
+      if (!resource) errors.push({ msg: `The ${pkgHall.row.name} (this package's hall) is hidden. Choose another venue or show the hall again.` });
+    }
     if (type === 'venue' && f.package_id && !pkg) errors.push({ msg: 'The selected event package is no longer available.' });
   }
 
@@ -395,7 +409,7 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
       schedule.start_time, schedule.end_time,
       Number(f.num_guests), f.special_requests || '',
       total, downpayment, f.initial_status,
-      f.notes || '', f.payment_method
+      [f.notes || '', setAsideNote(pkgPlaces)].filter(Boolean).join('\n'), f.payment_method
     )).lastInsertRowid;
 
     // Guest record, as online bookings get — check-out works through it.
@@ -409,8 +423,11 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
     // package each line keeps its own list price.
     const singleItem = !(resource && pkg);
     if (resource) {
-      await db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?,?,?,?,1,?,?)`)
-        .run(resId, resourceType, resource.id, resource.name || '', resource.price || 0, singleItem ? total : (resource.price || 0));
+      // The package's own hall is part of the package price.
+      const hallIncluded = !!(pkgHall && resourceType === 'venue' && resource.id === pkgHall.item_id);
+      const linePrice = hallIncluded ? 0 : (resource.price || 0);
+      await db.prepare(`INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price, notes) VALUES (?,?,?,?,1,?,?,?)`)
+        .run(resId, resourceType, resource.id, resource.name || '', linePrice, singleItem ? total : linePrice, hallIncluded ? 'Included in the event package' : null);
       // Mark the resource reserved so it stops showing as available while the booking is active.
       await db.prepare(`UPDATE ${RESOURCE_TABLES[resourceType]} SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')`).run(resource.id);
     }

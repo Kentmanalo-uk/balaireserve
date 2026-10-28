@@ -1,0 +1,43 @@
+<%# Booking terms (src/modules/site). Times, downpayment and the cancellation policy come from Settings. %>
+<%
+  const _name = site.resort_name || 'Balai-Reserve';
+  const _dpRaw = Number.parseFloat(site.downpayment_percent);
+  const _dp = Number.isFinite(_dpRaw) && _dpRaw > 0 && _dpRaw <= 100 ? _dpRaw : 50;
+%>
+<article class="legal wrap" aria-labelledby="legalTitle">
+  <p class="legal-kicker">Balai-Reserve</p>
+  <h1 id="legalTitle">Booking terms</h1>
+  <p class="legal-updated">Last updated <%= formatDate(updated, 'MMMM D, YYYY') %></p>
+
+  <p>These terms apply to bookings made on this website for rooms, cottages, the function hall and event packages at <%= _name %>, Gloria, Oriental Mindoro.</p>
+
+  <h2>Booking and payment</h2>
+  <ul>
+    <li>Prices shown are the current resort rates in Philippine pesos. Rooms are priced per night; cottages, the function hall and event packages are a flat rate per booking.</li>
+    <li>A booking is saved as <strong>awaiting payment</strong>. It is held for you once you pay the <%= _dp %>% downpayment by GCash, Maya or bank transfer and upload your proof of payment, and our staff verify it.</li>
+    <li>The remaining balance is settled at the resort, before check-out.</li>
+    <li>Optional event add-ons you choose are added to your total and to the downpayment.</li>
+  </ul>
+
+  <h2>Check-in and check-out</h2>
+  <ul>
+    <li>Rooms: check-in from <%= fmtTime(site.check_in_time || '14:00') %>, check-out by <%= fmtTime(site.check_out_time || '12:00') %>.</li>
+    <li>Cottages and the function hall: the date and hours you booked.</li>
+    <li>You can check in yourself by scanning the QR code at the front desk, or with our staff.</li>
+  </ul>
+
+  <h2>Event packages</h2>
+  <p>Each package is one price for the items it lists. If a package includes the function hall, the hall is reserved for your event date and time when you book. Rooms or cottages that come with a package are set aside for you by our staff.</p>
+
+  <h2>Cancellations and refunds</h2>
+  <p><%= site.cancellation_policy || 'Please contact the resort about cancelling a booking.' %></p>
+  <p>You can request a refund from your booking page; our staff review every request.</p>
+
+  <h2>Your account</h2>
+  <p>Please give correct contact details so we can reach you about your booking, and keep your password private.</p>
+
+  <h2>Questions</h2>
+  <p><% if (site.resort_email) { %>Email <a href="mailto:<%= site.resort_email %>"><%= site.resort_email %></a>, <% } %><% if (site.resort_phone) { %>call <a href="tel:<%= String(site.resort_phone).replace(/[^\d+]/g, '') %>"><%= site.resort_phone %></a>, <% } %>or <a href="/portal/inquire">send us an inquiry</a>.</p>
+
+  <p class="legal-foot">See also our <a href="/privacy">privacy policy</a>.</p>
+</article>

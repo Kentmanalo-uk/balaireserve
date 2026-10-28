@@ -238,7 +238,7 @@
       <li><strong>Submit your booking</strong>Choose a room, cottage, venue or package and your dates. You’ll see the total before submitting. It’s saved as Awaiting payment with a BK- reference.</li>
       <li><strong>Pay the <%= downpaymentPercent %>% downpayment</strong>Send it by GCash, Maya or bank transfer using the account details shown on your booking.</li>
       <li><strong>Upload your proof</strong>Add a screenshot of your payment. Staff check it against the resort’s account before confirming.</li>
-      <li><strong>Check in with your QR</strong>Show the QR code at the front desk; only staff can confirm check-in. The balance is paid at the resort.</li>
+      <li><strong>Check in on arrival</strong>Scan the check-in QR at the front desk with your phone and tap Check in, or let our staff check you in. The balance is paid at the resort.</li>
     </ol>
   </section>
   <% } %>

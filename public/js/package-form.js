@@ -1,7 +1,8 @@
 /**
  * Balai-Reserve — event package form (views/packages/form.xian)
- * Adds / removes rows for included items and paid add-ons (renumbering the field names so the server
- * receives included[0..n] and addons[0..n]), and handles photo previews like the cottage form.
+ * Adds / removes rows for places included, included items and paid add-ons (renumbering the field names
+ * so the server receives places[0..n], included[0..n] and addons[0..n]), and handles photo previews like
+ * the cottage form. A function hall is always one, so its quantity box is locked at 1.
  */
 (function () {
   'use strict';
@@ -12,7 +13,7 @@
   function renumber(list) {
     var kind = list.getAttribute('data-kind');
     Array.prototype.forEach.call(list.children, function (li, i) {
-      li.querySelectorAll('input[name], input[data-field]').forEach(function (inp) {
+      li.querySelectorAll('input[name], input[data-field], select[name], select[data-field]').forEach(function (inp) {
         var field = inp.getAttribute('data-field') || (inp.name.match(/\]\[(\w+)\]$/) || [])[1];
         if (field) { inp.setAttribute('data-field', field); inp.name = kind + '[' + i + '][' + field + ']'; }
       });
@@ -23,12 +24,13 @@
   document.querySelectorAll('[data-pkg-add]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var list = document.getElementById(btn.getAttribute('data-pkg-add'));
-      var tpl = document.getElementById(list.getAttribute('data-kind') === 'included' ? 'tplIncluded' : 'tplAddons');
+      var kind = list.getAttribute('data-kind');
+      var tpl = document.getElementById('tpl' + kind.charAt(0).toUpperCase() + kind.slice(1));
       var row = tpl.content.firstElementChild.cloneNode(true);
       list.appendChild(row);
       renumber(list);
       if (window.ikionsRender) window.ikionsRender(row);
-      row.querySelector('input').focus();
+      row.querySelector('input, select').focus();
     });
   });
   form.addEventListener('click', function (e) {
@@ -46,6 +48,15 @@
     document.querySelector('[data-pkg-add="' + list.id + '"]').click();
   });
   document.querySelectorAll('.pkg-rows').forEach(renumber);
+  function syncQty(row) {
+    var sel = row.querySelector('select'), qty = row.querySelector('.pkg-row-qty');
+    if (!sel || !qty) return;
+    var hall = sel.value.indexOf('venue:') === 0;
+    if (hall) qty.value = '1';
+    qty.readOnly = hall;
+  }
+  form.addEventListener('change', function (e) { var row = e.target.closest('.pkg-row--place'); if (row) syncQty(row); });
+  document.querySelectorAll('.pkg-row--place').forEach(syncQty);
 
   // ── Photos: remove / undo an existing one ─────────────────────────────────
   document.querySelectorAll('.remove-img-btn').forEach(function (btn) {

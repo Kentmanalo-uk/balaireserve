@@ -208,6 +208,17 @@
   </div>
   <% } %>
 
+  <%# New accounts confirm their email before booking (src/modules/auth: /auth/verify-email). %>
+  <% if (currentUser && currentUser.role === 'customer' && currentUser.emailVerified === false) { %>
+  <div class="pt-flash">
+    <div class="alert alert-warning d-flex flex-wrap align-items-center gap-2 pt-verify" role="status">
+      <i class="fas fa-envelope" aria-hidden="true"></i>
+      <div class="flex-grow-1">Please confirm your email: we sent a link to <strong><%= currentUser.email %></strong>. You can book once it’s confirmed.</div>
+      <form action="/auth/verify-email/resend" method="POST" class="m-0"><button type="submit" class="btn btn-sm btn-outline-secondary">Send the link again</button></form>
+    </div>
+  </div>
+  <% } %>
+
   <!-- Content -->
   <main id="portalMain" tabindex="-1">
     <%- body %>

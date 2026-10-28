@@ -12,6 +12,9 @@
       capacity: p.capacity,
       defaults: (p.defaultInclusions || []).map(i => ({ name: i.name, price: i.price, is_optional: i.is_optional })),
       addons:   (p.addonInclusions   || []).map(i => ({ name: i.name, price: i.price })),
+      hallId:   p.hall ? p.hall.id : null,
+      hallName: p.hall ? p.hall.name : '',
+      places:   (p.places || []).map(pl => ({ type: pl.item_type, text: (pl.quantity > 1 ? pl.quantity + ' × ' : '') + pl.row.name, note: pl.note || '' })),
     }).replace(/</g, '\\u003c');
     return JSON.stringify(String(p.id)) + ': ' + safe;
   }).join(',\n  ') %>
@@ -232,6 +235,7 @@
                   </option>
                   <% } %>
                 </select>
+                <p class="wiz-hint" id="pkgHallNote" hidden></p>
               </div>
 
               <!-- Package selector -->
@@ -255,6 +259,12 @@
                 <div class="inclusions-header">
                   <span class="inclusions-header-title">Package inclusions</span>
                   <span class="inclusions-addon-total" id="addonTotalBadge">No add-ons selected</span>
+                </div>
+
+                <!-- Places the package includes (hall reserved; rooms / cottages set aside by staff) -->
+                <div class="inclusions-defaults" id="pkgPlacesWrap" hidden>
+                  <p class="inc-label">Places included</p>
+                  <div id="pkgPlacesList"></div>
                 </div>
 
                 <!-- Default (included) inclusions -->
@@ -676,6 +686,7 @@
     if (type === 'cottage') title.textContent = 'Choose your cottage, date and time';
     if (type === 'venue')   title.textContent = 'Choose the venue and event date';
     if (type === 'event')   title.textContent = 'Choose your package and event date';
+    applyPackageHall();
     // Venue is required for a venue booking; a package is the point of an event booking.
     var vOpt = document.getElementById('venueOpt'), pOpt = document.getElementById('packageOpt');
     if (vOpt) vOpt.style.display = type === 'venue' ? 'none' : '';
@@ -738,6 +749,23 @@
     }
 
     inclusionsPanel.classList.add('visible');
+
+    /* ── Places included ─── */
+    var placesWrap = document.getElementById('pkgPlacesWrap'), placesList = document.getElementById('pkgPlacesList');
+    placesList.innerHTML = '';
+    (pkg.places || []).forEach(function (pl) {
+      var row = document.createElement('div');
+      row.className = 'default-inc-item';
+      var icon = document.createElement('i');
+      icon.className = 'fas ' + (pl.type === 'room' ? 'fa-bed' : pl.type === 'cottage' ? 'fa-umbrella-beach' : 'fa-building-columns');
+      icon.setAttribute('aria-hidden', 'true');
+      var text = document.createElement('span');
+      text.textContent = pl.text + (pl.type === 'venue' ? ' (reserved for your event)' : '') + (pl.note ? ' — ' + pl.note : '');
+      row.appendChild(icon); row.appendChild(text);
+      placesList.appendChild(row);
+    });
+    placesWrap.hidden = !(pkg.places || []).length;
+    if (window.ikionsRender) window.ikionsRender(placesList);
 
     /* ── Default (included) inclusions ─── */
     defaultList.innerHTML = '';
@@ -891,6 +919,7 @@
   if (pkgSelect) {
     pkgSelect.addEventListener('change', function () {
       renderInclusionsPanel(this.value);
+      applyPackageHall();
       calcVenuePrice();
       updateSummary();
     });
@@ -1060,7 +1089,8 @@
   var venueSel = document.getElementById('venueSelect');
   function calcVenuePrice() {
     var vo = selOpt(venueSel), po = selOpt(pkgSelect);
-    var vPrice = vo && vo.value ? parseFloat(vo.dataset.price || 0) : 0;
+    // A hall that comes with the event package is part of the package price.
+    var vPrice = vo && vo.value && vo.value !== packageHallId() ? parseFloat(vo.dataset.price || 0) : 0;
     var pPrice = po && po.value ? parseFloat(po.dataset.price || 0) : 0;
     // Same rule as the server: venue + package + each selected priced add-on of that package.
     var total = vPrice + pPrice + (pPrice > 0 ? getAddonTotal() : 0);
@@ -1068,6 +1098,31 @@
     updateSummary();
   }
   if (venueSel) venueSel.addEventListener('change', function () { calcVenuePrice(); });
+
+  // An event package that includes a function hall is always held there: the hall is chosen and locked.
+  function packageHallId() {
+    if (resTypeInput.value !== 'event' || !pkgSelect) return '';
+    var pkg = pkgData[String(pkgSelect.value || '')];
+    return pkg && pkg.hallId ? String(pkg.hallId) : '';
+  }
+  function applyPackageHall() {
+    if (!venueSel) return;
+    var hallId = packageHallId(), note = document.getElementById('pkgHallNote');
+    var hasOption = hallId && venueSel.querySelector('option[value="' + hallId + '"]');
+    if (hallId && hasOption) {
+      if (venueSel.value !== hallId) { venueSel.value = hallId; venueSel.dispatchEvent(new Event('change', { bubbles: true })); }
+      venueSel.disabled = true;
+      if (note) { note.hidden = false; note.textContent = 'The ' + pkgData[String(pkgSelect.value)].hallName + ' comes with this package and is reserved for your event — no extra venue fee.'; }
+    } else {
+      if (venueSel.disabled && venueSel.dataset.pkgLocked) venueSel.value = '';
+      venueSel.disabled = false;
+      if (note) {
+        note.hidden = !hallId;
+        if (hallId) note.textContent = 'This package’s function hall isn’t taking bookings right now. Please send an inquiry or choose another package.';
+      }
+    }
+    venueSel.dataset.pkgLocked = hallId && hasOption ? '1' : '';
+  }
   ['eventDate','eventStartTime','eventEndTime'].forEach(function (id) {
     var el = document.getElementById(id); if (el) el.addEventListener('change', updateSummary);
   });
@@ -1355,7 +1410,7 @@
     itemCard.innerHTML = '<div class="sel-item-photo pt-photo">' + photo + '</div>' +
       '<div class="sel-item-body"><p class="sel-item-name">' + esc(opt.dataset.name || opt.text) + '</p>' +
       '<p class="sel-item-facts">' + (cap ? (t === 'room' ? 'Sleeps ' + esc(cap) : 'Up to ' + esc(cap) + ' guests') + ' · ' : '') +
-      '<strong>' + fmtPrice(opt.dataset.price) + '</strong> ' + (t === 'room' ? 'per night' : 'per booking') + '</p>' +
+      (t === 'event' && opt.value === packageHallId() ? '<strong>Included in the package</strong>' : '<strong>' + fmtPrice(opt.dataset.price) + '</strong> ' + (t === 'room' ? 'per night' : 'per booking')) + '</p>' +
       (t === 'cottage' ? '<p class="pt-meta mb-0">Flat rate — the same whatever times you choose.</p>' : '') + '</div>' +
       (selectEl.classList.contains('is-locked-select') ? '<span class="sel-item-lock"><i class="fas fa-lock" aria-hidden="true"></i>Locked</span>' : '');
     itemCard.classList.toggle('is-locked', selectEl.classList.contains('is-locked-select'));

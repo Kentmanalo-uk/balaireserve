@@ -71,6 +71,30 @@
 
   <div class="ap-section">
     <div class="ap-section-intro">
+      <h2>Places included</h2>
+      <p>The function hall, rooms and cottages that come with the package, so guests see exactly where their event happens. The hall is booked automatically for the event date and time; rooms and cottages are listed on the booking for staff to assign.</p>
+    </div>
+    <div class="ap-section-body">
+      <ul class="pkg-rows" id="pkgPlaces" data-kind="places" role="list">
+        <% places.forEach((r, i) => { %>
+        <li class="pkg-row pkg-row--place">
+          <select class="form-select" name="places[<%= i %>][ref]" aria-label="Place">
+            <option value="">Choose a hall, room or cottage</option>
+            <% for (const g of placeGroups) { %><optgroup label="<%= g.label %>"><% for (const o of g.options) { %><option value="<%= o.ref %>" <%= r.ref === o.ref ? 'selected' : '' %>><%= o.text %></option><% } %></optgroup><% } %>
+          </select>
+          <input type="number" class="form-control pkg-row-qty" name="places[<%= i %>][qty]" value="<%= r.qty %>" min="1" max="20" aria-label="How many" title="How many (a function hall is always 1)" />
+          <input type="text" class="form-control pkg-row-note" name="places[<%= i %>][note]" value="<%= r.note %>" maxlength="255" placeholder="Note, e.g. for the celebrant’s family, 1 night" aria-label="Note for guests" />
+          <button type="button" class="ap-act is-danger" data-pkg-remove>Remove</button>
+        </li>
+        <% }) %>
+      </ul>
+      <p class="pkg-empty" data-empty-for="pkgPlaces"<%- places.length ? ' hidden' : '' %>>No places linked — guests choose a hall themselves when booking.</p>
+      <button type="button" class="btn btn-secondary-quiet btn-sm" data-pkg-add="pkgPlaces"><i class="fas fa-plus" aria-hidden="true"></i>Add a place</button>
+    </div>
+  </div>
+
+  <div class="ap-section">
+    <div class="ap-section-intro">
       <h2>Included in the price</h2>
       <p>Everything the package price covers, e.g. “Venue (4 hrs)”, “Catering (30 pax)”, “Birthday cake”. Tick <em>Guest can remove</em> for items a guest may leave out when booking.</p>
     </div>
@@ -170,6 +194,17 @@
   </div>
 </form>
 
+<template id="tplPlaces">
+  <li class="pkg-row pkg-row--place">
+    <select class="form-select" data-field="ref" aria-label="Place">
+            <option value="">Choose a hall, room or cottage</option>
+            <% for (const g of placeGroups) { %><optgroup label="<%= g.label %>"><% for (const o of g.options) { %><option value="<%= o.ref %>" <%= '' === o.ref ? 'selected' : '' %>><%= o.text %></option><% } %></optgroup><% } %>
+          </select>
+    <input type="number" class="form-control pkg-row-qty" data-field="qty" value="1" min="1" max="20" aria-label="How many" title="How many (a function hall is always 1)" />
+    <input type="text" class="form-control pkg-row-note" data-field="note" maxlength="255" placeholder="Note, e.g. for the celebrant’s family, 1 night" aria-label="Note for guests" />
+    <button type="button" class="ap-act is-danger" data-pkg-remove>Remove</button>
+  </li>
+</template>
 <template id="tplIncluded">
   <li class="pkg-row">
     <input type="text" class="form-control" data-field="name" maxlength="120" placeholder="e.g. Catering (30 pax)" aria-label="Included item" />

@@ -133,6 +133,20 @@ CREATE TABLE IF NOT EXISTS event_packages (
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- The function hall, rooms and cottages an event package includes. Booking the package reserves the
+-- hall; rooms and cottages are listed on the booking for staff to assign (src/utils/eventPackages.js).
+CREATE TABLE IF NOT EXISTS event_package_items (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  package_id  INT NOT NULL,
+  item_type   VARCHAR(20) NOT NULL,   -- venue | room | cottage
+  item_id     INT NOT NULL,
+  quantity    INT NOT NULL DEFAULT 1,
+  note        VARCHAR(255) NULL,      -- e.g. "for the celebrant's family, 1 night"
+  sort_order  INT NOT NULL DEFAULT 0,
+  KEY idx_epi_package (package_id),
+  FOREIGN KEY (package_id) REFERENCES event_packages(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ─── RESERVATIONS ─────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS reservations (
   id                INT AUTO_INCREMENT PRIMARY KEY,

@@ -1,0 +1,30 @@
+<% layout('layouts/auth') %>
+<%# Ask for a password reset link (src/modules/auth: POST /auth/forgot-password). %>
+<% if (errors && errors.length > 0) { %>
+<div class="alert alert-danger auth-alert" role="alert">
+  <i class="fas fa-exclamation-circle" aria-hidden="true"></i>
+  <div><% for (const e of errors) { %><div><%= e.msg %></div><% } %></div>
+</div>
+<% } %>
+
+<% if (sent) { %>
+<h1 class="auth-title">Check your email</h1>
+<p class="auth-subtitle" role="status">If <strong><%= old.email %></strong> has a Balai-Reserve account, we’ve sent it a link to choose a new password. The link works for 1 hour. Check your spam folder if you don’t see it in a few minutes.</p>
+<a href="/auth/login" class="btn btn-primary btn-auth w-100">Back to sign in</a>
+<p class="auth-alt"><a href="/auth/forgot-password">Send the link to a different email</a></p>
+<% } else { %>
+<h1 class="auth-title">Forgot your password?</h1>
+<p class="auth-subtitle">Enter the email address of your account and we’ll send you a link to choose a new password.</p>
+<form action="/auth/forgot-password" method="POST" novalidate class="auth-form">
+  <div class="auth-field">
+    <label for="email" class="form-label">Email address</label>
+    <input type="email" id="email" name="email" class="form-control" value="<%= old && old.email ? old.email : '' %>"
+      placeholder="you@example.com" required autocomplete="email" inputmode="email" />
+  </div>
+  <button type="submit" class="btn btn-primary btn-auth w-100">Send reset link</button>
+</form>
+<div class="auth-alt">
+  <p>Remembered it? <a href="/auth/login">Sign in</a></p>
+  <% if (googleLoginEnabled) { %><p class="auth-quiet-link">Signed up with Google? Use <a href="/auth/google">Continue with Google</a> instead.</p><% } %>
+</div>
+<% } %>

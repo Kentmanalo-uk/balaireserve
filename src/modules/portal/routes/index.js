@@ -20,6 +20,8 @@ const { validateGcashScreenshot }     = require('../../../utils/gcashValidator')
 const { calculateCottageTotal, validateCottageTimeRange } = require('../../../utils/cottagePricing');
 const { publicSettings } = require('../../../utils/publicSettings');
 const checkin = require('../../../utils/checkin');
+const { attachPlaces, loadPlaces, placeText } = require('../../../utils/eventPackages');
+const { sendPasswordChanged } = require('../../../utils/accountEmails');
 const { uniqueCatalogRows, imageExists, withExistingPhotos, photosFirst } = require('../../../utils/catalog');
 
 const router = express.Router();
@@ -150,8 +152,25 @@ async function requireCustomer(req, res, next) {
   next();
 }
 
+// New accounts confirm their email before their first booking (src/modules/auth: /auth/verify-email).
+async function requireVerifiedEmail(req, res, next) {
+  const row = await db.prepare('SELECT email_verified FROM users WHERE id = ?').get(req.session.user.id);
+  if (row && Number(row.email_verified) !== 1) {
+    req.session.user.emailVerified = false;
+    req.session.flash = { error: 'Please confirm your email before booking — open the link we sent you, or use “Send the link again” above.' };
+    return res.redirect('/portal/book');
+  }
+  next();
+}
+
 router.use(async (req, res, next) => {
   res.locals.portalLayout = 'layouts/portal';
+  // Confirmed in another browser (e.g. the phone's mail app)? Drop the "confirm your email" banner.
+  const su = req.session && req.session.user;
+  if (su && su.role === 'customer' && su.emailVerified === false) {
+    const row = await db.prepare('SELECT email_verified FROM users WHERE id = ?').get(su.id);
+    if (row && Number(row.email_verified) === 1) { su.emailVerified = true; res.locals.currentUser = su; }
+  }
   try {
     const settingKeys = ['gcash_number','gcash_name','maya_number','maya_name','bank_bdo','bank_bpi','bank_name','gcash_qr_path','maya_qr_path','downpayment_percent',
       'resort_phone','resort_email','resort_address','check_in_time','check_out_time'];
@@ -187,6 +206,13 @@ router.use(async (req, res, next) => {
   next();
 });
 
+// The function hall an event package includes (its id), or null.
+async function packageHallId(pkgId) {
+  if (!pkgId) return null;
+  const hall = ((await loadPlaces([pkgId])).get(Number(pkgId)) || []).find(pl => pl.item_type === 'venue');
+  return hall ? hall.item_id : null;
+}
+
 async function calculateServerTotal(reservation_type, roomId, venueId, pkgId, ciDate, coDate, startTime, endTime, selectedInclusions = []) {
   let total = 0;
   if (reservation_type === 'room' && roomId) {
@@ -206,8 +232,9 @@ async function calculateServerTotal(reservation_type, roomId, venueId, pkgId, ci
       ? calculateCottageTotal(cottage.price)
       : 0;
   } else if (reservation_type === 'event' && venueId) {
+    // A hall that comes with the package is part of the package price.
     const venue = await db.prepare('SELECT price FROM venues WHERE id = ?').get(venueId);
-    total = venue ? (venue.price || 0) : 0;
+    total = venue && venueId !== await packageHallId(pkgId) ? (venue.price || 0) : 0;
   }
   if (pkgId) {
     const pkg = await db.prepare('SELECT price, inclusions FROM event_packages WHERE id = ? AND is_active = 1').get(pkgId);
@@ -327,6 +354,7 @@ router.get('/venues', requireCustomerOrGuest, async (req, res) => {
   const venueTypes = (await db.prepare(`SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 ORDER BY venue_type`).all()).map(r => r.venue_type);
   const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`);
   for (const p of packages) { try { p.inclusionsList = JSON.parse(p.inclusions || '[]'); } catch { p.inclusionsList = []; } }
+  await attachPlaces(packages);
   res.render('portal/venues', { title: 'Browse Venues – Balai-Reserve', layout: 'layouts/portal', venues, venueTypes, packages, filters: { date, guests, type, sort, start_time: okTimes ? start_time : '', end_time: okTimes ? end_time : '' } });
 });
 
@@ -363,6 +391,7 @@ router.get('/book', requireCustomer, async (req, res) => {
     if (inclusions.length > 0 && typeof inclusions[0] === 'string') inclusions = inclusions.map(s => ({ name: s, price: 0, is_default: 1, is_optional: 0 }));
     return { ...p, inclusionsList: inclusions, defaultInclusions: inclusions.filter(i => i.is_default), addonInclusions: inclusions.filter(i => i.is_optional && i.price > 0) };
   });
+  await attachPlaces(packages);
   let selectedItem = null;
   if (item_id && type === 'room')    selectedItem = await db.prepare('SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=? AND r.is_active=1').get(item_id);
   if (item_id && type === 'venue')   selectedItem = await db.prepare('SELECT * FROM venues WHERE id=? AND is_active=1').get(item_id);
@@ -389,6 +418,7 @@ router.get('/book', requireCustomer, async (req, res) => {
 // ═══════════════════════════════════════════════════════════════════════════
 router.post('/book',
   requireCustomer,
+  requireVerifiedEmail,
   [
     body('reservation_type').isIn(['room','venue','event','cottage']).withMessage('Please select what you want to book.'),
     body('item_id').custom((value, { req: r }) => {
@@ -487,7 +517,7 @@ router.post('/book',
     }
 
     const roomId     = item_id    ? parseInt(item_id,    10) : null;
-    const venueId    = item_id    ? parseInt(item_id,    10) : null;
+    let   venueId    = item_id    ? parseInt(item_id,    10) : null;
     const pkgId      = package_id ? parseInt(package_id, 10) : null;
     const guestCount = parseInt(num_guests, 10) || 1;
     const ciDate     = (check_in_date  || '').trim() || null;
@@ -497,6 +527,11 @@ router.post('/book',
     const enTime     = (end_time       || '').trim() || null;
     const notes      = (special_requests || '').trim() || null;
     const pmMethod   = (payment_method || 'gcash').trim();
+
+    // An event package that includes a function hall is always held there, whatever the form sent.
+    const pkgPlaces = reservation_type === 'event' && pkgId ? ((await loadPlaces([pkgId])).get(pkgId) || []) : [];
+    const pkgHall = pkgPlaces.find(pl => pl.item_type === 'venue');
+    if (pkgHall) venueId = pkgHall.item_id;
 
     let itemId = null;
     if (['room','cottage'].includes(reservation_type))   itemId = roomId;
@@ -594,13 +629,22 @@ router.post('/book',
       } else if (reservation_type === 'event' && venueId && currentResource) {
         // Event in the function hall: record the hall so its date and time stay blocked
         // for other bookings. The hall line carries its own price; the package line follows.
+        // A hall that comes with the package costs nothing extra (the package line carries the price).
         const row = await db.prepare('SELECT name, price FROM venues WHERE id = ?').get(venueId);
-        await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'venue', venueId, row?.name||'', 1, row?.price||0, row?.price||0);
+        const hallPrice = pkgHall && pkgHall.item_id === venueId ? 0 : (row?.price || 0);
+        await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(newId, 'venue', venueId, row?.name||'', 1, hallPrice, hallPrice, hallPrice === 0 && pkgHall ? 'Included in the event package' : null);
         await db.prepare("UPDATE venues SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')").run(venueId);
       } else if (reservation_type === 'cottage' && roomId) {
         const row = await db.prepare('SELECT name, price FROM cottages WHERE id = ?').get(roomId);
         await db.prepare('INSERT INTO reservation_items (reservation_id, item_type, item_id, item_name, quantity, unit_price, total_price) VALUES (?, ?, ?, ?, ?, ?, ?)').run(newId, 'cottage', roomId, row?.name||'', 1, row?.price||0, V.totalAmt);
         await db.prepare("UPDATE cottages SET status='reserved', updated_at=NOW() WHERE id=? AND status IN ('available','reserved')").run(roomId);
+      }
+
+      // Rooms and cottages that come with the package: noted on the booking for staff to set aside.
+      const setAside = pkgPlaces.filter(pl => pl.item_type !== 'venue');
+      if (setAside.length) {
+        await db.prepare('UPDATE reservations SET notes = ? WHERE id = ?').run(
+          'Package includes (set aside for the event): ' + setAside.map(pl => placeText(pl) + (pl.note ? ' (' + pl.note + ')' : '')).join(', '), newId);
       }
 
       if (pkgId) {
@@ -768,6 +812,7 @@ router.post('/profile/password', requireCustomer, [
   if (allErrors.length > 0) { return res.render('portal/profile', { title: 'Profile Settings – Balai-Reserve', layout: 'layouts/portal', account, customer, errors: [], pwErrors: allErrors, old: {}, activeTab: 'password' }); }
   const hash = bcrypt.hashSync(req.body.new_password, 12);
   await db.prepare(`UPDATE users SET password_hash=?, updated_at=NOW() WHERE id=?`).run(hash, user.id);
+  await sendPasswordChanged({ id: user.id });   // security notice, in the bell and by email
   req.session.flash = { success: 'Your password has been changed.' };
   res.redirect('/portal/profile');
 });

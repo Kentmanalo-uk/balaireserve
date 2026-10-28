@@ -14,6 +14,7 @@ const express = require('express');
 const db      = require('../../../config/database');
 const { withExistingPhotos, photosFirst, uniqueCatalogRows } = require('../../../utils/catalog');
 const { publicSettings } = require('../../../utils/publicSettings');
+const { attachPlaces } = require('../../../utils/eventPackages');
 
 const router = express.Router();
 
@@ -93,11 +94,12 @@ function withInclusions(p) {
   return p;
 }
 
+// Active packages with their inclusions and the places they include (p.places, p.hall).
 async function activePackages() {
-  return uniqueCatalogRows(
+  return attachPlaces(uniqueCatalogRows(
     await db.prepare('SELECT * FROM event_packages WHERE is_active = 1 ORDER BY price').all(),
     p => `${p.event_type || ''}:${p.name}`
-  ).map(withInclusions);
+  ).map(withInclusions));
 }
 
 async function loadItem(kind, id) {
@@ -170,11 +172,12 @@ router.get('/:kind(room|cottage|venue)/:id', async (req, res, next) => {
   const blocked = await blockedPeriods(kind, id);
   const others  = await siblings(kind, id);
 
-  // The hall page lists the event packages whose guest count it can hold.
+  // The hall page lists the event packages held in this hall, and those without a hall of their own
+  // whose guest count it can hold.
   let packages = [];
   if (kind === 'venue') {
     packages = (await activePackages())
-      .filter(p => !p.capacity || !item.capacity || Number(p.capacity) <= Number(item.capacity));
+      .filter(p => (p.hall ? p.hall.id === item.id : !p.capacity || !item.capacity || Number(p.capacity) <= Number(item.capacity)));
   }
 
   res.render('stay/show', {
@@ -204,6 +207,10 @@ router.get('/package/:id', async (req, res, next) => {
   if (!pkg) return next();   // inactive or missing → 404
   withInclusions(pkg);
   withExistingPhotos([pkg]);   // photos added on /packages (none → the occasion drawing)
+  // The places it includes; with a function hall, the calendar shows when that hall is already booked.
+  await attachPlaces([pkg]);
+  withExistingPhotos(pkg.places.map(pl => pl.row));
+  const blocked = pkg.hall ? await blockedPeriods('venue', pkg.hall.id) : [];
   pkg.amenitiesList = [];
 
   const settings = await siteSettings();
@@ -223,7 +230,7 @@ router.get('/package/:id', async (req, res, next) => {
     title:  `${pkg.name} – Balai-Reserve`,
     layout: 'layouts/landing',
     kind: 'package', kindLabel: occasion + ' package',
-    item: pkg, blocked: [], others: halls.slice(0, 1), packages: [], relatedPackages,
+    item: pkg, blocked, others: pkg.hall ? [] : halls.slice(0, 1), packages: [], relatedPackages,
     prefill: prefillFrom(req.query, 'package'),
     bookable: true,
     today: phToday(),
@@ -238,3 +245,7 @@ router.get('/package/:id', async (req, res, next) => {
 
 module.exports = router;
 module.exports.blockedPeriods = blockedPeriods;
+// Shared with the public site pages (src/modules/site): privacy, terms.
+module.exports.siteSettings = siteSettings;
+module.exports.layoutData = layoutData;
+module.exports.fmtTime = fmtTime;

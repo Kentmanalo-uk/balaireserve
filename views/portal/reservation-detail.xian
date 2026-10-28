@@ -82,7 +82,7 @@
   else stages.push({ key: 'verified', title: 'Payment verified', state: 'later', meta: 'The booking is confirmed only after staff verify a payment' });
   // Check-in
   if (checkedIn) stages.push({ key: 'checkin', title: 'Checked in', state: 'done', meta: histAt('checked_in') ? phDT(histAt('checked_in')) : '' });
-  else if (firstVerified && ['confirmed', 'awaiting_payment'].includes(st)) stages.push({ key: 'checkin', title: 'Check in with your QR', state: 'now', meta: (stayDate ? formatDate(stayDate, 'ddd, MMM D, YYYY') + ' · ' : '') + 'staff scan and confirm it' });
+  else if (firstVerified && ['confirmed', 'awaiting_payment'].includes(st)) stages.push({ key: 'checkin', title: 'Check in on arrival', state: 'now', meta: (stayDate ? formatDate(stayDate, 'ddd, MMM D, YYYY') + ' · ' : '') + 'scan the QR at the front desk' });
   else stages.push({ key: 'checkin', title: 'Check-in', state: 'later', meta: stayDate ? formatDate(stayDate, 'ddd, MMM D, YYYY') : '' });
   // Completed
   if (st === 'completed') stages.push({ key: 'done', title: 'Completed', state: 'done', meta: histAt('completed') ? phDT(histAt('completed')) : '' });
