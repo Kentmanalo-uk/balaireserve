@@ -1,7 +1,7 @@
 <% layout('layouts/main') %>
 <%
   const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
-  const filtered  = !!(filters.search || filters.status);
+  const filtered  = !!filters.search;
 %>
 <div class="ap-page">
 
@@ -15,26 +15,10 @@
 <!--/page-head-->
 <p class="page-intro">Day-use cottages with a flat rate per booking — a ₱300 cottage costs ₱300 however long the guests stay.</p>
 
-<nav class="ap-kpis" aria-label="Cottages by status">
-  <% for (const s of ['available', 'reserved', 'occupied', 'maintenance']) { %>
-  <a href="/cottages?status=<%= s %>" class="ap-kpi<%= filters.status === s ? ' is-current' : '' %>"<%- filters.status === s ? ' aria-current="true"' : '' %>>
-    <span class="ap-kpi-label"><%= statusLabel(s) %></span>
-    <span class="ap-kpi-value"><%= counts[s] %></span>
-  </a>
-  <% } %>
-</nav>
-
 <form method="GET" action="/cottages" class="ap-toolbar" role="search" aria-label="Filter cottages">
   <div class="ap-field ap-field-search">
     <label for="cottageSearch">Search</label>
     <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="text" id="cottageSearch" name="search" value="<%= filters.search %>" class="form-control" placeholder="Cottage name or description" /></div>
-  </div>
-  <div class="ap-field">
-    <label for="cottageStatus">Status</label>
-    <select id="cottageStatus" name="status" class="form-select">
-      <option value="">All statuses</option>
-      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
-    </select>
   </div>
   <div class="ap-toolbar-actions">
     <button type="submit" class="btn btn-primary">Apply</button>
@@ -61,7 +45,7 @@
           <th scope="col" class="cat-col-opt">Amenities</th>
           <th scope="col" class="num">Up to</th>
           <th scope="col" class="num">Rate / booking</th>
-          <th scope="col">Status</th>
+          <th scope="col">On website</th>
           <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -87,11 +71,12 @@
           <td class="ap-wide cat-col-opt" data-label="Amenities"><%= ams.length ? ams.slice(0, 3).join(', ') + (ams.length > 3 ? ' +' + (ams.length - 3) + ' more' : '') : '—' %></td>
           <td class="num" data-label="Up to"><%= c.capacity %> guests</td>
           <td class="num" data-label="Rate / booking"><strong><%= formatPeso(c.price) %></strong></td>
-          <td class="ap-cell-status"><%- statusBadge(c.status) %></td>
+          <td data-label="On website"><%include('partials/listing-controls', Object.assign({}, __locals, { lc: { row: c, base: '/cottages', part: 'state', canManage } }))%></td>
           <td class="ap-row-actions">
             <div class="ap-actions">
               <a href="/cottages/<%= c.id %>" class="ap-act">View</a>
               <% if (canManage) { %><a href="/cottages/<%= c.id %>/edit" class="ap-act">Edit</a><% } %>
+              <%include('partials/listing-controls', Object.assign({}, __locals, { lc: { row: c, base: '/cottages', part: 'actions', canManage } }))%>
             </div>
           </td>
         </tr>

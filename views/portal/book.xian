@@ -34,8 +34,10 @@
   const _blk = (row) => JSON.stringify(row.blocked || []);
   const browseFor = { room: '/portal/rooms', cottage: '/portal/cottages', venue: '/portal/venues', event: '/portal/venues#packages' };
   const isPlaceholder = (v) => !v || v === '—' || /^[X\-\s—]+$/i.test(String(v));
-  const bankReady = !isPlaceholder(paymentInfo.bank_bdo) || !isPlaceholder(paymentInfo.bank_bpi);
-  const pm0 = old.payment_method || 'gcash';
+  const payMethods = paymentInfo.methods || [];
+  const pm0 = payMethods.includes(old.payment_method) ? old.payment_method : (payMethods[0] || '');
+  const payNames = payMethods.map(m => ({ gcash: 'GCash', maya: 'Maya', bank_transfer: 'bank transfer' }[m]));
+  const payList = payNames.length > 1 ? payNames.slice(0, -1).join(', ') + ' or ' + payNames[payNames.length - 1] : (payNames[0] || 'the resort’s accounts');
   // Prefill from a detail page / catalogue link (?start_time=09:00&end_time=17:00&guests=4); junk falls back to the defaults.
   const _hm = (v) => { const m = /^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(String(v || '').trim()); return m ? m[1] + ':' + m[2] : ''; };
   const _qStart = _hm(filters.start_time), _qEnd = _hm(filters.end_time);
@@ -357,11 +359,13 @@
         <section class="wizard-panel" id="panel4" aria-labelledby="step4Title">
           <div class="pt-surface">
             <h2 class="wiz-step-title" id="step4Title" tabindex="-1">Payment</h2>
-            <p class="wiz-step-lede">Pay through GCash, Maya or bank transfer, then upload your receipt for verification. You pay outside this site after you submit; cash isn’t available for online bookings.</p>
+            <p class="wiz-step-lede">Pay through <%= payList %>, then upload your receipt for verification. You pay outside this site after you submit; cash isn’t available for online bookings.</p>
 
             <fieldset>
               <legend class="inc-label">Payment method</legend>
+              <% if (!payMethods.length) { %><p class="pt-small">The resort hasn’t published its payment details yet. Please <a href="/portal/inquire">contact the resort</a> to complete your booking.</p><% } %>
               <div class="pay-options" id="paymentMethods">
+                <% if (payMethods.includes('gcash')) { %>
                 <label class="pay-card <%= pm0 === 'gcash' ? 'selected' : '' %>" for="pm_gcash">
                   <input type="radio" name="payment_method" id="pm_gcash" value="gcash" <%= pm0 === 'gcash' ? 'checked' : '' %> required />
                   <span class="pay-radio" aria-hidden="true"></span>
@@ -372,6 +376,8 @@
                   <span class="check-icon <%= pm0 === 'gcash' ? '' : 'd-none' %>">Selected</span>
                 </label>
 
+                <% } %>
+                <% if (payMethods.includes('maya')) { %>
                 <label class="pay-card <%= pm0 === 'maya' ? 'selected' : '' %>" for="pm_maya">
                   <input type="radio" name="payment_method" id="pm_maya" value="maya" <%= pm0 === 'maya' ? 'checked' : '' %> />
                   <span class="pay-radio" aria-hidden="true"></span>
@@ -382,15 +388,18 @@
                   <span class="check-icon <%= pm0 === 'maya' ? '' : 'd-none' %>">Selected</span>
                 </label>
 
+                <% } %>
+                <% if (payMethods.includes('bank_transfer')) { %>
                 <label class="pay-card <%= pm0 === 'bank_transfer' ? 'selected' : '' %>" for="pm_bank">
                   <input type="radio" name="payment_method" id="pm_bank" value="bank_transfer" <%= pm0 === 'bank_transfer' ? 'checked' : '' %> />
                   <span class="pay-radio" aria-hidden="true"></span>
                   <span class="flex-grow-1">
-                    <span class="pay-card-name d-block">Bank transfer (BDO or BPI)</span>
-                    <span class="pay-card-sub d-block"><%= bankReady ? 'Account name: ' + paymentInfo.bank_name : 'Account numbers not published yet — contact the resort first' %></span>
+                    <span class="pay-card-name d-block">Bank transfer</span>
+                    <span class="pay-card-sub d-block"><%= paymentInfo.banks.map(b => b.bank).join(', ') %></span>
                   </span>
                   <span class="check-icon <%= pm0 === 'bank_transfer' ? '' : 'd-none' %>">Selected</span>
                 </label>
+                <% } %>
               </div>
             </fieldset>
 
@@ -412,16 +421,12 @@
               </dl>
             </template>
             <template id="payInfo-bank_transfer">
-              <% if (bankReady) { %>
               <dl class="pt-dl">
-                <% if (!isPlaceholder(paymentInfo.bank_bdo)) { %><dt>BDO account</dt><dd><span class="pay-acct"><span class="acct-num"><%= paymentInfo.bank_bdo %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.bank_bdo %>">Copy number</button></span></dd><% } %>
-                <% if (!isPlaceholder(paymentInfo.bank_bpi)) { %><dt>BPI account</dt><dd><span class="pay-acct"><span class="acct-num"><%= paymentInfo.bank_bpi %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.bank_bpi %>">Copy number</button></span></dd><% } %>
-                <dt>Account name</dt><dd><%= paymentInfo.bank_name %></dd>
+                <% for (const b of paymentInfo.banks) { %>
+                <dt><%= b.bank %></dt><dd><span class="pay-acct"><span class="acct-num"><%= b.number %></span><button type="button" class="copy-btn" data-copy="<%= b.number %>" aria-label="Copy <%= b.bank %> account number">Copy number</button></span><span class="d-block pt-small"><%= b.account_name %></span></dd>
+                <% } %>
                 <dt>Reference</dt><dd>Your BK- booking reference (shown after you submit)</dd>
               </dl>
-              <% } else { %>
-              <p class="mb-0 pt-small">The resort hasn't published its bank account numbers yet. Please <a href="/portal/inquire">contact the resort</a> for bank details before paying, or choose GCash or Maya.</p>
-              <% } %>
             </template>
 
             <div id="paymentInstructions" class="pay-details d-none" aria-live="polite">

@@ -22,6 +22,8 @@ const { publicSettings } = require('../../../utils/publicSettings');
 const checkin = require('../../../utils/checkin');
 const { attachPlaces, loadPlaces, placeText } = require('../../../utils/eventPackages');
 const { sendPasswordChanged } = require('../../../utils/accountEmails');
+const { bankAccounts, readyMethods } = require('../../../utils/paymentAccounts');
+const { guestBookingOn } = require('../../../utils/listingControls');
 const { uniqueCatalogRows, imageExists, withExistingPhotos, photosFirst } = require('../../../utils/catalog');
 
 const router = express.Router();
@@ -95,7 +97,7 @@ async function resourceDetails(reservationType, itemId) {
     cottage: 'cottages',
   }[reservationType];
   if (!table || !Number.isInteger(itemId) || itemId < 1) return null;
-  return (await db.prepare(`SELECT id, name, price, capacity, status, is_active FROM ${table} WHERE id = ?`).get(itemId)) || null;
+  return (await db.prepare(`SELECT id, name, price, capacity, status, is_active, guest_booking FROM ${table} WHERE id = ?`).get(itemId)) || null;
 }
 
 async function resourceConflict(reservationType, itemId, requested) {
@@ -152,6 +154,10 @@ async function requireCustomer(req, res, next) {
   next();
 }
 
+// Online booking can be off for the whole site, or for one listing (src/utils/listingControls.js).
+const guestsMayBook = (row, res) => res.locals.guestBookingOn !== false && Number(row.guest_booking) !== 0;
+const ADMIN_ONLY_NOTE = 'Online booking isn’t available for this right now. Send us an inquiry and the resort will reserve it for you.';
+
 // New accounts confirm their email before their first booking (src/modules/auth: /auth/verify-email).
 async function requireVerifiedEmail(req, res, next) {
   const row = await db.prepare('SELECT email_verified FROM users WHERE id = ?').get(req.session.user.id);
@@ -172,7 +178,7 @@ router.use(async (req, res, next) => {
     if (row && Number(row.email_verified) === 1) { su.emailVerified = true; res.locals.currentUser = su; }
   }
   try {
-    const settingKeys = ['gcash_number','gcash_name','maya_number','maya_name','bank_bdo','bank_bpi','bank_name','gcash_qr_path','maya_qr_path','downpayment_percent',
+    const settingKeys = ['gcash_number','gcash_name','maya_number','maya_name','bank_bdo','bank_bpi','bank_name','bank_accounts','gcash_qr_path','maya_qr_path','downpayment_percent',
       'resort_phone','resort_email','resort_address','check_in_time','check_out_time'];
     const rows = await db.prepare(
       `SELECT \`key\`, value FROM settings WHERE \`key\` IN (${settingKeys.map(() => '?').join(',')})`
@@ -185,13 +191,14 @@ router.use(async (req, res, next) => {
       gcash_name:   pm.gcash_name    || 'Balai Miciano Resort',
       maya_number:  pm.maya_number   || '—',
       maya_name:    pm.maya_name     || 'Balai Miciano Resort',
-      bank_bdo:     pm.bank_bdo      || '—',
-      bank_bpi:     pm.bank_bpi      || '—',
-      bank_name:    pm.bank_name     || 'Balai Miciano Resort',
+      banks:        bankAccounts(pm).map(b => ({ ...b, account_name: b.account_name || 'Balai Miciano Resort' })),
       // A QR whose file is gone is treated as not uploaded, so guests never see a broken image.
       gcash_qr_path: imageExists(pm.gcash_qr_path) ? pm.gcash_qr_path : '',
       maya_qr_path:  imageExists(pm.maya_qr_path)  ? pm.maya_qr_path  : '',
     };
+    // Only what the resort has set up is offered to guests.
+    res.locals.paymentInfo.methods = readyMethods(pm, { gcashQr: res.locals.paymentInfo.gcash_qr_path, mayaQr: res.locals.paymentInfo.maya_qr_path });
+    res.locals.guestBookingOn = await guestBookingOn();
     // Guest-facing price cards show the downpayment from the current setting.
     res.locals.downpaymentPercent = getDownpaymentPercent(pm.downpayment_percent);
     // Display-only: verified contact details (placeholders are blanked by publicSettings) for portal pages.
@@ -328,7 +335,8 @@ router.get('/rooms', requireCustomerOrGuest, async (req, res) => {
   const rooms = withExistingPhotos(await db.prepare(`SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id ${where} ORDER BY ${orderBy}`).all(...params));
   for (const r of rooms) {
     try { r.imagesList = JSON.parse(r.images || '[]'); } catch { r.imagesList = []; }
-    r.isAvailable = BOOKABLE_RESOURCE_STATUSES.has(r.status) &&
+    r.adminOnly = !guestsMayBook(r, res);
+    r.isAvailable = !r.adminOnly && BOOKABLE_RESOURCE_STATUSES.has(r.status) &&
       (checkin && checkout ? !bookedIds.has(r.id) : true);
   }
   const roomTypes = await db.prepare('SELECT DISTINCT rt.name FROM room_types rt JOIN rooms r ON r.room_type_id = rt.id WHERE r.is_active = 1 ORDER BY rt.name').all();
@@ -348,7 +356,8 @@ router.get('/venues', requireCustomerOrGuest, async (req, res) => {
   for (const v of venues) {
     try { v.imagesList = JSON.parse(v.images || '[]'); } catch { v.imagesList = []; }
     try { v.amenitiesList = JSON.parse(v.amenities || '[]'); } catch { v.amenitiesList = []; }
-    v.isAvailable = BOOKABLE_RESOURCE_STATUSES.has(v.status) &&
+    v.adminOnly = !guestsMayBook(v, res);
+    v.isAvailable = !v.adminOnly && BOOKABLE_RESOURCE_STATUSES.has(v.status) &&
       (date ? !bookedIds.has(v.id) : true);
   }
   const venueTypes = (await db.prepare(`SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 ORDER BY venue_type`).all()).map(r => r.venue_type);
@@ -371,7 +380,8 @@ router.get('/cottages', requireCustomerOrGuest, async (req, res) => {
   for (const c of cottages) {
     try { c.imagesList = JSON.parse(c.images || '[]'); } catch { c.imagesList = []; }
     try { c.amenitiesList = JSON.parse(c.amenities || '[]'); } catch { c.amenitiesList = []; }
-    c.isAvailable = BOOKABLE_RESOURCE_STATUSES.has(c.status) &&
+    c.adminOnly = !guestsMayBook(c, res);
+    c.isAvailable = !c.adminOnly && BOOKABLE_RESOURCE_STATUSES.has(c.status) &&
       (date ? !bookedIds.has(c.id) : true);
   }
   res.render('portal/cottages', { title: 'Browse Cottages – Balai-Reserve', layout: 'layouts/portal', cottages, filters: { date, guests, sort, max_price, start_time: okTimes ? start_time : '', end_time: okTimes ? end_time : '' } });
@@ -379,6 +389,7 @@ router.get('/cottages', requireCustomerOrGuest, async (req, res) => {
 
 router.get('/book', requireCustomer, async (req, res) => {
   const { type = '', item_id = '', package_id = '', checkin = '', checkout = '', date = '', start_time = '', end_time = '', guests = '' } = req.query;
+  if (!res.locals.guestBookingOn) { req.session.flash = { info: ADMIN_ONLY_NOTE }; return res.redirect('/portal/inquire'); }
   const rooms = await db.prepare("SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.status IN ('available','reserved','occupied','cleaning') AND r.is_active=1 ORDER BY r.price").all();
   const venues = uniqueCatalogRows(await db.prepare("SELECT * FROM venues WHERE status IN ('available','reserved','occupied','cleaning') AND is_active=1 ORDER BY price").all(), row => row.name, item_id);
   const rawPkgs = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`, package_id);
@@ -392,12 +403,23 @@ router.get('/book', requireCustomer, async (req, res) => {
     return { ...p, inclusionsList: inclusions, defaultInclusions: inclusions.filter(i => i.is_default), addonInclusions: inclusions.filter(i => i.is_optional && i.price > 0) };
   });
   await attachPlaces(packages);
+  // Admin-only listings can't be chosen here. A package's own hall stays listed: the package reserves it.
+  const packageHalls = new Set(packages.filter(p => Number(p.guest_booking) !== 0 && p.hall).map(p => p.hall.id));
+  const guestRooms = rooms.filter(r => Number(r.guest_booking) !== 0);
+  const guestVenues = venues.filter(v => Number(v.guest_booking) !== 0 || packageHalls.has(v.id));
+  const guestPackages = packages.filter(p => Number(p.guest_booking) !== 0);
   let selectedItem = null;
   if (item_id && type === 'room')    selectedItem = await db.prepare('SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.id=? AND r.is_active=1').get(item_id);
   if (item_id && type === 'venue')   selectedItem = await db.prepare('SELECT * FROM venues WHERE id=? AND is_active=1').get(item_id);
   if (item_id && type === 'cottage') selectedItem = await db.prepare('SELECT * FROM cottages WHERE id=? AND is_active=1').get(item_id);
   const cottages = uniqueCatalogRows(await db.prepare("SELECT * FROM cottages WHERE status IN ('available','reserved','occupied','cleaning') AND is_active=1 ORDER BY price").all(), row => row.name, item_id);
   cottages.forEach(parseImgs);
+  if ((selectedItem && Number(selectedItem.guest_booking) === 0)
+      || (package_id && !guestPackages.some(p => String(p.id) === String(package_id)) && packages.some(p => String(p.id) === String(package_id)))) {
+    req.session.flash = { info: ADMIN_ONLY_NOTE };
+    return res.redirect('/portal/inquire');
+  }
+  const guestCottages = cottages.filter(c => Number(c.guest_booking) !== 0);
   if (selectedItem) parseImgs(selectedItem);
   // Display-only: the dates/times other bookings hold for each item, for the booking form's date picker
   // (same data as the /stay detail pages; the POST below still checks conflicts itself).
@@ -410,7 +432,7 @@ router.get('/book', requireCustomer, async (req, res) => {
   const ps = {};
   for (const r of policyRows) ps[r.key] = r.value || '';
   const terms = { resortName: ps.resort_name || 'Balai Miciano Resort', downpaymentPercent: getDownpaymentPercent(ps.downpayment_percent), checkInTime: ps.check_in_time || '14:00', checkOutTime: ps.check_out_time || '12:00', cancellationPolicy: ps.cancellation_policy || 'Cancellations made 7 days before the reservation date are eligible for a 50% refund. No refund for cancellations within 48 hours of the reservation date.' };
-  res.render('portal/book', { title: 'Book Now – Balai-Reserve', layout: 'layouts/portal', rooms, venues, packages, cottages, filters: { type, item_id, package_id, checkin, checkout, date, start_time, end_time, guests }, selectedItem, lockedSelection: !!(selectedItem && ['room','venue','cottage'].includes(type)), terms, errors: [], old: {} });
+  res.render('portal/book', { title: 'Book Now – Balai-Reserve', layout: 'layouts/portal', rooms: guestRooms, venues: guestVenues, packages: guestPackages, cottages: guestCottages, filters: { type, item_id, package_id, checkin, checkout, date, start_time, end_time, guests }, selectedItem, lockedSelection: !!(selectedItem && ['room','venue','cottage'].includes(type)), terms, errors: [], old: {} });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -538,6 +560,18 @@ router.post('/book',
     if (['venue','event'].includes(reservation_type))    itemId = venueId;
 
     const resource = await resourceDetails(reservation_type, itemId);
+
+    // Admin-only listings, online booking off, and payment methods the resort hasn't set up are refused
+    // here too, not only hidden in the form.
+    const chosenPackage = pkgId ? await db.prepare('SELECT guest_booking FROM event_packages WHERE id = ?').get(pkgId) : null;
+    if (!res.locals.guestBookingOn || (resource && !pkgHall && Number(resource.guest_booking) === 0) || (chosenPackage && Number(chosenPackage.guest_booking) === 0)) {
+      req.session.flash = { info: ADMIN_ONLY_NOTE };
+      return res.redirect('/portal/inquire');
+    }
+    if (!res.locals.paymentInfo.methods.includes(payment_method)) {
+      req.session.flash = { error: 'That payment method isn’t available. Please choose another one.' };
+      return res.redirect('/portal/book');
+    }
     const requiresResource = reservation_type !== 'event' || itemId != null;
     if (requiresResource && (!resource || !resource.is_active || !BOOKABLE_RESOURCE_STATUSES.has(resource.status))) {
       req.session.flash = { error: 'That selection is no longer available. Please choose another option.' };

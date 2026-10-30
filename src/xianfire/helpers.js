@@ -206,6 +206,7 @@ function xianHelpersMiddleware(req, res, next) {
   res.locals.formatPrice    = formatPrice;
   res.locals.statusBadge    = statusBadge;
   res.locals.statusLabel    = statusLabel;
+  res.locals.payMethodsText = (site) => require('../utils/paymentAccounts').methodsText(site || {}) || 'the resort’s accounts';
   res.locals.activeNav      = activeNav;
   res.locals.paginate       = paginate;
   // NOTE: currentUser, currentPath, and flash are set in the

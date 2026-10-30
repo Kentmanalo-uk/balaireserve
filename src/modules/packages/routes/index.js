@@ -20,10 +20,12 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { attachListingControls } = require('../../../utils/listingControls');
 const { OCCASIONS, OCCASION_KEYS, parseInclusions, buildInclusions, loadPlaces, placeText, buildPlaces, savePlaces } = require('../../../utils/eventPackages');
 
 const router     = express.Router();
 const CAN_MANAGE = ['admin', 'staff'];
+attachListingControls(router, { table: 'event_packages', base: '/packages', noun: 'Package', visibility: false });
 
 const UPLOAD_DIR = uploadDir('packages');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });

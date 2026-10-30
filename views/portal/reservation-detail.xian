@@ -3,7 +3,7 @@
   const st = reservation.status;
   const ref = reservation.booking_ref;
   const typeLabel = { room: 'Room', cottage: 'Cottage', venue: 'Venue', event: 'Event package' }[reservation.reservation_type] || 'Booking';
-  const pmLabels = { gcash: 'GCash', bank_transfer: 'Bank transfer (BDO / BPI)', maya: 'Maya', cash: 'Cash at the front desk' };
+  const pmLabels = { gcash: 'GCash', bank_transfer: 'Bank transfer', maya: 'Maya', cash: 'Cash at the front desk' };
   const pmShort  = { gcash: 'GCash', bank_transfer: 'bank transfer', maya: 'Maya', cash: 'cash' };
   const pmCap = (m) => pmShort[m] ? pmShort[m].charAt(0).toUpperCase() + pmShort[m].slice(1) : String(m || '').replace(/_/g, ' ');
   const chosenMethod = reservation.payment_method || 'gcash';
@@ -350,6 +350,21 @@
                 <% const nm = chosenMethod === 'gcash' ? paymentInfo.gcash_name : paymentInfo.maya_name; %>
                 <% const qr = chosenMethod === 'gcash' ? paymentInfo.gcash_qr_path : paymentInfo.maya_qr_path; %>
                 <% const appName = chosenMethod === 'gcash' ? 'GCash' : 'Maya'; %>
+                <% if (!isPlaceholder(num)) { %>
+                <div class="pay-app is-<%= chosenMethod %>">
+                  <p class="pay-app-brand"><%= appName %></p>
+                  <div class="pay-app-body">
+                    <p class="pay-app-num"><%= num %></p>
+                    <button type="button" class="btn pay-app-btn" data-pay-open="<%= chosenMethod %>" data-number="<%= num %>">Transfer with <%= appName %></button>
+                    <p class="pay-app-status" role="status" hidden></p>
+                  </div>
+                </div>
+                <ol class="pay-app-steps">
+                  <li>Tap <strong>Transfer with <%= appName %></strong>. The number is copied for you and <%= appName %> opens on your phone.</li>
+                  <li>Paste the number, send <strong><%= formatPeso(amountNow) %></strong>, and add <strong><%= ref %></strong> as the message.</li>
+                  <li>Screenshot your receipt and upload it in step 2 below.</li>
+                </ol>
+                <% } %>
                 <div class="pay-recipient">
                   <dl class="pt-dl">
                     <dt>Account name</dt><dd><%= isPlaceholder(nm) ? 'Balai Miciano Resort' : nm %></dd>
@@ -376,11 +391,11 @@
                   </div>
                 </div>
                 <% } else if (chosenMethod === 'bank_transfer') { %>
-                <% if (!isPlaceholder(paymentInfo.bank_bdo) || !isPlaceholder(paymentInfo.bank_bpi)) { %>
+                <% if (paymentInfo.banks.length) { %>
                 <dl class="pt-dl">
-                  <dt>Account name</dt><dd><%= paymentInfo.bank_name || 'Balai Miciano Resort' %></dd>
-                  <% if (!isPlaceholder(paymentInfo.bank_bdo)) { %><dt>BDO account</dt><dd><span class="pay-acct"><span class="acct-num"><%= paymentInfo.bank_bdo %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.bank_bdo %>" aria-label="Copy BDO account number"><i class="far fa-copy" aria-hidden="true"></i>Copy number</button></span></dd><% } %>
-                  <% if (!isPlaceholder(paymentInfo.bank_bpi)) { %><dt>BPI account</dt><dd><span class="pay-acct"><span class="acct-num"><%= paymentInfo.bank_bpi %></span><button type="button" class="copy-btn" data-copy="<%= paymentInfo.bank_bpi %>" aria-label="Copy BPI account number"><i class="far fa-copy" aria-hidden="true"></i>Copy number</button></span></dd><% } %>
+                  <% for (const b of paymentInfo.banks) { %>
+                  <dt><%= b.bank %></dt><dd><span class="pay-acct"><span class="acct-num"><%= b.number %></span><button type="button" class="copy-btn" data-copy="<%= b.number %>" aria-label="Copy <%= b.bank %> account number"><i class="far fa-copy" aria-hidden="true"></i>Copy number</button></span><span class="d-block pt-small"><%= b.account_name %></span></dd>
+                  <% } %>
                   <dt>Reference</dt><dd><span class="pay-acct"><span class="acct-ref"><%= ref %></span><button type="button" class="copy-btn" data-copy="<%= ref %>" aria-label="Copy booking reference <%= ref %>"><i class="far fa-copy" aria-hidden="true"></i>Copy reference</button></span></dd>
                 </dl>
                 <% } else { %>
@@ -874,6 +889,20 @@
   // Print button for the QR, copy buttons for account numbers / reference, hide broken QR images.
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-action="print"]')) { window.print(); return; }
+    // Transfer with GCash / Maya: copy the number, then open the app on phones.
+    var open = e.target.closest('[data-pay-open]');
+    if (open) {
+      var num = open.getAttribute('data-number'), app = open.getAttribute('data-pay-open');
+      var status = open.parentNode.querySelector('.pay-app-status'), appName = app === 'gcash' ? 'GCash' : 'Maya';
+      var phone = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
+      var after = function (copied) {
+        status.hidden = false;
+        status.textContent = (copied ? 'Number copied. ' : 'Copy the number above. ') + (phone ? 'Opening ' + appName + '. If it doesn’t open, open the app yourself.' : 'Open ' + appName + ' on your phone to send it.');
+        if (phone) location.href = app === 'gcash' ? 'gcash://' : 'paymaya://';
+      };
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(num).then(function () { after(true); }, function () { after(false); }); else after(false);
+      return;
+    }
     var b = e.target.closest('[data-copy]');
     if (!b) return;
     var text = b.getAttribute('data-copy'), label = b.innerHTML;

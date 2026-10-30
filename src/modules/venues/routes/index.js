@@ -11,9 +11,11 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { attachListingControls } = require('../../../utils/listingControls');
 
 const router  = express.Router();
 const CAN_MANAGE = ['admin', 'staff'];
+attachListingControls(router, { table: 'venues', base: '/venues', noun: 'Venue' });
 const UPLOAD_DIR = uploadDir('venues');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -64,28 +66,26 @@ async function getActiveVenueTypes() {
 
 // GET /venues
 router.get('/', requireAuth, async (req, res) => {
-  const { search = '', status = '', type = '', page = 1 } = req.query;
+  const { search = '', type = '', page = 1 } = req.query;
   const limit  = 12;
   const offset = (parseInt(page) - 1) * limit;
-  let   where  = 'WHERE is_active = 1';
+  let   where  = 'WHERE 1 = 1';
   const params = [];
 
   if (search) { where += ` AND (name LIKE ? OR description LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
-  if (status) { where += ` AND status = ?`;     params.push(status); }
   if (type)   { where += ` AND venue_type = ?`; params.push(type); }
 
   const total  = (await db.prepare(`SELECT COUNT(*) AS cnt FROM venues ${where}`).get(...params)).cnt;
-  const venues = await db.prepare(`SELECT * FROM venues ${where} ORDER BY name LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const venues = await db.prepare(`SELECT * FROM venues ${where} ORDER BY is_active DESC, name LIMIT ? OFFSET ?`).all(...params, limit, offset);
   for (const venue of venues) venue.imagesList = parseImages(venue.images);
 
   const venueTypes = await getActiveVenueTypes();
-  const statuses   = ['available','reserved','maintenance','unavailable'];
 
   res.render('venues/index', {
     title: 'Venues – Balai-Reserve',
     layout: 'layouts/main',
-    venues, venueTypes, statuses,
-    filters: { search, status, type },
+    venues, venueTypes,
+    filters: { search, type },
     pagination: { total, page: parseInt(page), limit, totalPages: Math.ceil(total / limit) },
   });
 });

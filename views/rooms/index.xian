@@ -1,7 +1,7 @@
 <% layout('layouts/main') %>
 <%
   const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
-  const filtered  = !!(filters.search || filters.type || filters.status);
+  const filtered  = !!(filters.search || filters.type);
 %>
 <div class="ap-page">
 
@@ -13,6 +13,7 @@
   </div>
   <% } %>
 <!--/page-head-->
+<p class="page-intro">Hide a room while it is under maintenance, and show it again when it is ready. Set a room to admin only to keep it on the website while only the resort can reserve it.</p>
 
 <form method="GET" action="/rooms" class="ap-toolbar" role="search" aria-label="Filter rooms">
   <div class="ap-field ap-field-search">
@@ -24,13 +25,6 @@
     <select id="roomType" name="type" class="form-select">
       <option value="">All types</option>
       <% for (const rt of roomTypes) { %><option value="<%= rt.name %>" <%= filters.type === rt.name ? 'selected' : '' %>><%= rt.name %></option><% } %>
-    </select>
-  </div>
-  <div class="ap-field">
-    <label for="roomStatus">Status</label>
-    <select id="roomStatus" name="status" class="form-select">
-      <option value="">All statuses</option>
-      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
     </select>
   </div>
   <div class="ap-toolbar-actions">
@@ -58,7 +52,7 @@
           <th scope="col" class="cat-col-opt">Type</th>
           <th scope="col" class="num">Sleeps</th>
           <th scope="col" class="num">Price / night</th>
-          <th scope="col">Status</th>
+          <th scope="col">On website</th>
           <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -83,11 +77,12 @@
           <td class="cat-col-opt" data-label="Type"><%= room.type_name %></td>
           <td class="num" data-label="Sleeps"><%= room.capacity %></td>
           <td class="num" data-label="Price / night"><strong><%= formatPeso(room.price) %></strong></td>
-          <td class="ap-cell-status"><%- statusBadge(room.status) %></td>
+          <td data-label="On website"><%include('partials/listing-controls', Object.assign({}, __locals, { lc: { row: room, base: '/rooms', part: 'state', canManage } }))%></td>
           <td class="ap-row-actions">
             <div class="ap-actions">
               <a href="/rooms/<%= room.id %>" class="ap-act">View</a>
               <% if (canManage) { %><a href="/rooms/<%= room.id %>/edit" class="ap-act">Edit</a><% } %>
+              <%include('partials/listing-controls', Object.assign({}, __locals, { lc: { row: room, base: '/rooms', part: 'actions', canManage } }))%>
             </div>
           </td>
         </tr>

@@ -12,9 +12,11 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { attachListingControls } = require('../../../utils/listingControls');
 
 const router     = express.Router();
 const CAN_MANAGE = ['admin', 'staff'];
+attachListingControls(router, { table: 'cottages', base: '/cottages', noun: 'Cottage' });
 
 // ΓöÇΓöÇ Multer config: store in uploads/cottages/ ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 const UPLOAD_DIR = uploadDir('cottages');
@@ -49,31 +51,24 @@ function parseImages(raw) {
 
 // GET /cottages
 router.get('/', requireAuth, async (req, res) => {
-  const { search = '', status = '', page = 1 } = req.query;
+  const { search = '', page = 1 } = req.query;
   const limit  = 12;
   const offset = (parseInt(page) - 1) * limit;
-  let   where  = 'WHERE is_active = 1';
+  let   where  = 'WHERE 1 = 1';
   const params = [];
 
   if (search) { where += ` AND (name LIKE ? OR description LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
-  if (status) { where += ` AND status = ?`; params.push(status); }
 
   const total    = (await db.prepare(`SELECT COUNT(*) AS cnt FROM cottages ${where}`).get(...params)).cnt;
-  const cottages = await db.prepare(`SELECT * FROM cottages ${where} ORDER BY name LIMIT ? OFFSET ?`).all(...params, limit, offset);
+  const cottages = await db.prepare(`SELECT * FROM cottages ${where} ORDER BY is_active DESC, name LIMIT ? OFFSET ?`).all(...params, limit, offset);
 
   // Attach parsed images
   for (const c of cottages) c.imagesList = parseImages(c.images);
 
-  const statuses = ['available', 'reserved', 'occupied', 'maintenance', 'unavailable'];
-  const counts   = {};
-  for (const s of statuses) {
-    counts[s] = (await db.prepare(`SELECT COUNT(*) AS c FROM cottages WHERE status=? AND is_active=1`).get(s)).c;
-  }
-
   res.render('cottages/index', {
     title: 'Cottages – Balai-Reserve', layout: 'layouts/main',
-    cottages, statuses, counts,
-    filters: { search, status },
+    cottages,
+    filters: { search },
     pagination: { total, page: parseInt(page), limit, totalPages: Math.ceil(total / limit) },
   });
 });

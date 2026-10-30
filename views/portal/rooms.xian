@@ -64,7 +64,7 @@
       const bookable = r.isAvailable;
       const book = new URLSearchParams({ type: 'room', item_id: String(r.id) });
       if (hasDates && nights > 0) { book.set('checkin', filters.checkin); book.set('checkout', filters.checkout); }
-      const note = bookable ? (range ? 'Open for ' + range : '') : (hasDates ? 'Booked for these dates' : 'Not taking bookings right now');
+      const note = r.adminOnly ? 'Reserved through the resort' : bookable ? (range ? 'Open for ' + range : '') : (hasDates ? 'Booked for these dates' : 'Not taking bookings right now');
     %>
     <%include('partials/listing-card', Object.assign({}, __locals, { card: {
       row: r, kind: 'room', variant: 'row', h: 'h2', qs: qs,

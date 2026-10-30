@@ -29,8 +29,8 @@
 
   <% if (!bookable) { %>
   <div class="bp-closed" role="status">
-    <p><strong>Not taking online bookings right now.</strong></p>
-    <p>The <%= item.name %> is temporarily unavailable. <a href="/portal/inquire">Send an inquiry</a> and the resort will reply with open dates.</p>
+    <p><strong>Reserved through the resort.</strong></p>
+    <p>The <%= item.name %> can’t be booked online right now. <a href="/portal/inquire">Send an inquiry</a> and the resort will reply with open dates.</p>
   </div>
   <% } else { %>
   <form class="bp-form" action="/portal/book" method="GET" novalidate

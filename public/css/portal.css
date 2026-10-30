@@ -1348,3 +1348,14 @@ a.pn-row.is-unread:hover { background: #dcefea; }
 .arrive-steps li + li { margin-top: 6px; }
 .arrive-when, .arrive-help { max-width: 48ch; margin: var(--space-4) auto 0; font-size: var(--text-small); color: var(--br-ink-2); }
 .arrive-block .qr-actions { margin-top: var(--space-4); }
+
+/* Transfer with GCash / Maya (views/portal/reservation-detail.xian) */
+.pay-app { max-width: 360px; margin: 0 0 14px; overflow: hidden; border-radius: 18px; background: #eeeeee; }
+.pay-app-brand { margin: 0; padding: 22px 20px; color: #fff; font-size: 1.5rem; font-weight: 700; background: linear-gradient(120deg, #1a7df0, #0b4fc4); }
+.pay-app.is-maya .pay-app-brand { background: linear-gradient(120deg, #1a1a1a, #00b873); }
+.pay-app-body { padding: 14px 20px 18px; }
+.pay-app-num { margin: 0 0 10px; font-size: 1.125rem; font-weight: 600; color: #111; font-variant-numeric: tabular-nums; }
+.pay-app-btn { width: 100%; min-height: 46px; background: #e2e2e2; color: #111; font-weight: 600; border-radius: 10px; }
+.pay-app-btn:hover { background: #d6d6d6; color: #111; }
+.pay-app-status { margin: 10px 0 0; font-size: var(--text-small); color: #333; }
+.pay-app-steps { margin: 0 0 16px; padding-left: 1.25rem; font-size: var(--text-small); }

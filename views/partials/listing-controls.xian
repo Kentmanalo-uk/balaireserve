@@ -1,0 +1,28 @@
+<%#
+  Rooms, cottages, venues, packages: website and guest-booking state, and the buttons that change them
+  (src/utils/listingControls.js). Include with { lc: { row, base, part, canManage, visibility } }.
+  part 'state' = the two status chips; part 'actions' = the Hide / Show and guest-booking buttons.
+%>
+<%
+  const _l = lc || {};
+  const _r = _l.row || {};
+  const _shown = Number(_r.is_active) === 1;
+  const _guest = Number(_r.guest_booking) !== 0;
+%>
+<% if (_l.part === 'state') { %>
+<span class="lc-chips">
+  <% if (_l.visibility !== false) { %><span class="status-chip <%= _shown ? 'st-teal' : 'st-gray' %>"><%= _shown ? 'Shown' : 'Hidden' %></span><% } %>
+  <span class="status-chip <%= _guest ? 'st-blue' : 'st-amber' %>" title="<%= _guest ? 'Guests can reserve online' : 'Only the resort can reserve' %>"><%= _guest ? 'Guests can book' : 'Admin only' %></span>
+</span>
+<% } else if (_l.canManage) { %>
+<% if (_l.visibility !== false) { %>
+<form action="<%= _l.base %>/<%= _r.id %>/visibility" method="POST" class="d-inline">
+  <input type="hidden" name="show" value="<%= _shown ? '0' : '1' %>" />
+  <button type="submit" class="ap-act"><%= _shown ? 'Hide' : 'Show' %><span class="br-sr-only"> <%= _r.name %></span></button>
+</form>
+<% } %>
+<form action="<%= _l.base %>/<%= _r.id %>/guest-booking" method="POST" class="d-inline">
+  <input type="hidden" name="on" value="<%= _guest ? '0' : '1' %>" />
+  <button type="submit" class="ap-act"><%= _guest ? 'Set admin only' : 'Allow guests' %><span class="br-sr-only">: <%= _r.name %></span></button>
+</form>
+<% } %>

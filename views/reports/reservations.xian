@@ -34,7 +34,7 @@
 <form method="GET" action="/reports/reservations" class="ap-toolbar no-print" aria-label="Report filters">
   <div class="ap-field"><label for="rptFrom">Booked from</label><input type="date" id="rptFrom" name="from" value="<%= filters.from %>" class="form-control" /></div>
   <div class="ap-field"><label for="rptTo">Booked to</label><input type="date" id="rptTo" name="to" value="<%= filters.to %>" class="form-control" /></div>
-  <div class="ap-field"><label for="rptStatus">Status</label><select id="rptStatus" name="status" class="form-select"><option value="">All statuses</option><% for (const s of ['pending','awaiting_payment','confirmed','checked_in','completed','cancelled','no_show']) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %></select></div>
+  <div class="ap-field"><label for="rptStatus">Status</label><select id="rptStatus" name="status" class="form-select"><option value="">All statuses</option><% for (const s of ['pending','pencil','on_hold','awaiting_payment','confirmed','checked_in','completed','cancelled','rejected','no_show']) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %></select></div>
   <div class="ap-field"><label for="rptType">Type</label><select id="rptType" name="type" class="form-select"><option value="">All types</option><% for (const t of ['room','venue','event','cottage']) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= t.charAt(0).toUpperCase() + t.slice(1) %></option><% } %></select></div>
   <div class="ap-toolbar-actions"><button type="submit" class="btn btn-primary">Update report</button></div>
 </form>

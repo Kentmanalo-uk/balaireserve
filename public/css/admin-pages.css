@@ -910,3 +910,10 @@ tr.pkg-hidden .ap-name, tr.pkg-hidden td { color: var(--br-ink-2); }
 .mail-test { padding: 16px; }
 .mail-test-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .mail-test-row .form-control { flex: 1 1 260px; }
+
+/* Website / guest-booking state on the listing tables, and bank account rows in Settings */
+.lc-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.ap-actions form { margin: 0; }
+.bank-rows { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 14px; }
+.bank-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
+@media (max-width: 767.98px) { .bank-row { grid-template-columns: minmax(0, 1fr); padding-bottom: 12px; border-bottom: 1px solid var(--br-hairline); } .bank-row .ap-act { justify-self: start; } }

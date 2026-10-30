@@ -14,7 +14,7 @@
   <h2>Booking and payment</h2>
   <ul>
     <li>Prices shown are the current resort rates in Philippine pesos. Rooms are priced per night; cottages, the function hall and event packages are a flat rate per booking.</li>
-    <li>A booking is saved as <strong>awaiting payment</strong>. It is held for you once you pay the <%= _dp %>% downpayment by GCash, Maya or bank transfer and upload your proof of payment, and our staff verify it.</li>
+    <li>A booking is saved as <strong>awaiting payment</strong>. It is held for you once you pay the <%= _dp %>% downpayment by <%= payMethodsText(site) %> and upload your proof of payment, and our staff verify it.</li>
     <li>The remaining balance is settled at the resort, before check-out.</li>
     <li>Optional event add-ons you choose are added to your total and to the downpayment.</li>
   </ul>

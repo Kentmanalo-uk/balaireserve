@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS rooms (
   status       VARCHAR(20) NOT NULL DEFAULT 'available',
                -- available | reserved | occupied | cleaning | maintenance | unavailable
   is_active    TINYINT NOT NULL DEFAULT 1,
+  guest_booking TINYINT NOT NULL DEFAULT 1,   -- 0 = only the resort can reserve it
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (room_type_id) REFERENCES room_types(id)
@@ -99,6 +100,7 @@ CREATE TABLE IF NOT EXISTS venues (
   images       TEXT,              -- JSON array
   status       VARCHAR(20) NOT NULL DEFAULT 'available',
   is_active    TINYINT NOT NULL DEFAULT 1,
+  guest_booking TINYINT NOT NULL DEFAULT 1,   -- 0 = only the resort can reserve it
   created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -114,6 +116,7 @@ CREATE TABLE IF NOT EXISTS cottages (
   images      TEXT,
   status      VARCHAR(20) NOT NULL DEFAULT 'available',
   is_active   TINYINT NOT NULL DEFAULT 1,
+  guest_booking TINYINT NOT NULL DEFAULT 1,   -- 0 = only the resort can reserve it
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -129,6 +132,7 @@ CREATE TABLE IF NOT EXISTS event_packages (
   images      TEXT,          -- JSON array of photo paths
   capacity    INT,
   is_active   TINYINT NOT NULL DEFAULT 1,
+  guest_booking TINYINT NOT NULL DEFAULT 1,   -- 0 = only the resort can reserve it
   created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
   updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -194,6 +194,18 @@ app.use(session({
 
 
 // ΓöÇΓöÇ Xianfire Template Engine ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+// A redirect waits for the session to be written. Otherwise the browser can ask for the next page first:
+// a fresh login looks signed out, and "saved" messages disappear.
+app.use((req, res, next) => {
+  const redirect = res.redirect;
+  res.redirect = function (...args) {
+    const s = req.session;
+    if (!s || Object.keys(s).length <= 1) return redirect.apply(res, args);   // nothing to keep (only the cookie)
+    return s.save(() => redirect.apply(res, args));
+  };
+  next();
+});
+
 // Ikions icons: <i class="fas fa-…"> in rendered pages gets the matching SVG (src/utils/ikions.js).
 app.use(require('./src/utils/ikions').ikionsMiddleware);
 // Responsive photos, lazy images and versioned CSS/JS links on every page (src/utils/pageOptimizer.js).

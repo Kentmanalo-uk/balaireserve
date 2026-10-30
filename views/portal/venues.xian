@@ -78,7 +78,7 @@
         const book = new URLSearchParams({ type: 'venue', item_id: String(v.id) });
         if (filters.date) book.set('date', filters.date);
         if (filters.date && hasTimes) { book.set('start_time', filters.start_time); book.set('end_time', filters.end_time); }
-        const note = v.isAvailable ? (when ? 'Open on ' + when : '') : (filters.date ? 'Booked ' + (hasTimes ? 'at that time' : 'on this date') : 'Not taking bookings right now');
+        const note = v.adminOnly ? 'Reserved through the resort' : v.isAvailable ? (when ? 'Open on ' + when : '') : (filters.date ? 'Booked ' + (hasTimes ? 'at that time' : 'on this date') : 'Not taking bookings right now');
       %>
       <%include('partials/listing-card', Object.assign({}, __locals, { card: {
         row: v, kind: 'venue', variant: 'row', h: 'h3', qs: qs,

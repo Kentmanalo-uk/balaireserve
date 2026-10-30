@@ -57,6 +57,10 @@ const STEPS = [
 const COLUMNS = [
   // Event packages can have photos (managed on /packages).
   { table: 'event_packages', column: 'images', ddl: 'ALTER TABLE event_packages ADD COLUMN images TEXT NULL AFTER inclusions' },
+  // 0 = stays on the website, but only the resort can reserve it (src/utils/listingControls.js).
+  ...['rooms', 'cottages', 'venues', 'event_packages'].map(table => ({
+    table, column: 'guest_booking', ddl: `ALTER TABLE ${table} ADD COLUMN guest_booking TINYINT NOT NULL DEFAULT 1`,
+  })),
 ];
 
 async function ensureSchema() {

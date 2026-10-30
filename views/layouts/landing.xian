@@ -164,7 +164,7 @@
       <h2 class="footer-head">Good to know</h2>
       <ul class="footer-facts" role="list">
         <li>Check-in <%= _fmtTime(_site.check_in_time || '14:00') %> · check-out <%= _fmtTime(_site.check_out_time || '12:00') %></li>
-        <li><%= _dp %>% downpayment online by GCash, Maya or bank transfer</li>
+        <li><%= _dp %>% downpayment online by <%= payMethodsText(_site) %></li>
         <li>Balance is settled at the resort</li>
       </ul>
       <a href="<%= _h %>#how-to-book">How booking works</a>

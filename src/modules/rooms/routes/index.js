@@ -12,9 +12,11 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { attachListingControls } = require('../../../utils/listingControls');
 
 const router     = express.Router();
 const CAN_MANAGE = ['admin', 'staff'];
+attachListingControls(router, { table: 'rooms', base: '/rooms', noun: 'Room' });
 
 // Only room types that have at least one active room
 async function getActiveRoomTypes() {
@@ -53,32 +55,30 @@ function parseImages(raw) {
 
 // GET /rooms
 router.get('/', requireAuth, async (req, res) => {
-  const { search = '', status = '', type = '', page = 1 } = req.query;
+  const { search = '', type = '', page = 1 } = req.query;
   const limit  = 12;
   const offset = (parseInt(page) - 1) * limit;
-  let   where  = 'WHERE r.is_active = 1';
+  let   where  = 'WHERE 1 = 1';
   const params = [];
 
   if (search) { where += ` AND (r.room_number LIKE ? OR r.name LIKE ?)`; params.push(`%${search}%`, `%${search}%`); }
-  if (status) { where += ` AND r.status = ?`;  params.push(status); }
   if (type)   { where += ` AND rt.name = ?`;   params.push(type); }
 
   const total = (await db.prepare(`SELECT COUNT(*) AS cnt FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id ${where}`).get(...params)).cnt;
   const rooms = await db.prepare(`
     SELECT r.*, rt.name AS type_name
     FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id
-    ${where} ORDER BY r.room_number LIMIT ? OFFSET ?
+    ${where} ORDER BY r.is_active DESC, r.room_number LIMIT ? OFFSET ?
   `).all(...params, limit, offset);
 
   for (const r of rooms) r.imagesList = parseImages(r.images);
 
   const roomTypes = await getActiveRoomTypes();
-  const statuses  = ['available','reserved','occupied','cleaning','maintenance','unavailable'];
 
   res.render('rooms/index', {
     title: 'Rooms – Balai-Reserve', layout: 'layouts/main',
-    rooms, roomTypes, statuses,
-    filters: { search, status, type },
+    rooms, roomTypes,
+    filters: { search, type },
     pagination: { total, page: parseInt(page), limit, totalPages: Math.ceil(total / limit) },
   });
 });

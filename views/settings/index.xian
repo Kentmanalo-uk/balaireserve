@@ -41,14 +41,14 @@
   <section class="ap-section" aria-labelledby="setGcashHeading">
     <div class="ap-section-intro">
       <h2 id="setGcashHeading">GCash</h2>
-      <p>Shown to guests who pick GCash on the payment step. Most guests scan the QR code, so keep it current.</p>
+      <p>Optional. Leave this empty if the resort doesn’t use GCash, and guests won’t see it as a payment choice.</p>
     </div>
     <div class="ap-section-body">
       <div class="row g-3">
         <div class="col-md-6">
-          <label class="form-label required" for="gcashNumber">GCash number</label>
+          <label class="form-label" for="gcashNumber">GCash number <span class="text-muted fw-normal">(optional)</span></label>
           <input type="text" name="gcash_number" id="gcashNumber" class="form-control<%= phClass('gcash_number') %>"
-            value="<%= siteSettings.gcash_number || '' %>"
+            value="<%= isSeed('gcash_number') ? '' : (siteSettings.gcash_number || '') %>"
             placeholder="e.g. 09171234567"
             pattern="^09\d{9}$" inputmode="numeric"
             title="Enter a valid 11-digit Philippine mobile number starting with 09"
@@ -57,7 +57,7 @@
           <%- phFlag('gcash_number') %>
         </div>
         <div class="col-md-6">
-          <label class="form-label required" for="gcashName">Account name</label>
+          <label class="form-label" for="gcashName">Account name <span class="text-muted fw-normal">(optional)</span></label>
           <input type="text" name="gcash_name" id="gcashName" class="form-control"
             value="<%= siteSettings.gcash_name || '' %>"
             placeholder="e.g. Juan Dela Cruz" aria-describedby="gcashNameHelp" />
@@ -113,14 +113,14 @@
   <section class="ap-section" aria-labelledby="setMayaHeading">
     <div class="ap-section-intro">
       <h2 id="setMayaHeading">Maya</h2>
-      <p>Shown to guests who pick Maya on the payment step, together with the Maya QR code.</p>
+      <p>Optional. Leave this empty if the resort doesn’t use Maya, and guests won’t see it as a payment choice.</p>
     </div>
     <div class="ap-section-body">
       <div class="row g-3">
         <div class="col-md-6">
-          <label class="form-label required" for="mayaNumber">Maya number</label>
+          <label class="form-label" for="mayaNumber">Maya number <span class="text-muted fw-normal">(optional)</span></label>
           <input type="text" name="maya_number" id="mayaNumber" class="form-control<%= phClass('maya_number') %>"
-            value="<%= siteSettings.maya_number || '' %>"
+            value="<%= isSeed('maya_number') ? '' : (siteSettings.maya_number || '') %>"
             placeholder="e.g. 09171234567"
             pattern="^09\d{9}$" inputmode="numeric"
             title="Enter a valid 11-digit PH mobile number starting with 09"
@@ -129,7 +129,7 @@
           <%- phFlag('maya_number') %>
         </div>
         <div class="col-md-6">
-          <label class="form-label required" for="mayaName">Account name</label>
+          <label class="form-label" for="mayaName">Account name <span class="text-muted fw-normal">(optional)</span></label>
           <input type="text" name="maya_name" id="mayaName" class="form-control"
             value="<%= siteSettings.maya_name || '' %>"
             placeholder="e.g. Juan Dela Cruz" />
@@ -176,38 +176,27 @@
   <section class="ap-section" aria-labelledby="setBankHeading">
     <div class="ap-section-intro">
       <h2 id="setBankHeading">Bank transfer</h2>
-      <p>Account numbers guests can deposit to. Leave a bank blank if the resort doesn't use it.</p>
+      <p>Optional. Add any bank, as many accounts as you need, each with its own account name. Remove them all and guests won’t see bank transfer.</p>
     </div>
     <div class="ap-section-body">
-      <% if (looksPlaceholder(siteSettings.bank_bdo) || looksPlaceholder(siteSettings.bank_bpi)) { %>
-      <div class="ap-notice" role="note">
-        <i class="fas fa-exclamation-triangle" aria-hidden="true"></i>
-        <span>A bank account number below is still a placeholder (XXXX). The guest payment step hides it until you enter the real account number — or clear it if the resort doesn't use that bank.</span>
-      </div>
-      <% } %>
-      <div class="row g-3">
-        <div class="col-md-6">
-          <label class="form-label" for="bankBdo">BDO account number</label>
-          <input type="text" name="bank_bdo" id="bankBdo" class="form-control<%= phClass('bank_bdo') %>"
-            value="<%= siteSettings.bank_bdo || '' %>"
-            placeholder="e.g. 0123-4567-8901" />
-          <%- phFlag('bank_bdo') %>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label" for="bankBpi">BPI account number</label>
-          <input type="text" name="bank_bpi" id="bankBpi" class="form-control<%= phClass('bank_bpi') %>"
-            value="<%= siteSettings.bank_bpi || '' %>"
-            placeholder="e.g. 1234-5678-9012" />
-          <%- phFlag('bank_bpi') %>
-        </div>
-        <div class="col-md-6">
-          <label class="form-label required" for="bankName">Account holder name</label>
-          <input type="text" name="bank_name" id="bankName" class="form-control"
-            value="<%= siteSettings.bank_name || '' %>"
-            placeholder="e.g. Balai Miciano Resort" aria-describedby="bankNameHelp" />
-          <div class="form-text" id="bankNameHelp">Must match the bank account name exactly.</div>
-        </div>
-      </div>
+      <ul class="bank-rows" id="bankRows" role="list">
+        <% bankRows.forEach((b, i) => { %>
+          <li class="bank-row">
+            <div><label class="form-label" for="bankB<%= i %>">Bank</label><input type="text" class="form-control" id="bankB<%= i %>" name="banks[<%= i %>][bank]" value="<%= b.bank %>" maxlength="100" placeholder="e.g. BDO, Metrobank, GoTyme" /></div>
+            <div><label class="form-label" for="bankN<%= i %>">Account number</label><input type="text" class="form-control" id="bankN<%= i %>" name="banks[<%= i %>][number]" value="<%= b.number %>" maxlength="60" placeholder="e.g. 0123-4567-8901" /></div>
+            <div><label class="form-label" for="bankA<%= i %>">Account name</label><input type="text" class="form-control" id="bankA<%= i %>" name="banks[<%= i %>][account_name]" value="<%= b.account_name %>" maxlength="150" placeholder="Name on this account" /></div>
+            <button type="button" class="ap-act is-danger" data-bank-remove>Remove</button>
+          </li>
+        <% }) %>
+      </ul>
+      <p class="pkg-empty" id="bankEmpty"<%- bankRows.length ? ' hidden' : '' %>>No bank accounts yet.</p>
+      <button type="button" class="btn btn-secondary-quiet btn-sm" id="bankAdd"><i class="fas fa-plus" aria-hidden="true"></i>Add bank account</button>
+      <template id="bankTpl"><li class="bank-row">
+            <div><label class="form-label" for="bankB__i__">Bank</label><input type="text" class="form-control" id="bankB__i__" name="banks[__i__][bank]" value="" maxlength="100" placeholder="e.g. BDO, Metrobank, GoTyme" /></div>
+            <div><label class="form-label" for="bankN__i__">Account number</label><input type="text" class="form-control" id="bankN__i__" name="banks[__i__][number]" value="" maxlength="60" placeholder="e.g. 0123-4567-8901" /></div>
+            <div><label class="form-label" for="bankA__i__">Account name</label><input type="text" class="form-control" id="bankA__i__" name="banks[__i__][account_name]" value="" maxlength="150" placeholder="Name on this account" /></div>
+            <button type="button" class="ap-act is-danger" data-bank-remove>Remove</button>
+          </li></template>
     </div>
   </section>
 
@@ -237,16 +226,15 @@
       <div>
         <h3>Bank transfer</h3>
         <dl class="ap-dl">
-          <dt>BDO</dt><dd><% if (isSeed('bank_bdo')) { %><%- hiddenTag %><% } else { %><%= siteSettings.bank_bdo || 'Not published' %><% } %></dd>
-          <dt>BPI</dt><dd><% if (isSeed('bank_bpi')) { %><%- hiddenTag %><% } else { %><%= siteSettings.bank_bpi || 'Not published' %><% } %></dd>
-          <dt>Name</dt><dd><%= siteSettings.bank_name || '—' %></dd>
+          <% if (!bankRows.length) { %><dt>Banks</dt><dd>None published</dd><% } %>
+          <% for (const b of bankRows) { %><dt><%= b.bank %></dt><dd><%= b.number %><%= b.account_name ? ' · ' + b.account_name : '' %></dd><% } %>
         </dl>
       </div>
     </div>
   </section>
 
   <div class="ap-form-actions">
-    <span class="ap-meta ap-required-note">Fields marked <span class="text-danger">*</span> should be filled in for that method to work.</span>
+    <span class="ap-meta ap-required-note">Every payment method is optional. Guests only see the ones filled in.</span>
     <button type="submit" class="btn btn-primary"><i class="fas fa-save" aria-hidden="true"></i>Save payment settings</button>
   </div>
 </form>
@@ -328,6 +316,19 @@
     ══════════════════════════════════════════════════ %>
 <% if (activeTab === 'booking') { %>
 <form data-guard="Booking" action="/settings/booking" method="POST" class="ap-form">
+  <section class="ap-section" aria-labelledby="setGuestBookingHeading">
+    <div class="ap-section-intro">
+      <h2 id="setGuestBookingHeading">Online booking</h2>
+      <p>Turn this off and the whole website stays visible, but only the resort can make reservations. To do this for one room, cottage, venue or package, use “Set admin only” on its list.</p>
+    </div>
+    <div class="ap-section-body">
+      <div class="form-check form-switch">
+        <input class="form-check-input" type="checkbox" role="switch" id="guestBookingEnabled" name="guest_booking_enabled" value="1" <%= siteSettings.guest_booking_enabled === '0' ? '' : 'checked' %> />
+        <label class="form-check-label" for="guestBookingEnabled">Guests can book online</label>
+      </div>
+    </div>
+  </section>
+
   <section class="ap-section" aria-labelledby="setTimesHeading">
     <div class="ap-section-intro">
       <h2 id="setTimesHeading">Check-in and check-out</h2>
@@ -597,6 +598,24 @@
 <script>
 // Live QR image preview before upload
 (function () {
+  // Bank accounts: add / remove rows, keeping the field numbers in order.
+  (function () {
+    var list = document.getElementById('bankRows'), add = document.getElementById('bankAdd'), tpl = document.getElementById('bankTpl'), empty = document.getElementById('bankEmpty');
+    if (!list || !add || !tpl) return;
+    var next = list.children.length;
+    add.addEventListener('click', function () {
+      var box = document.createElement('div');
+      box.innerHTML = tpl.innerHTML.split('__i__').join(String(next++));
+      var row = box.firstElementChild; list.appendChild(row); empty.hidden = true;
+      row.querySelector('input').focus();
+    });
+    list.addEventListener('click', function (e) {
+      if (!e.target.closest('[data-bank-remove]')) return;
+      e.target.closest('.bank-row').remove();
+      empty.hidden = list.children.length > 0;
+    });
+  })();
+
   var input   = document.getElementById('gcashQrInput');
   var wrap    = document.getElementById('newQrPreviewWrap');
   var preview = document.getElementById('newQrPreview');

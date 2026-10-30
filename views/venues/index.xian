@@ -1,7 +1,7 @@
 <% layout('layouts/main') %>
 <%
   const canManage = currentUser && (currentUser.role === 'admin' || currentUser.role === 'staff');
-  const filtered  = !!(filters.search || filters.type || filters.status);
+  const filtered  = !!(filters.search || filters.type);
 %>
 <div class="ap-page">
 
@@ -24,13 +24,6 @@
     <select id="venueTypeFilter" name="type" class="form-select">
       <option value="">All types</option>
       <% for (const t of venueTypes) { %><option value="<%= t %>" <%= filters.type === t ? 'selected' : '' %>><%= statusLabel(t) %></option><% } %>
-    </select>
-  </div>
-  <div class="ap-field">
-    <label for="venueStatusFilter">Status</label>
-    <select id="venueStatusFilter" name="status" class="form-select">
-      <option value="">All statuses</option>
-      <% for (const s of statuses) { %><option value="<%= s %>" <%= filters.status === s ? 'selected' : '' %>><%= statusLabel(s) %></option><% } %>
     </select>
   </div>
   <div class="ap-toolbar-actions">
@@ -58,7 +51,7 @@
           <th scope="col" class="cat-col-opt">Type</th>
           <th scope="col" class="num">Capacity</th>
           <th scope="col" class="num">Rate / event</th>
-          <th scope="col">Status</th>
+          <th scope="col">On website</th>
           <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -83,11 +76,12 @@
           <td class="cat-col-opt" data-label="Type"><%= statusLabel(v.venue_type) %></td>
           <td class="num" data-label="Capacity"><%= v.capacity %> guests</td>
           <td class="num" data-label="Rate / event"><strong><%= formatPeso(v.price) %></strong></td>
-          <td class="ap-cell-status"><%- statusBadge(v.status) %></td>
+          <td data-label="On website"><%include('partials/listing-controls', Object.assign({}, __locals, { lc: { row: v, base: '/venues', part: 'state', canManage } }))%></td>
           <td class="ap-row-actions">
             <div class="ap-actions">
               <a href="/venues/<%= v.id %>" class="ap-act">View</a>
               <% if (canManage) { %><a href="/venues/<%= v.id %>/edit" class="ap-act">Edit</a><% } %>
+              <%include('partials/listing-controls', Object.assign({}, __locals, { lc: { row: v, base: '/venues', part: 'actions', canManage } }))%>
             </div>
           </td>
         </tr>

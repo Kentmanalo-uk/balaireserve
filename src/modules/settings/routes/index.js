@@ -13,6 +13,7 @@ const db      = require('../../../config/database');
 const { uploadDir, uploadFileFromUrl } = require('../../../config/paths');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const mailer  = require('../../../utils/mailer');
+const { isPlaceholder, bankAccounts, buildBankAccounts } = require('../../../utils/paymentAccounts');
 
 const router     = express.Router();
 const ADMIN_ONLY = requireRole('admin');
@@ -163,6 +164,7 @@ router.get('/', requireAuth, ADMIN_ONLY, async (req, res) => {
     layout: 'layouts/main',
     siteSettings,
     activeTab,
+    bankRows:         bankAccounts(siteSettings),
     landingGallery:   parseGallery(siteSettings.landing_gallery),
     defaultHeroImage: DEFAULT_HERO_IMAGE,
     galleryLimits:    { maxItems: GALLERY_MAX_ITEMS, maxUpload: GALLERY_MAX_UPLOAD, captionLength: CAPTION_MAX_LENGTH },
@@ -181,12 +183,13 @@ router.post('/payment',
     const {
       gcash_number, gcash_name,
       maya_number,  maya_name,
-      bank_bdo,     bank_bpi,  bank_name,
     } = req.body;
 
     // ΓöÇΓöÇ Validate mobile-number formats before saving ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-    const gcash = (gcash_number || '').trim();
-    const maya  = (maya_number  || '').trim();
+    // All optional. A leftover XXXX placeholder counts as empty, so saving without that account never fails.
+    const gcash = isPlaceholder(gcash_number) ? '' : gcash_number.trim();
+    const maya  = isPlaceholder(maya_number)  ? '' : maya_number.trim();
+    const banks = buildBankAccounts(req.body.banks);
     const gcashQrFile = req.files?.gcash_qr_image?.[0];
     const mayaQrFile  = req.files?.maya_qr_image?.[0];
     const uploadedQrFiles = [gcashQrFile, mayaQrFile].filter(Boolean);
@@ -209,14 +212,18 @@ router.post('/payment',
       return res.redirect('/settings?tab=payment');
     }
 
+    if (banks.errors.length) {
+      uploadedQrFiles.forEach(file => { try { fs.unlinkSync(file.path); } catch { /* ignore */ } });
+      req.session.flash = { error: banks.errors[0] };
+      return res.redirect('/settings?tab=payment');
+    }
+
     await db.transaction(async () => {
-      await saveSetting('gcash_number', (gcash_number || '').trim());
+      await saveSetting('gcash_number', gcash);
       await saveSetting('gcash_name',   (gcash_name   || '').trim());
-      await saveSetting('maya_number',  (maya_number  || '').trim());
+      await saveSetting('maya_number',  maya);
       await saveSetting('maya_name',    (maya_name    || '').trim());
-      await saveSetting('bank_bdo',     (bank_bdo     || '').trim());
-      await saveSetting('bank_bpi',    (bank_bpi     || '').trim());
-      await saveSetting('bank_name',    (bank_name    || '').trim());
+      await saveSetting('bank_accounts', JSON.stringify(banks.rows));
 
       // Replace only the QR images included in this request.
       for (const { file, key } of [
@@ -280,12 +287,13 @@ router.post('/general', requireAuth, ADMIN_ONLY, async (req, res) => {
 
 // ΓöÇΓöÇ POST /settings/booking ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 router.post('/booking', requireAuth, ADMIN_ONLY, async (req, res) => {
-  const { check_in_time, check_out_time, downpayment_percent, cancellation_policy } = req.body;
+  const { check_in_time, check_out_time, downpayment_percent, cancellation_policy, guest_booking_enabled } = req.body;
   await db.transaction(async () => {
     await saveSetting('check_in_time',       (check_in_time       || '').trim());
     await saveSetting('check_out_time',      (check_out_time      || '').trim());
     await saveSetting('downpayment_percent', (downpayment_percent || '50').trim());
     await saveSetting('cancellation_policy', (cancellation_policy || '').trim());
+    await saveSetting('guest_booking_enabled', guest_booking_enabled === '1' ? '1' : '0');
   });
   req.session.flash = { success: 'Booking settings saved.' };
   res.redirect('/settings?tab=booking');
