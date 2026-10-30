@@ -6,14 +6,14 @@
  *   network is down, a page request gets the offline page instead.
  * - The site's own styles and scripts: versioned URLs (?v=<hash>, new on every deploy) come straight
  *   from the cache; anything unversioned comes from the network first and falls back to the cache.
- * - Images, catalogue photos and versioned CDN files (Bootstrap, Font Awesome, fonts) are
+ * - Images, catalogue photos and web fonts are
  *   served from the cache and refreshed in the background, so repeat visits load fast.
  * - Never cached: anything that isn't GET, payment proofs, booking QR codes, and API/JSON.
  *
  * Bump VERSION to drop every old cache on the next visit.
  */
 'use strict';
-const VERSION = 'v3';
+const VERSION = 'v4';
 const CORE = 'balai-core-' + VERSION;
 const ASSETS = 'balai-assets-' + VERSION;
 const OFFLINE_URL = '/offline.html';
@@ -24,7 +24,8 @@ const PRECACHE = [
   '/manifest.webmanifest',
 ];
 const ASSET_LIMIT = 160;
-const CDN_HOSTS = ['cdn.jsdelivr.net', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+const CDN_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
+const PAGE_TIMEOUT_MS = 30000;
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CORE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()));
@@ -41,7 +42,7 @@ self.addEventListener('activate', (event) => {
 function isAsset(url) {
   if (url.origin === self.location.origin) {
     if (url.pathname.startsWith('/uploads/payment_proofs') || url.pathname.startsWith('/qrcodes')) return false;
-    return /^\/(css|js|images|img|uploads)\//.test(url.pathname) || url.pathname === '/favicon.svg';
+    return /^\/(css|js|vendor|images|img|uploads)\//.test(url.pathname) || url.pathname === '/favicon.svg';
   }
   return CDN_HOSTS.includes(url.hostname);
 }
@@ -55,11 +56,10 @@ async function staleWhileRevalidate(event) {
   const cache = await caches.open(ASSETS);
   const cached = await cache.match(event.request);
   const fresh = fetch(event.request).then((res) => {
-    if (res && (res.ok || res.type === 'opaque')) {
-      cache.put(event.request, res.clone()).then(() => trim(cache));
-    }
+    // Only real successes: an opaque answer may be a network filter's block page, not the file.
+    if (res && res.ok) cache.put(event.request, res.clone()).then(() => trim(cache));
     return res;
-  }).catch(() => cached);
+  }).catch(() => cached || Response.error());
   if (cached) { event.waitUntil(fresh); return cached; }
   return fresh;
 }
@@ -85,11 +85,17 @@ async function networkFirstAsset(request) {
 }
 
 async function networkFirstPage(request) {
+  let timer;
   try {
-    return await fetch(request);
+    return await Promise.race([
+      fetch(request),
+      new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('timeout')), PAGE_TIMEOUT_MS); }),
+    ]);
   } catch (err) {
     const offline = await caches.match(OFFLINE_URL);
     return offline || Response.error();
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -99,7 +105,7 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
   if (request.mode === 'navigate') { event.respondWith(networkFirstPage(request)); return; }
   if (!isAsset(url)) return;
-  const own = url.origin === self.location.origin && /^\/(css|js)\//.test(url.pathname);
+  const own = url.origin === self.location.origin && /^\/(css|js|vendor)\//.test(url.pathname);
   // Versioned own files (?v=<content hash>) never change at that URL: serve them from the cache
   // without asking the network (the CDN drops our long cache headers for CSS/JS).
   if (own && url.searchParams.has('v')) { event.respondWith(cacheFirst(request)); return; }

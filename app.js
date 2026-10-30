@@ -69,6 +69,38 @@ const isDev= process.env.NODE_ENV !== 'production';
 // ★★★ DITO ANG FIX: Trust the proxy (Nginx) so rate-limit works correctly ★★★
 app.set('trust proxy', 1);
 
+// For uptime checks: is the app up, and can it reach the database? Answers before everything else.
+app.get('/health', async (req, res) => {
+  try {
+    await db.prepare('SELECT 1 AS ok').get();
+    res.set('Cache-Control', 'no-store').json({ ok: true });
+  } catch {
+    res.set('Cache-Control', 'no-store').status(503).json({ ok: false });
+  }
+});
+
+// One address: www. goes to the main domain, so sign-in (Google included) always stays on the same site.
+app.use((req, res, next) => {
+  const host = req.hostname || '';
+  if (host.startsWith('www.') && (req.method === 'GET' || req.method === 'HEAD')) {
+    return res.redirect(301, `https://${host.slice(4)}${req.originalUrl}`);
+  }
+  next();
+});
+
+// A request stuck on something slow gets a clear answer instead of hanging until the browser times out.
+// (Uploads are exempt: a photo on a slow connection can legitimately take longer.)
+app.use((req, res, next) => {
+  if (req.is('multipart/form-data')) return next();
+  const timer = setTimeout(() => {
+    if (res.headersSent) return;
+    console.error(`[timeout] ${req.method} ${req.originalUrl}`);
+    res.status(503).set('Retry-After', '10').type('html').send('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Please try again</title><body style="font-family:system-ui,sans-serif;text-align:center;padding:48px 20px"><h1>That took too long</h1><p>Please try again in a moment.</p><p><a href="/">Back to Balai-Reserve</a></p>');
+  }, 30000);
+  res.on('close', () => clearTimeout(timer));
+  next();
+});
+
 // ΓöÇΓöÇ Security Headers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 app.use(helmet({
   contentSecurityPolicy: {
@@ -84,6 +116,8 @@ app.use(helmet({
       frameSrc:   ["'self'"],
       formAction: ["'self'"],
       workerSrc:  ["'self'", 'blob:'],
+      // Buttons and selects in the views use onclick / onsubmit / onchange (scripts are already allowed inline).
+      scriptSrcAttr: ["'unsafe-inline'"],
     },
   },
   crossOriginEmbedderPolicy: false,
@@ -94,28 +128,19 @@ if (!isDev) app.use(morgan('combined'));
 else        app.use(morgan('dev'));
 
 // ΓöÇΓöÇ Rate Limiting ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
-app.use('/auth', rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max:      isDev ? 300 : 30,
-  standardHeaders: true, legacyHeaders: false,
-  skip: (req) => req.method === 'GET' && ['/login', '/register'].includes(req.path),
-  message: 'Too many login attempts. Please wait 15 minutes and try again.',
-}));
-
+// Many real guests can share one IP (resort Wi-Fi, mobile carriers), so this limit only stops floods:
+// page assets and the booking / check-in desk status checks don't count. Guessing passwords is limited
+// separately, per account, after the form is parsed (below).
 app.use(rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'),
-  max:      isDev ? 10000 : parseInt(process.env.RATE_LIMIT_MAX || '500'),
+  windowMs: 15 * 60 * 1000,
+  max:      isDev ? 100000 : parseInt(process.env.RATE_LIMIT_PER_IP || '3000', 10),
   standardHeaders: true, legacyHeaders: false,
-  skip: (req) => /^\/(css|js|images|img|qrcodes|uploads)\//.test(req.path),
+  skip: (req) => /^\/(css|js|images|img|fonts|vendor|qrcodes|uploads)\//.test(req.path)
+    || /^\/(sw\.js|manifest\.webmanifest|favicon\.(svg|ico)|offline\.html|health)$/.test(req.path)
+    || /^\/portal\/my-reservations\/\d+\/live$/.test(req.path)
+    || /^\/checkin\/desk\/(code|lists)$/.test(req.path),
   handler: (req, res) => {
-    if (req.session?.user) {
-      return res.status(429).render('errors/429', {
-        title:  'Too Many Requests',
-        layout: 'layouts/main',
-        message: 'You have sent too many requests. Please wait a moment.',
-      });
-    }
-    res.status(429).send('Too many requests. Please wait and try again.');
+    res.status(429).set('Retry-After', '60').type('html').send('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Please wait</title><body style="font-family:system-ui,sans-serif;text-align:center;padding:48px 20px"><h1>Please wait a moment</h1><p>There is a lot of traffic from your network right now. Please try again in a minute.</p><p><a href="/">Back to Balai-Reserve</a></p>');
   },
 }));
 
@@ -123,6 +148,19 @@ app.use(rateLimit({
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(express.json({ limit: '10mb' }));
 app.use(cookieParser());
+
+// Sign-in and account forms: limited per account + IP, so one person's mistakes (or someone guessing a
+// password) can't lock out everyone else on the same Wi-Fi; the second limit stops guessing many accounts.
+const AUTH_FORMS = new Set(['/login', '/register', '/forgot-password', '/reset-password', '/verify-email/resend']);
+const authFormOnly = (req) => req.method !== 'POST' || !AUTH_FORMS.has(req.path);
+const tooManyTries = 'Too many attempts. Please wait 15 minutes and try again.';
+app.use('/auth', rateLimit({
+  windowMs: 15 * 60 * 1000, max: isDev ? 1000 : 15, standardHeaders: true, legacyHeaders: false, skip: authFormOnly, message: tooManyTries,
+  keyGenerator: (req) => `${req.ip}|${String(req.body?.email || '').trim().toLowerCase()}`,
+}));
+app.use('/auth', rateLimit({
+  windowMs: 15 * 60 * 1000, max: isDev ? 5000 : 200, standardHeaders: true, legacyHeaders: false, skip: authFormOnly, message: tooManyTries,
+}));
 
 // ── Static files (before the session, so files never touch the session store) ──
 // Versioned URLs (?v=<hash>, added by src/utils/pageOptimizer.js) can be cached for a year; anything
@@ -350,7 +388,7 @@ try {
 // Columns added since the database was first set up (e.g. event package photos).
 require('./src/database/ensureSchema').ensureSchema().catch(err => console.error('[schema] check failed:', err.message));
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log('');
   console.log('  ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù');
   console.log('  Γòæ         Balai-Reserve is running         Γòæ');
@@ -369,3 +407,19 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+
+// Keep connections open longer than the CDN / proxy in front does: otherwise Node closes an idle connection
+// just as the proxy reuses it, and that visitor gets a random failed request.
+server.keepAliveTimeout = 75000;
+server.headersTimeout = 80000;
+server.requestTimeout = 120000;   // photo uploads on slow connections
+
+// Restarts and deploys: finish what is in progress, then exit.
+const shutdown = (signal) => {
+  console.log(`[${signal}] shutting down`);
+  server.close(() => db.close().catch(() => {}).finally(() => process.exit(0)));
+  setTimeout(() => process.exit(0), 10000).unref();
+};
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('unhandledRejection', (err) => console.error('[unhandledRejection]', err));

@@ -15,7 +15,7 @@ const crypto = require('crypto');
 const { ROOT_DIR, UPLOAD_ROOT } = require('../config/paths');
 
 let sharp = null;
-try { sharp = require('sharp'); sharp.cache(false); } catch { sharp = null; }
+try { sharp = require('sharp'); sharp.cache(false); sharp.concurrency(1); } catch { sharp = null; }
 
 const WIDTHS = [320, 480, 640, 800, 1200, 1600];
 const CACHE_DIR = path.join(UPLOAD_ROOT, '.cache', 'img');
@@ -24,6 +24,7 @@ const PHOTO = /^(uploads|images)\/[\w./-]+\.(jpe?g|png|webp)$/i;
 const PRIVATE = /(^|\/)(payment_proofs|refund_proofs|payments|proofs?|qrcodes?|qr)(\/|$)|qr[-_]/i;
 const YEAR = 'public, max-age=31536000, immutable';
 const inFlight = new Map();
+let queue = Promise.resolve();   // one resize at a time
 
 // '/uploads/rooms/a.jpg' (or 'images/landing/a.jpg') → absolute file path, or null if not a public photo.
 function sourceFile(rel) {
@@ -44,13 +45,13 @@ async function resized(abs, width) {
   const out = path.join(CACHE_DIR, String(width), key + '.webp');
   try { await fsp.access(out); return out; } catch { /* make it */ }
   if (inFlight.has(out)) return inFlight.get(out);
-  const job = (async () => {
+  const job = (queue = queue.catch(() => {}).then(async () => {
     await fsp.mkdir(path.dirname(out), { recursive: true });
     const tmp = out + '.' + process.pid + '.tmp';
     await sharp(abs, { failOn: 'none' }).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 72, effort: 4 }).toFile(tmp);
     await fsp.rename(tmp, out);
     return out;
-  })().finally(() => inFlight.delete(out));
+  })).finally(() => inFlight.delete(out));
   inFlight.set(out, job);
   return job;
 }

@@ -31,6 +31,13 @@ const pool = mysql.createPool({
   ...connectionConfig,
   waitForConnections: true,
   connectionLimit:    parseInt(process.env.DB_CONNECTION_LIMIT || '10', 10),
+  queueLimit:         200,      // beyond this, fail fast instead of piling up
+  connectTimeout:     10000,
+  // The hosting database and firewalls drop idle connections silently: keep them alive, and retire idle ones.
+  enableKeepAlive:    true,
+  keepAliveInitialDelay: 30000,
+  maxIdle:            3,
+  idleTimeout:        60000,
   charset:            'utf8mb4',
   // Keep values shaped the way the app has always seen them:
   // dates as 'YYYY-MM-DD[ HH:MM:SS]' strings and DECIMAL/SUM/AVG as numbers.
@@ -48,6 +55,7 @@ pool.pool.on('connection', (conn) => {
 });
 
 const txStorage = new AsyncLocalStorage();
+const QUERY_TIMEOUT_MS = 20000;   // a stuck query fails instead of holding the visitor's page forever
 
 // '2026-10-23T05:00:00.000Z' / '2026-10-23T14:30' -> MySQL DATETIME literal.
 const ISO_DATETIME = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}(?::\d{2})?)(?:\.\d+)?(Z|[+-]\d{2}:?\d{2})?$/;
@@ -80,7 +88,7 @@ function executor() {
 // Query errors keep mysql2's message (which routes may show to users);
 // the failing statement is available as err.sql for logging.
 async function execute(sql, params) {
-  const [result] = await executor().query(sql, normalizeParams(params));
+  const [result] = await executor().query({ sql, timeout: QUERY_TIMEOUT_MS }, normalizeParams(params));
   return result;
 }
 

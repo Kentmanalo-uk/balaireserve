@@ -2,7 +2,7 @@
  * Balai-Reserve — guest scanner for the resort's check-in QR (views/arrive/scan.xian)
  *
  * For phones whose camera app doesn't open QR links. Reads the QR with the browser's own
- * BarcodeDetector where it exists, otherwise jsQR (loaded on demand from jsDelivr), and opens the
+ * BarcodeDetector where it exists, otherwise jsQR (loaded on demand), and opens the
  * /arrive/<code> link it holds on this site (the QR may name another address for the same server,
  * e.g. the resort's Wi-Fi address, so only the path is used).
  */
@@ -12,7 +12,7 @@
   var video = $('arVideo'), finder = $('arViewfinder'), idle = $('arIdle'), idleText = $('arIdleText'), startBtn = $('arStart'), msg = $('arMsg');
   if (!video || !finder) return;
 
-  var JSQR_URL = 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js';
+  var JSQR_URL = '/vendor/jsQR.min.js';
   var stream = null, detector = null, decode = null, scanning = false, starting = false, timer = 0, canvas = null, ctx2d = null, lastBad = '';
 
   function setIdle(text, showStart) {
