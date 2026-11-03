@@ -6,6 +6,7 @@
  *   GET /privacy        privacy policy (Data Privacy Act of 2012)
  *   GET /terms          booking terms, built from the live booking settings
  *   GET /.well-known/security.txt   where to report a security problem
+ *   GET /faq.json, /faq       the FAQ guests see (managed at /faqs)
  */
 'use strict';
 
@@ -43,13 +44,13 @@ router.get('/sitemap.xml', async (req, res) => {
   const urls = [
     ['/', 'daily', '1.0'], ['/portal/rooms', 'daily', '0.9'], ['/portal/cottages', 'daily', '0.9'],
     ['/portal/venues', 'daily', '0.9'], ['/portal/calendar', 'daily', '0.7'], ['/portal/inquire', 'monthly', '0.5'],
-    ['/privacy', 'yearly', '0.3'], ['/terms', 'yearly', '0.3'],
+    ['/faq', 'monthly', '0.5'], ['/privacy', 'yearly', '0.3'], ['/terms', 'yearly', '0.3'],
   ].map(([path, freq, pri]) => ({ loc: base + path, freq, pri }));
   const lists = [
-    ['room', 'SELECT id, updated_at FROM rooms WHERE is_active = 1'],
-    ['cottage', 'SELECT id, updated_at FROM cottages WHERE is_active = 1'],
-    ['venue', 'SELECT id, updated_at FROM venues WHERE is_active = 1'],
-    ['package', 'SELECT id, updated_at FROM event_packages WHERE is_active = 1'],
+    ['room', 'SELECT id, updated_at FROM rooms WHERE is_active = 1 AND guest_booking = 1'],
+    ['cottage', 'SELECT id, updated_at FROM cottages WHERE is_active = 1 AND guest_booking = 1'],
+    ['venue', 'SELECT id, updated_at FROM venues WHERE is_active = 1 AND guest_booking = 1'],
+    ['package', 'SELECT id, updated_at FROM event_packages WHERE is_active = 1 AND guest_booking = 1'],
   ];
   for (const [kind, sql] of lists) {
     for (const r of await db.prepare(sql).all()) {
@@ -78,6 +79,22 @@ async function legalPage(req, res, view, title, metaDescription) {
     ...(await stay.layoutData(settings)),
   });
 }
+// FAQ (managed at /faqs): the public page, and the same list as JSON.
+async function shownFaqs() {
+  return db.prepare('SELECT question, answer FROM faqs WHERE is_active = 1 ORDER BY sort_order, id').all();
+}
+router.get('/faq.json', async (req, res) => {
+  res.set('Cache-Control', 'no-cache').json({ faqs: await shownFaqs() });
+});
+router.get('/faq', async (req, res) => {
+  const settings = await stay.siteSettings();
+  res.render('site/faq', {
+    title: 'FAQ – Balai-Reserve', layout: 'layouts/landing', site: publicSettings(settings), fmtTime: stay.fmtTime,
+    faqs: await shownFaqs(), metaDescription: 'Answers to common questions about staying and booking at Balai-Reserve, Gloria, Oriental Mindoro.',
+    ...(await stay.layoutData(settings)),
+  });
+});
+
 router.get('/privacy', (req, res) => legalPage(req, res, 'privacy', 'Privacy policy',
   'How Balai-Reserve, a beach resort in Gloria, Oriental Mindoro, collects, uses and protects guest information.'));
 router.get('/terms', (req, res) => legalPage(req, res, 'terms', 'Booking terms',

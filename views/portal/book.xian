@@ -340,7 +340,7 @@
               </div>
               <div class="col-sm-6">
                 <label class="form-label" for="contactPhone">Mobile number</label>
-                <input type="tel" name="contact_phone" id="contactPhone" class="form-control" value="<%= old.contact_phone || '' %>" placeholder="09171234567" inputmode="tel" autocomplete="tel" pattern="(?:\+639|09)[0-9]{9}" title="Enter a valid Philippine mobile number, such as +639545425256 or 09545425256." required aria-describedby="phoneHint" />
+                <input type="tel" name="contact_phone" id="contactPhone" class="form-control" value="<%= old.contact_phone || '' %>" placeholder="09XXXXXXXXX" inputmode="tel" autocomplete="tel" pattern="(?:\+639|09)[0-9]{9}" title="Enter a valid Philippine mobile number, such as +639545425256 or 09545425256." required aria-describedby="phoneHint" />
                 <div class="form-text" id="phoneHint">Philippine mobile: 09XXXXXXXXX or +639XXXXXXXXX. Staff use it if they need to reach you.</div>
               </div>
               <div class="col-12">

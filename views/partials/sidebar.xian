@@ -40,6 +40,7 @@
       { href: '/crm', icon: 'fa-address-book', text: 'Customers', on: navOn('/crm', '/crm/tickets') },
       { href: '/crm/tickets', icon: 'fa-ticket', text: 'Support Tickets', on: navOn('/crm/tickets') },
       { href: '/feedback', icon: 'fa-star-half-stroke', text: 'Feedback', on: navOn('/feedback') },
+      { href: '/faqs', icon: 'fa-question-circle', text: 'FAQ', on: navOn('/faqs') },
     ] });
   }
   if (isAdminRole) {

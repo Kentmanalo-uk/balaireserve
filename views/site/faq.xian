@@ -1,0 +1,18 @@
+<%# Public FAQ page (src/modules/site; managed at /faqs). %>
+<article class="legal wrap" aria-labelledby="faqPageTitle">
+  <p class="legal-kicker">Balai-Reserve</p>
+  <h1 id="faqPageTitle">Frequently asked questions</h1>
+  <% if (!faqs.length) { %>
+  <p>No questions have been added yet. <a href="/portal/inquire">Send us a message</a> and the resort will reply.</p>
+  <% } else { %>
+  <div class="faq-page">
+    <% for (const f of faqs) { %>
+    <details class="faq-page-item">
+      <summary><%= f.question %></summary>
+      <p><%= f.answer %></p>
+    </details>
+    <% } %>
+  </div>
+  <p class="legal-foot">Didn’t find your answer? <a href="/portal/inquire">Send us a message</a> and the resort will reply.</p>
+  <% } %>
+</article>

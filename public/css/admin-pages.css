@@ -917,3 +917,12 @@ tr.pkg-hidden .ap-name, tr.pkg-hidden td { color: var(--br-ink-2); }
 .bank-rows { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 14px; }
 .bank-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
 @media (max-width: 767.98px) { .bank-row { grid-template-columns: minmax(0, 1fr); padding-bottom: 12px; border-bottom: 1px solid var(--br-hairline); } .bank-row .ap-act { justify-self: start; } }
+
+/* FAQ management (views/faqs/index.xian) */
+.faq-form { padding: 16px; }
+.faq-admin-list { list-style: none; margin: 0; padding: 0; }
+.faq-admin-item { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 14px 16px; border-top: 1px solid var(--br-hairline); }
+.faq-admin-item.is-hidden .faq-admin-text { opacity: .6; }
+.faq-admin-q { margin: 0 0 4px; font-weight: 600; color: var(--br-ink); }
+.faq-admin-a { margin: 0; font-size: var(--br-fs-small); color: var(--br-ink-2); white-space: pre-line; }
+@media (max-width: 767.98px) { .faq-admin-item { flex-direction: column; } }

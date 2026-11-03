@@ -266,14 +266,14 @@ app.get('/', async (req, res) => {
   // and photos on the landing page always match what guests can book.
   // Only photos whose files exist are shown; listings with real photos lead.
   const featuredRooms = photosFirst(withExistingPhotos(await db.prepare(
-    "SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.is_active=1 ORDER BY r.price LIMIT 12"
+    "SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.is_active=1 AND r.guest_booking=1 ORDER BY r.price LIMIT 12"
   ).all()));
-  const featuredVenues   = photosFirst(withExistingPhotos(await db.prepare("SELECT * FROM venues   WHERE is_active=1 ORDER BY price LIMIT 3").all()));
-  const featuredCottages = photosFirst(withExistingPhotos(await db.prepare("SELECT * FROM cottages WHERE is_active=1 ORDER BY price LIMIT 6").all()));
+  const featuredVenues   = photosFirst(withExistingPhotos(await db.prepare("SELECT * FROM venues   WHERE is_active=1 AND guest_booking=1 ORDER BY price LIMIT 3").all()));
+  const featuredCottages = photosFirst(withExistingPhotos(await db.prepare("SELECT * FROM cottages WHERE is_active=1 AND guest_booking=1 ORDER BY price LIMIT 6").all()));
 
   // Inclusions are stored as {name, price, is_default, is_optional}; very old
   // rows may still be plain strings, which count as included items.
-  const eventPackages = withExistingPhotos(await db.prepare("SELECT * FROM event_packages WHERE is_active=1 ORDER BY price").all());
+  const eventPackages = withExistingPhotos(await db.prepare("SELECT * FROM event_packages WHERE is_active=1 AND guest_booking=1 ORDER BY price").all());
   await require('./src/utils/eventPackages').attachPlaces(eventPackages);
   for (const p of eventPackages) {
     let list = [];
@@ -353,7 +353,8 @@ app.use('/cottages',      staffArea, cottageRoutes);
 app.use('/reservations',  staffArea, reservationRoutes);
 app.use('/guests',        staffArea, guestRoutes);
 app.use('/events',        staffArea, eventRoutes);
-app.use('/packages',      staffArea, require('./src/modules/packages/routes'));   // event packages (Birthday, Wedding …)
+app.use('/packages',      staffArea, require('./src/modules/packages/routes'));
+app.use('/faqs',          staffArea, require('./src/modules/faqs/routes'));   // FAQ guests see in the FAQ button   // event packages (Birthday, Wedding …)
 app.use('/inventory',     staffArea, inventoryRoutes);
 app.use('/payments',      paymentRoutes);
 app.use('/inquiries',     staffArea, inquiryRoutes);

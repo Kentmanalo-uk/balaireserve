@@ -13,7 +13,7 @@
   </div>
   <% } %>
 <!--/page-head-->
-<p class="page-intro">Hide a room while it is under maintenance, and show it again when it is ready. Set a room to admin only to keep it on the website while only the resort can reserve it.</p>
+<p class="page-intro">Hide a room while it is under maintenance, and show it again when it is ready. Use “Admin view only” to keep a room off the website while staff can still reserve it.</p>
 
 <form method="GET" action="/rooms" class="ap-toolbar" role="search" aria-label="Filter rooms">
   <div class="ap-field ap-field-search">

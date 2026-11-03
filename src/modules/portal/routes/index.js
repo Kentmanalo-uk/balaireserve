@@ -265,16 +265,16 @@ async function calculateServerTotal(reservation_type, roomId, venueId, pkgId, ci
 }
 
 router.get('/', requireCustomerOrGuest, async (req, res) => {
-  const availableRooms  = (await db.prepare("SELECT COUNT(*) AS c FROM rooms  WHERE status='available' AND is_active=1").get()).c;
-  const availableVenues = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM venues WHERE status='available' AND is_active=1").get()).c;
-  const availableCottages = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM cottages WHERE status='available' AND is_active=1").get()).c;
-  const featuredRooms = photosFirst(withExistingPhotos(await db.prepare("SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.status='available' AND r.is_active=1 ORDER BY r.price").all())).slice(0, 3);
+  const availableRooms  = (await db.prepare("SELECT COUNT(*) AS c FROM rooms  WHERE status='available' AND is_active=1 AND guest_booking = 1").get()).c;
+  const availableVenues = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM venues WHERE status='available' AND is_active=1 AND guest_booking = 1").get()).c;
+  const availableCottages = (await db.prepare("SELECT COUNT(DISTINCT lower(trim(name))) AS c FROM cottages WHERE status='available' AND is_active=1 AND guest_booking = 1").get()).c;
+  const featuredRooms = photosFirst(withExistingPhotos(await db.prepare("SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id=r.room_type_id WHERE r.status='available' AND r.is_active=1 AND guest_booking = 1 ORDER BY r.price").all())).slice(0, 3);
   for (const r of featuredRooms) { try { r.imagesList = JSON.parse(r.images || '[]'); } catch { r.imagesList = []; } }
-  const featuredVenues = photosFirst(withExistingPhotos(uniqueCatalogRows(await db.prepare("SELECT * FROM venues WHERE status='available' AND is_active=1 ORDER BY price").all()))).slice(0, 3);
+  const featuredVenues = photosFirst(withExistingPhotos(uniqueCatalogRows(await db.prepare("SELECT * FROM venues WHERE status='available' AND is_active=1 AND guest_booking = 1 ORDER BY price").all()))).slice(0, 3);
   for (const v of featuredVenues) { try { v.imagesList = JSON.parse(v.images || '[]'); } catch { v.imagesList = []; } }
-  const featuredCottages = photosFirst(withExistingPhotos(uniqueCatalogRows(await db.prepare("SELECT * FROM cottages WHERE status='available' AND is_active=1 ORDER BY price").all()))).slice(0, 3);
+  const featuredCottages = photosFirst(withExistingPhotos(uniqueCatalogRows(await db.prepare("SELECT * FROM cottages WHERE status='available' AND is_active=1 AND guest_booking = 1 ORDER BY price").all()))).slice(0, 3);
   for (const c of featuredCottages) { try { c.imagesList = JSON.parse(c.images || '[]'); } catch { c.imagesList = []; } }
-  const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`).slice(0, 4);
+  const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 AND guest_booking = 1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`).slice(0, 4);
   // The guest's active bookings, so the home page can lead with their next step (pay, upload proof, upcoming stay).
   let activeBookings = [];
   if (req.session?.user) {
@@ -323,7 +323,7 @@ router.get('/', requireCustomerOrGuest, async (req, res) => {
 
 router.get('/rooms', requireCustomerOrGuest, async (req, res) => {
   const { checkin = '', checkout = '', guests = '', type = '', sort = 'price_asc' } = req.query;
-  let where = 'WHERE r.is_active=1';
+  let where = 'WHERE r.is_active=1 AND guest_booking = 1';
   const params = [];
   if (type)   { where += ' AND rt.name=?';    params.push(type); }
   if (guests) { where += ' AND r.capacity>=?'; params.push(parseInt(guests)); }
@@ -339,14 +339,14 @@ router.get('/rooms', requireCustomerOrGuest, async (req, res) => {
     r.isAvailable = !r.adminOnly && BOOKABLE_RESOURCE_STATUSES.has(r.status) &&
       (checkin && checkout ? !bookedIds.has(r.id) : true);
   }
-  const roomTypes = await db.prepare('SELECT DISTINCT rt.name FROM room_types rt JOIN rooms r ON r.room_type_id = rt.id WHERE r.is_active = 1 ORDER BY rt.name').all();
+  const roomTypes = await db.prepare('SELECT DISTINCT rt.name FROM room_types rt JOIN rooms r ON r.room_type_id = rt.id WHERE r.is_active = 1 AND guest_booking = 1 ORDER BY rt.name').all();
   res.render('portal/rooms', { title: 'Browse Rooms – Balai-Reserve', layout: 'layouts/portal', rooms, roomTypes, filters: { checkin, checkout, guests, type, sort } });
 });
 
 router.get('/venues', requireCustomerOrGuest, async (req, res) => {
   const { date = '', guests = '', type = '', sort = 'price_asc', start_time = '', end_time = '' } = req.query;
   const okTimes = /^\d{2}:\d{2}$/.test(start_time) && /^\d{2}:\d{2}$/.test(end_time) && end_time > start_time;
-  let where = 'WHERE is_active=1';
+  let where = 'WHERE is_active=1 AND guest_booking = 1';
   const params = [];
   if (type)   { where += ' AND venue_type=?'; params.push(type); }
   if (guests) { where += ' AND capacity>=?';  params.push(parseInt(guests)); }
@@ -360,8 +360,8 @@ router.get('/venues', requireCustomerOrGuest, async (req, res) => {
     v.isAvailable = !v.adminOnly && BOOKABLE_RESOURCE_STATUSES.has(v.status) &&
       (date ? !bookedIds.has(v.id) : true);
   }
-  const venueTypes = (await db.prepare(`SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 ORDER BY venue_type`).all()).map(r => r.venue_type);
-  const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`);
+  const venueTypes = (await db.prepare(`SELECT DISTINCT venue_type FROM venues WHERE is_active = 1 AND guest_booking = 1 ORDER BY venue_type`).all()).map(r => r.venue_type);
+  const packages = uniqueCatalogRows(await db.prepare('SELECT * FROM event_packages WHERE is_active=1 AND guest_booking = 1 ORDER BY price').all(), p => `${p.event_type || ''}:${p.name}`);
   for (const p of packages) { try { p.inclusionsList = JSON.parse(p.inclusions || '[]'); } catch { p.inclusionsList = []; } }
   await attachPlaces(packages);
   res.render('portal/venues', { title: 'Browse Venues – Balai-Reserve', layout: 'layouts/portal', venues, venueTypes, packages, filters: { date, guests, type, sort, start_time: okTimes ? start_time : '', end_time: okTimes ? end_time : '' } });
@@ -370,7 +370,7 @@ router.get('/venues', requireCustomerOrGuest, async (req, res) => {
 router.get('/cottages', requireCustomerOrGuest, async (req, res) => {
   const { date = '', guests = '', sort = 'price_asc', max_price = '', start_time = '', end_time = '' } = req.query;
   const okTimes = /^\d{2}:\d{2}$/.test(start_time) && /^\d{2}:\d{2}$/.test(end_time) && end_time > start_time;
-  let where = 'WHERE is_active=1';
+  let where = 'WHERE is_active=1 AND guest_booking = 1';
   const params = [];
   if (guests)    { where += ' AND capacity>=?'; params.push(parseInt(guests)); }
   if (max_price) { where += ' AND price<=?';    params.push(parseFloat(max_price)); }

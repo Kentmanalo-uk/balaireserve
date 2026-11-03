@@ -175,6 +175,7 @@
       <% if (_site.resort_phone) { %><a href="tel:<%= String(_site.resort_phone).replace(/[^\d+]/g, '') %>"><%= _site.resort_phone %></a><% } %>
       <% if (_site.resort_email) { %><a href="mailto:<%= _site.resort_email %>"><%= _site.resort_email %></a><% } %>
       <a href="https://www.facebook.com/BalaiMiciano" target="_blank" rel="noopener noreferrer">Facebook<span class="br-sr-only"> (opens in a new tab)</span></a>
+      <a href="/faq">FAQ</a>
       <a href="/portal/inquire">Send an inquiry</a>
     </div>
   </div>

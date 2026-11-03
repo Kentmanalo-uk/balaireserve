@@ -1193,3 +1193,8 @@ html.pk-lock { overflow: hidden; }
 .legal li + li { margin-top: 6px; }
 .legal-foot { margin-top: 36px; padding-top: 16px; border-top: 1px solid var(--color-divider, #e6e2d8); }
 .footer-base a { color: inherit; }
+
+/* Public FAQ page (views/site/faq.xian) */
+.faq-page-item { border-bottom: 1px solid var(--color-divider, #e6e2d8); }
+.faq-page-item summary { padding: 16px 0; font-weight: 600; font-size: 1.0625rem; color: var(--color-ocean-900); cursor: pointer; }
+.faq-page-item p { margin: 0 0 16px; white-space: pre-line; }

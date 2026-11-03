@@ -144,7 +144,9 @@ window.addEventListener('load', function () {
       var family = STATUS_FAMILY[r.status] || 'gray';
       var type   = TYPE_LABELS[r.reservation_type] || (r.is_event ? 'Event' : '');
       var name   = r.is_event ? (r.event_name || r.title) : (r.customer_name || r.title || '');
-      var label  = statusText(r.status) + ' · ' + name + (type ? ' (' + type + ')' : '');
+      // The room, cottage, hall or package booked, so staff see it without opening the booking.
+      var place  = r.room_name || r.venue_name || (r.is_event ? '' : r.event_name) || '';
+      var label  = statusText(r.status) + ' · ' + name + (place ? ' · ' + place : (type ? ' (' + type + ')' : ''));
 
       var start  = r.checkin_date || r.event_date || '';
       var end    = r.checkout_date || r.event_date || '';

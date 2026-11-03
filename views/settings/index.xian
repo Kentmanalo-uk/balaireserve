@@ -319,7 +319,7 @@
   <section class="ap-section" aria-labelledby="setGuestBookingHeading">
     <div class="ap-section-intro">
       <h2 id="setGuestBookingHeading">Online booking</h2>
-      <p>Turn this off and the whole website stays visible, but only the resort can make reservations. To do this for one room, cottage, venue or package, use “Set admin only” on its list.</p>
+      <p>Turn this off and the whole website stays visible, but only the resort can make reservations. To do this for one room, cottage, venue or package, use “Admin view only” on its list.</p>
     </div>
     <div class="ap-section-body">
       <div class="form-check form-switch">

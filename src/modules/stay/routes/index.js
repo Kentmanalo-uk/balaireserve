@@ -97,7 +97,7 @@ function withInclusions(p) {
 // Active packages with their inclusions and the places they include (p.places, p.hall).
 async function activePackages() {
   return attachPlaces(uniqueCatalogRows(
-    await db.prepare('SELECT * FROM event_packages WHERE is_active = 1 ORDER BY price').all(),
+    await db.prepare('SELECT * FROM event_packages WHERE is_active = 1 AND guest_booking = 1 ORDER BY price').all(),
     p => `${p.event_type || ''}:${p.name}`
   ).map(withInclusions));
 }
@@ -105,30 +105,30 @@ async function activePackages() {
 async function loadItem(kind, id) {
   if (kind === 'room') {
     return db.prepare(`SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id
-                       WHERE r.id = ? AND r.is_active = 1`).get(id);
+                       WHERE r.id = ? AND r.is_active = 1 AND r.guest_booking = 1`).get(id);
   }
-  return db.prepare(`SELECT * FROM ${KINDS[kind].table} WHERE id = ? AND is_active = 1`).get(id);
+  return db.prepare(`SELECT * FROM ${KINDS[kind].table} WHERE id = ? AND is_active = 1 AND guest_booking = 1`).get(id);
 }
 
 async function siblings(kind, id) {
   let rows;
   if (kind === 'room') {
     rows = await db.prepare(`SELECT r.*, rt.name AS type_name FROM rooms r JOIN room_types rt ON rt.id = r.room_type_id
-                             WHERE r.is_active = 1 AND r.id <> ? ORDER BY r.price`).all(id);
+                             WHERE r.is_active = 1 AND r.guest_booking = 1 AND r.id <> ? ORDER BY r.price`).all(id);
   } else {
-    rows = uniqueCatalogRows(await db.prepare(`SELECT * FROM ${KINDS[kind].table} WHERE is_active = 1 AND id <> ? ORDER BY price`).all(id));
+    rows = uniqueCatalogRows(await db.prepare(`SELECT * FROM ${KINDS[kind].table} WHERE is_active = 1 AND guest_booking = 1 AND id <> ? ORDER BY price`).all(id));
   }
   return photosFirst(withExistingPhotos(rows)).slice(0, 3);
 }
 
 // Shared layout data: nav shows Events / Gallery only when there is something there.
 async function layoutData(settings) {
-  const hasEvents = (await db.prepare('SELECT COUNT(*) AS c FROM event_packages WHERE is_active = 1').get()).c > 0;
+  const hasEvents = (await db.prepare('SELECT COUNT(*) AS c FROM event_packages WHERE is_active = 1 AND guest_booking = 1').get()).c > 0;
   let hasGallery = parseList(settings.landing_gallery).some(g => g && typeof g.path === 'string' && g.path.startsWith('/uploads/settings/landing/'));
   if (!hasGallery) {
     const rows = [
-      ...await db.prepare('SELECT images FROM rooms WHERE is_active = 1').all(),
-      ...await db.prepare('SELECT images FROM cottages WHERE is_active = 1').all(),
+      ...await db.prepare('SELECT images FROM rooms WHERE is_active = 1 AND guest_booking = 1').all(),
+      ...await db.prepare('SELECT images FROM cottages WHERE is_active = 1 AND guest_booking = 1').all(),
     ];
     hasGallery = withExistingPhotos(rows).some(r => r.imagesList && r.imagesList.length);
   }
@@ -222,7 +222,7 @@ router.get('/package/:id', async (req, res, next) => {
 
   // The function hall that can hold this package's guest count, if any (offered as an alternative).
   const halls = photosFirst(withExistingPhotos(uniqueCatalogRows(
-    await db.prepare('SELECT * FROM venues WHERE is_active = 1 ORDER BY price').all()
+    await db.prepare('SELECT * FROM venues WHERE is_active = 1 AND guest_booking = 1 ORDER BY price').all()
   ))).filter(v => !pkg.capacity || !v.capacity || Number(v.capacity) >= Number(pkg.capacity));
 
   const occasion = OCCASIONS[pkg.event_type] || 'Gathering';

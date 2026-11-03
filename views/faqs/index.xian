@@ -1,0 +1,61 @@
+<% layout('layouts/main') %>
+<%# FAQ management (src/modules/faqs). Guests see the shown questions on the public FAQ page (/faq). %>
+<div class="ap-page">
+
+<!--page-head-->
+<h1 class="ph-title">FAQ</h1>
+<div class="ph-actions"><a href="/faq" class="btn btn-secondary-quiet" target="_blank" rel="noopener"><i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>Guest view<span class="visually-hidden"> (opens in a new tab)</span></a></div>
+<!--/page-head-->
+<p class="page-intro">Frequently asked questions guests see on the website’s FAQ page (linked in the footer). Keep answers short and current; guests who need more can send an inquiry.</p>
+
+<% if (errors && errors.length) { %>
+<div class="alert alert-danger ap-errors" role="alert"><strong>Please fix the following:</strong><ul><% for (const e of errors) { %><li><%= e.msg %></li><% } %></ul></div>
+<% } %>
+
+<section class="ap-panel" aria-labelledby="faqFormTitle">
+  <div class="ap-panel-head"><h2 id="faqFormTitle"><%= editing ? 'Edit question' : 'Add a question' %></h2></div>
+  <form action="<%= editing ? '/faqs/' + editing.id + '/edit' : '/faqs' %>" method="POST" class="faq-form" data-guard="this question">
+    <div class="mb-3">
+      <label class="form-label required" for="faqQuestion">Question</label>
+      <input type="text" class="form-control" id="faqQuestion" name="question" value="<%= old.question || '' %>" maxlength="255" placeholder="e.g. Can we bring our own food?" required />
+    </div>
+    <div class="mb-3">
+      <label class="form-label required" for="faqAnswer">Answer</label>
+      <textarea class="form-control" id="faqAnswer" name="answer" rows="4" maxlength="4000" placeholder="The answer guests will read" required><%= old.answer || '' %></textarea>
+    </div>
+    <div class="form-check form-switch mb-3">
+      <input class="form-check-input" type="checkbox" role="switch" id="faqActive" name="is_active" value="1" <%= String(old.is_active) === '1' ? 'checked' : '' %> />
+      <label class="form-check-label" for="faqActive">Show to guests</label>
+    </div>
+    <div class="ap-actions">
+      <button type="submit" class="btn btn-primary"><%= editing ? 'Save changes' : 'Add question' %></button>
+      <% if (editing) { %><a href="/faqs" class="btn btn-secondary-quiet">Cancel</a><% } %>
+    </div>
+  </form>
+</section>
+
+<section class="ap-panel" aria-labelledby="faqListTitle">
+  <div class="ap-panel-head"><h2 id="faqListTitle">Questions <span class="ap-meta"><%= faqs.filter(f => f.is_active).length %> shown · <%= faqs.filter(f => !f.is_active).length %> hidden</span></h2></div>
+  <% if (!faqs.length) { %>
+  <div class="ap-empty"><strong>No questions yet</strong>Add the questions guests ask most often.</div>
+  <% } else { %>
+  <ol class="faq-admin-list" role="list">
+    <% faqs.forEach((f, i) => { %>
+    <li class="faq-admin-item<%= f.is_active ? '' : ' is-hidden' %>">
+      <div class="faq-admin-text">
+        <p class="faq-admin-q"><%= f.question %> <% if (!f.is_active) { %><span class="status-chip st-gray">Hidden</span><% } %></p>
+        <p class="faq-admin-a"><%= f.answer.length > 220 ? f.answer.slice(0, 220) + '…' : f.answer %></p>
+      </div>
+      <div class="ap-actions">
+        <form action="/faqs/<%= f.id %>/move" method="POST"><input type="hidden" name="dir" value="up" /><button type="submit" class="ap-act" <%= i === 0 ? 'disabled' : '' %> aria-label="Move up: <%= f.question %>"><i class="fas fa-arrow-up" aria-hidden="true"></i></button></form>
+        <form action="/faqs/<%= f.id %>/move" method="POST"><input type="hidden" name="dir" value="down" /><button type="submit" class="ap-act" <%= i === faqs.length - 1 ? 'disabled' : '' %> aria-label="Move down: <%= f.question %>"><i class="fas fa-arrow-down" aria-hidden="true"></i></button></form>
+        <a href="/faqs/<%= f.id %>/edit" class="ap-act">Edit</a>
+        <form action="/faqs/<%= f.id %>/visibility" method="POST"><input type="hidden" name="show" value="<%= f.is_active ? '0' : '1' %>" /><button type="submit" class="ap-act"><%= f.is_active ? 'Hide' : 'Show' %></button></form>
+        <form action="/faqs/<%= f.id %>/delete" method="POST"><button type="submit" class="ap-act is-danger" data-confirm="Delete this question? This can’t be undone." data-confirm-type="danger" data-confirm-title="Delete question" data-confirm-ok="Delete">Delete</button></form>
+      </div>
+    </li>
+    <% }) %>
+  </ol>
+  <% } %>
+</section>
+</div>

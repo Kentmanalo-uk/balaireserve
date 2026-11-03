@@ -2,7 +2,7 @@
  * Controls shared by rooms, cottages, venues and event packages:
  *   POST <base>/:id/visibility     show on / hide from the website. Nothing is deleted, so a place under
  *                                  maintenance can be hidden and brought back in one click.
- *   POST <base>/:id/guest-booking  let guests reserve it online, or leave reservations to the resort.
+ *   POST <base>/:id/guest-booking  admin view only: guests don't see it at all, but staff can still reserve it.
  * settings.guest_booking_enabled = '0' turns online booking off for the whole site (Settings → Booking).
  * Staff can always book from the back office.
  */
@@ -47,7 +47,7 @@ function attachListingControls(router, { table, base, noun, visibility = true })
     const on = req.body.on === '1';
     await db.prepare(`UPDATE ${table} SET guest_booking = ?, updated_at = NOW() WHERE id = ?`).run(on ? 1 : 0, row.id);
     await req.audit('guest_booking', table, row.id, { guest_booking: row.guest_booking }, { guest_booking: on ? 1 : 0 });
-    req.session.flash = { success: on ? `Guests can book "${row.name}" online again.` : `"${row.name}" stays on the website, but only the resort can reserve it now.` };
+    req.session.flash = { success: on ? `Guests can see and book "${row.name}" again.` : `"${row.name}" is now admin view only: guests don't see it, and staff can still reserve it.` };
     res.redirect(back(req));
   });
 }
