@@ -439,6 +439,24 @@
     </div>
   </section>
 
+  <%# ── About section text ────────────────────── %>
+  <section class="ap-section" aria-labelledby="setAboutTextHeading">
+    <div class="ap-section-intro">
+      <h2 id="setAboutTextHeading">About text</h2>
+      <p>The short story about the resort on the home page. Leave both empty and the About section isn’t shown. Avoid prices here; guests see them when they book.</p>
+    </div>
+    <div class="ap-section-body">
+      <form action="/settings/landing/about-text" method="POST" data-guard="About text">
+        <label class="form-label" for="aboutTitleInput">Heading</label>
+        <input type="text" class="form-control mb-3" id="aboutTitleInput" name="landing_about_title" maxlength="120" value="<%= siteSettings.landing_about_title || '' %>" placeholder="e.g. A small resort on the Gloria shoreline" />
+        <label class="form-label" for="aboutTextInput">Text</label>
+        <textarea class="form-control" id="aboutTextInput" name="landing_about_text" rows="6" maxlength="3000" aria-describedby="aboutTextHelp"><%= siteSettings.landing_about_text || '' %></textarea>
+        <div id="aboutTextHelp" class="form-text">Leave an empty line between paragraphs.</div>
+        <button type="submit" class="btn btn-primary mt-3"><i class="fas fa-save" aria-hidden="true"></i>Save About text</button>
+      </form>
+    </div>
+  </section>
+
   <%# ── About section photo ───────────────────── %>
   <section class="ap-section" aria-labelledby="setAboutHeading">
     <div class="ap-section-intro">

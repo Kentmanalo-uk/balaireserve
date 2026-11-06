@@ -65,8 +65,8 @@
   const _isStaff    = currentUser && currentUser.role !== 'customer';
   const _cta        = _onHome ? { href: '#search', label: 'Check availability' }
                     : (typeof ctaHref !== 'undefined' && ctaHref ? { href: ctaHref, label: 'Check availability' } : { href: '/#search', label: 'Check availability' });
-  const _nav = [['#stay', 'Stay'], ['#cottages', 'Cottages']];
-  if (_hasEvents)  _nav.push(['#events', 'Events']);
+  // Marketing pages don't lead with accommodation tiles and prices: the menu is the gallery and contact.
+  const _nav = [];
   if (_hasGallery) _nav.push(['#gallery', 'Gallery']);
   _nav.push(['#contact', 'Contact']);
 

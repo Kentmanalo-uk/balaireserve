@@ -8,10 +8,13 @@
   const _r = _l.row || {};
   const _shown = Number(_r.is_active) === 1;
   const _guest = Number(_r.guest_booking) !== 0;
+  // A room/cottage/venue status of maintenance or unavailable also closes online booking (set on its edit page).
+  const _blocked = ['maintenance', 'unavailable'].includes(String(_r.status || ''));
 %>
 <% if (_l.part === 'state') { %>
 <span class="lc-chips">
   <% if (_l.visibility !== false) { %><span class="status-chip <%= _shown ? 'st-teal' : 'st-gray' %>"><%= _shown ? 'Shown' : 'Hidden' %></span><% } %>
+  <% if (_blocked) { %><span class="status-chip st-red" title="Guests can't book it while its status is <%= _r.status %>. Change it on the Edit page.">Closed: <%= statusLabel(_r.status) %></span><% } %>
   <span class="status-chip <%= _guest ? 'st-blue' : 'st-amber' %>" title="<%= _guest ? 'Guests see it and can book it online' : 'Hidden from guests; staff can still reserve it' %>"><%= _guest ? 'Guests can book' : 'Admin view only' %></span>
 </span>
 <% } else if (_l.canManage) { %>

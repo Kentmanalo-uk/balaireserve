@@ -152,99 +152,14 @@
         <button type="submit" class="btn btn-primary btn-lg search-submit" id="heroSearchBtn"><i class="fas fa-magnifying-glass" aria-hidden="true"></i> Check availability</button>
       </div>
       <p class="search-error" id="heroError" role="alert" hidden></p>
-      <p class="search-help">Choose your dates to see what’s open, with live prices. Online bookings stay <strong>Awaiting payment</strong> until staff verify your <%= dpPercent %>% downpayment.</p>
+      <p class="search-help">Choose your dates to see what’s open. Online bookings stay <strong>Awaiting payment</strong> until staff verify your <%= dpPercent %>% downpayment.</p>
     </form>
   </div>
 </div>
 
-<%# ── Find your spot: rooms (per night), cottages, the venue, event packages ── %>
-<section class="section stay" id="stay" aria-labelledby="stayTitle">
-  <span id="accommodations" class="anchor-alias" aria-hidden="true"></span>
-  <div class="wrap">
-    <div class="section-head section-head--split">
-      <div>
-        <h2 class="section-title" id="stayTitle">Find your spot by the sea</h2>
-        <p class="section-sub">Rooms are priced per night. Cottages, the function hall and event packages are one flat price per booking.</p>
-      </div>
-      <a href="/portal/calendar" class="text-link">Availability calendar <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
-    </div>
-
-    <% if (tabs.length > 1) { %>
-    <div class="cat-switch" data-tabs hidden>
-      <div class="cat-tabs-row" role="tablist" aria-label="Browse by type">
-        <% tabs.forEach(function (t, i) { %>
-        <button type="button" class="cat-tab" role="tab" id="tab-<%= t.id %>" aria-controls="<%= t.id %>" aria-selected="<%= i === 0 ? 'true' : 'false' %>" tabindex="<%= i === 0 ? '0' : '-1' %>"><%= t.label %> <span class="cat-n"><%= t.n %></span></button>
-        <% }) %>
-      </div>
-    </div>
-    <% } %>
-
-    <% if (rooms.length) { %>
-    <div class="cat-panel" id="rooms" aria-labelledby="roomsTitle">
-      <div class="cat-panel-head">
-        <h3 class="group-title" id="roomsTitle">Rooms <span>overnight · check-in <%= checkIn %>, check-out <%= checkOut %></span></h3>
-        <a href="/portal/rooms" class="text-link">Compare rooms by date <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
-      </div>
-      <div class="lst-grid lst-grid--<%= rooms.length % 3 === 1 || rooms.length === 2 ? 2 : 3 %>">
-        <% for (const r of rooms) { %>
-        <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: r, kind: 'room', variant: 'tile', h: 'h4' } }))%>
-        <% } %>
-      </div>
-    </div>
-    <% } %>
-
-    <% if (cottages.length) { %>
-    <div class="cat-panel" id="cottages" aria-labelledby="cottagesTitle">
-      <div class="cat-panel-head">
-        <h3 class="group-title" id="cottagesTitle">Cottages <span>day use · one flat rate, whatever the hours</span></h3>
-        <a href="/portal/cottages" class="text-link">Compare cottages by date <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
-      </div>
-      <div class="lst-grid lst-grid--<%= cottages.length % 3 === 1 || cottages.length === 2 ? 2 : 3 %>">
-        <% for (const c of cottages) { %>
-        <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: c, kind: 'cottage', variant: 'tile', h: 'h4' } }))%>
-        <% } %>
-      </div>
-    </div>
-    <% } %>
-
-    <% if (venues.length) { %>
-    <div class="cat-panel" id="venue" aria-labelledby="hallTitle">
-      <span id="hall" class="anchor-alias" aria-hidden="true"></span>
-      <div class="cat-panel-head">
-        <h3 class="group-title" id="hallTitle">Function hall <span>for your own event · one flat rate</span></h3>
-        <% if (packages.length) { %><a href="#events" class="text-link">Or choose an event package <i class="fas fa-arrow-right" aria-hidden="true"></i></a><% } %>
-      </div>
-      <% for (const v of venues) { %>
-      <%include('partials/listing-card', Object.assign({}, __locals, { card: { row: v, kind: 'venue', variant: 'feature', h: 'h4', dp: dpPercent } }))%>
-      <% } %>
-    </div>
-    <% } %>
-
-    <% if (packages.length) { %>
-    <div class="cat-panel" id="packages" aria-labelledby="pkgTabTitle">
-      <div class="cat-panel-head">
-        <h3 class="group-title" id="pkgTabTitle">Event packages <span>one price per event · add-ons optional</span></h3>
-        <a href="#events" class="text-link">Compare inclusions <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
-      </div>
-      <ul class="pk-mini" role="list">
-        <% for (const p of packages) { %>
-        <li>
-          <a href="/stay/package/<%= p.id %>" class="pk-mini-link">
-            <span class="pk-mini-occ"><%= occOf(p) %></span>
-            <span class="pk-mini-name"><%= p.name %></span>
-            <span class="pk-mini-meta"><%= p.capacity ? 'Up to ' + p.capacity + ' guests' : '' %><%= p.capacity && p.includedItems.length ? ' · ' : '' %><%= p.includedItems.length ? p.includedItems.length + ' included' : '' %></span>
-            <span class="pk-mini-price"><strong><%= formatPrice(p.price) %></strong> / event</span>
-            <i class="fas fa-arrow-right" aria-hidden="true"></i>
-          </a>
-        </li>
-        <% } %>
-      </ul>
-    </div>
-    <% } %>
-  </div>
-</section>
-
-<%# ── About: a real photo and a short, factual story ── %>
+<%# ── About: text from Settings → Landing page (none → the section is left out). No prices here. ── %>
+<% const aboutTitle = String(site.landing_about_title || '').trim(); const aboutParas = String(site.landing_about_text || '').split(String.fromCharCode(10) + String.fromCharCode(10)).map(p => p.trim()).filter(Boolean); %>
+<% if (aboutTitle || aboutParas.length) { %>
 <section class="section about<%= aboutImage ? ' has-photo' : '' %>" id="about" aria-labelledby="aboutTitle">
   <div class="wrap about-grid">
     <% if (aboutImage) { %>
@@ -254,26 +169,12 @@
     </figure>
     <% } %>
     <div class="about-text">
-      <h2 class="section-title" id="aboutTitle">A small resort on the Gloria shoreline</h2>
-      <p class="lede">
-        Balai-Reserve sits right on the beach in Brgy. San Antonio, Gloria, Oriental Mindoro.
-        Families and barkadas come to stay the night, to spend a day under a cottage by the sea,
-        or to celebrate with everyone in one place.
-      </p>
-      <p>
-        <% if (rooms.length) { %>Stay overnight in the <%= orList(rooms.map(r => r.name)) %>.<% } %>
-        <% if (cottages.length) { %> For a day trip, book the <%= orList(cottages.map(c => c.name)) %> at one flat rate.<% } %>
-        <% if (venues.length) { %> Receptions and parties are held at the <%= venues[0].name %>, which takes up to <%= venues[0].capacity %> guests.<% } %>
-      </p>
-      <dl class="about-facts">
-        <% if (rooms.length) { %><div><dt><%= rooms.length %> <%= rooms.length === 1 ? 'room' : 'rooms' %></dt><dd>From <%= formatPrice(minOf(rooms)) %> a night · up to <%= maxCap(rooms) %> guests</dd></div><% } %>
-        <% if (cottages.length) { %><div><dt><%= cottages.length %> <%= cottages.length === 1 ? 'cottage' : 'cottages' %></dt><dd>From <%= formatPrice(minOf(cottages)) %> per booking</dd></div><% } %>
-        <% if (venues.length) { %><div><dt><%= venues.length === 1 ? 'Function hall' : venues.length + ' venues' %></dt><dd>Up to <%= maxCap(venues) %> guests · <%= formatPrice(minOf(venues)) %> per booking</dd></div><% } %>
-        <div><dt>Check-in <%= checkIn %></dt><dd>Check-out by <%= checkOut %></dd></div>
-      </dl>
+      <% if (aboutTitle) { %><h2 class="section-title" id="aboutTitle"><%= aboutTitle %></h2><% } %>
+      <% aboutParas.forEach((p, i) => { %><p<%- i === 0 ? ' class="lede"' : '' %>><%= p %></p><% }) %>
     </div>
   </div>
 </section>
+<% } %>
 
 <%# ── Gallery mosaic: one dominant photo + supporting photos, all open in the photo viewer ── %>
 <% if (galleryPhotos.length > 0) { %>
@@ -298,86 +199,6 @@
       <% if (galleryPhotos.length > 1) { %>
       <button type="button" class="btn gal-all" data-photo-index="0"><i class="fas fa-images" aria-hidden="true"></i> View all <%= galleryPhotos.length %> photos</button>
       <% } %>
-    </div>
-  </div>
-</section>
-<% } %>
-
-<%# ── Events: lead with real occasions, then comparison rows ── %>
-<% if (packages.length) { %>
-<section class="section events" id="events" aria-labelledby="eventsTitle">
-  <div class="wrap">
-    <div class="ev-head">
-      <div class="ev-head-text">
-        <h2 class="ev-title" id="eventsTitle">
-          <span class="br-sr-only">Celebrate weddings, debuts, birthdays and milestones by the sea</span>
-          <span aria-hidden="true">Celebrate <span class="ev-rotator"><span class="ev-words"><span>weddings</span><span>debuts</span><span>birthdays</span><span>milestones</span><span>weddings</span></span></span><br>by the sea.</span>
-        </h2>
-        <p class="ev-lede">One price per event<% if (venues.length && venues[0].capacity) { %> at the <%= venues[0].name %>, for up to <%= venues[0].capacity %> guests<% } %>.</p>
-        <a class="ev-link" href="/portal/inquire">Planning something different? Ask us<i class="fas fa-arrow-right" aria-hidden="true"></i></a>
-      </div>
-      <%# Decorative: an open pavilion with twinkling string lights, a cake table, floating balloons, a palm and the sea. %>
-      <div class="ev-art" aria-hidden="true">
-        <svg viewBox="0 0 460 320" focusable="false">
-          <defs><clipPath id="evArtClip"><ellipse cx="236" cy="168" rx="218" ry="150"/></clipPath></defs>
-          <ellipse cx="236" cy="168" rx="218" ry="150" fill="#f3ece0"/>
-          <circle class="sun" cx="356" cy="78" r="34" fill="#f6dfb0"/>
-          <g clip-path="url(#evArtClip)">
-            <path class="wave wave-1" d="M-72 236q36-12 72 0t72 0 72 0 72 0 72 0 72 0 72 0 72 0v84H-72z" fill="#8fcfc4" opacity=".55"/>
-            <path class="wave wave-2" d="M-72 254q36-10 72 0t72 0 72 0 72 0 72 0 72 0 72 0 72 0v66H-72z" fill="#8fcfc4" opacity=".85"/>
-          </g>
-          <rect x="104" y="246" width="252" height="14" rx="5" fill="#e3d2b2"/>
-          <g class="palm">
-            <path d="M398 258c-6-48-2-92 10-128" stroke="#a9825a" stroke-width="9" stroke-linecap="round" fill="none"/>
-            <path d="M408 130c-22-18-52-16-70 2 24-6 44-2 70-2z" fill="#0f5c66"/>
-            <path d="M408 130c18-24 46-28 66-16-24 0-42 6-66 16z" fill="#2a7d6f"/>
-            <path d="M408 130c-8-26 2-50 22-60-10 20-14 38-22 60z" fill="#2a7d6f"/>
-            <path d="M408 130c10 14 12 36 4 54-2-20-6-36-4-54z" fill="#0f5c66"/>
-          </g>
-          <path d="M116 120 230 58l114 62z" fill="#0f5c66"/>
-          <path d="M230 58l114 62h-22L230 68z" fill="#0b4850"/>
-          <rect x="112" y="118" width="236" height="12" rx="4" fill="#0b4850"/>
-          <rect x="128" y="130" width="11" height="118" rx="3" fill="#fff"/>
-          <rect x="224" y="130" width="11" height="118" rx="3" fill="#fff"/>
-          <rect x="321" y="130" width="11" height="118" rx="3" fill="#fff"/>
-          <path d="M134 140q48 34 96 10 48 34 96-10" stroke="#14343a" stroke-width="1.6" fill="none"/>
-          <g fill="#e8b96a">
-            <g class="bulb"><circle cx="150" cy="152" r="9" opacity=".3"/><circle cx="150" cy="152" r="4.2"/></g>
-            <g class="bulb"><circle cx="172" cy="160" r="9" opacity=".3"/><circle cx="172" cy="160" r="4.2"/></g>
-            <g class="bulb"><circle cx="196" cy="160" r="9" opacity=".3"/><circle cx="196" cy="160" r="4.2"/></g>
-            <g class="bulb"><circle cx="216" cy="153" r="9" opacity=".3"/><circle cx="216" cy="153" r="4.2"/></g>
-            <g class="bulb"><circle cx="244" cy="153" r="9" opacity=".3"/><circle cx="244" cy="153" r="4.2"/></g>
-            <g class="bulb"><circle cx="266" cy="160" r="9" opacity=".3"/><circle cx="266" cy="160" r="4.2"/></g>
-            <g class="bulb"><circle cx="290" cy="160" r="9" opacity=".3"/><circle cx="290" cy="160" r="4.2"/></g>
-            <g class="bulb"><circle cx="312" cy="152" r="9" opacity=".3"/><circle cx="312" cy="152" r="4.2"/></g>
-          </g>
-          <path d="M168 214h124l-7 34h-110z" fill="#fff"/>
-          <path d="M168 214h124v7H168z" fill="#e7f3f0"/>
-          <rect x="210" y="190" width="40" height="24" rx="4" fill="#f2c4b3"/>
-          <rect x="216" y="172" width="28" height="19" rx="4" fill="#fff"/>
-          <rect x="228.5" y="160" width="3" height="12" rx="1.5" fill="#e8b96a"/>
-          <path class="flame" d="M230 150c4 5 4 9 0 11-4-2-4-6 0-11z" fill="#f59e0b"/>
-          <path d="M186 186h14l-3 14h-8zM194 200v12M189 213h10M262 186h14l-3 14h-8zM270 200v12M265 213h10" stroke="#0f5c66" stroke-width="2" fill="#fcfbf8" stroke-linejoin="round" stroke-linecap="round"/>
-          <g class="balloons">
-            <path d="M62 116q8 50 70 88M90 100q10 50 42 104M76 140q20 36 56 64" stroke="#14343a" stroke-width="1.2" fill="none" opacity=".5"/>
-            <ellipse cx="62" cy="94" rx="19" ry="23" fill="#e07a5f"/><ellipse cx="92" cy="78" rx="19" ry="23" fill="#8fcfc4"/><ellipse cx="78" cy="120" rx="17" ry="21" fill="#e8b96a"/>
-            <path d="M54 84q4-8 10-8M84 68q4-8 10-8M71 110q4-7 9-7" stroke="#fff" stroke-width="3" stroke-linecap="round" fill="none" opacity=".7"/>
-          </g>
-          <g class="confetti">
-            <rect x="150" y="40" width="9" height="4" rx="2" fill="#e07a5f" transform="rotate(-24 154 42)"/>
-            <rect x="300" y="36" width="9" height="4" rx="2" fill="#0f5c66" transform="rotate(30 304 38)"/>
-            <circle cx="196" cy="34" r="3.5" fill="#e8b96a"/><circle cx="270" cy="26" r="3" fill="#8fcfc4"/>
-          </g>
-        </svg>
-      </div>
-    </div>
-
-    <div class="ev-row">
-      <div class="ev-row-nav" data-ev-nav hidden>
-        <button type="button" class="ev-nav" data-ev-step="-1" aria-controls="evCards" aria-label="Previous packages"><i class="fas fa-arrow-left" aria-hidden="true"></i></button>
-        <button type="button" class="ev-nav" data-ev-step="1" aria-controls="evCards" aria-label="Next packages"><i class="fas fa-arrow-right" aria-hidden="true"></i></button>
-      </div>
-      <%include('partials/event-cards', Object.assign({}, __locals, { evCards: { list: packages, h: 'h3' } }))%>
     </div>
   </div>
 </section>
@@ -416,7 +237,7 @@
       <li class="step">
         <span class="step-num" aria-hidden="true">1</span>
         <h3 class="step-title">Choose your place</h3>
-        <p>A room, a cottage, the function hall or an event package — with the live price.</p>
+        <p>A room, a cottage, the function hall or an event package.</p>
       </li>
       <li class="step">
         <span class="step-num" aria-hidden="true">2</span>

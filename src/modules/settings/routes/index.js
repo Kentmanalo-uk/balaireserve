@@ -304,6 +304,18 @@ const INVALID_IMAGE_MSG = 'That file is not a valid JPG, PNG, or WEBP image.';
 const LANDING_TAB       = '/settings?tab=landing';
 const GALLERY_ANCHOR    = LANDING_TAB + '#landing-gallery';
 
+// POST /settings/landing/about-text — the About heading and text on the home page (empty = section not shown).
+router.post('/landing/about-text', requireAuth, ADMIN_ONLY, async (req, res) => {
+  const title = String(req.body.landing_about_title || '').trim().slice(0, 120);
+  // Paragraphs are separated by exactly one empty line (the home page splits on it).
+  const text = String(req.body.landing_about_text || '').replace(/\r\n/g, '\n').replace(/\n[ \t]*\n\s*/g, '\n\n').trim().slice(0, 3000);
+  await saveSetting('landing_about_title', title);
+  await saveSetting('landing_about_text', text);
+  await req.audit('update', 'settings', null, null, { group: 'landing_about_text' });
+  req.session.flash = { success: title || text ? 'About text saved.' : 'About text cleared: the About section is no longer shown.' };
+  res.redirect(LANDING_TAB);
+});
+
 // POST /settings/landing/hero  and  /settings/landing/about
 // Upload/replace one image. The About image also has a description (alt text)
 // that can be saved on its own once an image exists.

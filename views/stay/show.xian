@@ -4,10 +4,10 @@
   const isPkg  = kind === 'package';
   const dpRaw  = Number.parseFloat(site.downpayment_percent);
   const dpPct  = Number.isFinite(dpRaw) && dpRaw > 0 && dpRaw <= 100 ? dpRaw : 50;
-  const section = isRoom ? { href: '/#stay', label: 'Rooms' }
-                : kind === 'cottage' ? { href: '/#cottages', label: 'Cottages' }
-                : kind === 'venue' ? { href: '/#venue', label: 'Function hall' }
-                : { href: '/#events', label: 'Events' };
+  const section = isRoom ? { href: '/portal/rooms', label: 'Rooms' }
+                : kind === 'cottage' ? { href: '/portal/cottages', label: 'Cottages' }
+                : kind === 'venue' ? { href: '/portal/venues', label: 'Function hall' }
+                : { href: '/portal/venues#packages', label: 'Event packages' };
   const catalogue = isRoom ? '/portal/rooms' : (kind === 'cottage' ? '/portal/cottages' : (isPkg ? '/portal/venues#packages' : '/portal/venues'));
   const noun = isRoom ? 'room' : (kind === 'cottage' ? 'cottage' : (isPkg ? 'package' : 'hall'));
 
@@ -193,7 +193,7 @@
   <div class="wrap">
     <div class="sd-more-head">
       <h2 class="sd-h2" id="moreTitle">Other event packages</h2>
-      <a href="/#events" class="text-link">Compare all packages <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
+      <a href="/portal/venues#packages" class="text-link">Compare all packages <i class="fas fa-arrow-right" aria-hidden="true"></i></a>
     </div>
     <%include('partials/package-rows', Object.assign({}, __locals, { pkgRows: { list: relatedPackages, dp: dpPct, h: 'h3', idPrefix: 'rel' } }))%>
     <% if (others.length) { %>
