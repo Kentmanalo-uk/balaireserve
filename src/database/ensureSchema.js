@@ -4,6 +4,7 @@
  */
 'use strict';
 const db = require('../config/database');
+const { removeActivityBefore } = require('./removeOldActivity');
 
 const TABLES = [
   // The function hall, rooms and cottages an event package includes (managed on /packages).
@@ -85,7 +86,24 @@ const STEPS = [
       return { changes: n };
     },
   },
+  {
+    // Client request (Nov 14): start fresh from Oct 30. Removes bookings, payments, messages, logs and guest
+    // accounts made before Oct 30 (Philippine time = 29 Oct 16:00 UTC); copies are kept in zbak_20261030_* tables.
+    // Live site only: a local copy of the app (APP_URL on this computer) leaves its data alone.
+    key: 'schema_step_remove_before_20261030',
+    when: () => !isLocalCopy(),
+    run: async () => {
+      const removed = await removeActivityBefore('2026-10-29 16:00:00', '20261030');
+      console.log('[schema] removed before Oct 30:', JSON.stringify(removed));
+      return { changes: Object.values(removed).reduce((a, b) => a + b, 0) };
+    },
+  },
 ];
+
+function isLocalCopy() {
+  return process.env.NODE_ENV === 'development'
+    || /\/\/(localhost|127\.0\.0\.1|\[::1\]|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+)(:|\/|$)/i.test(process.env.APP_URL || '');
+}
 
 const COLUMNS = [
   // Event packages can have photos (managed on /packages).
@@ -114,6 +132,7 @@ async function ensureSchema() {
   for (const ddl of TABLES) await db.prepare(ddl).run();
   await db.prepare('DELETE FROM email_log WHERE created_at < NOW() - INTERVAL 90 DAY').run();
   for (const step of STEPS) {
+    if (step.when && !step.when()) continue;
     const done = await db.prepare('SELECT 1 AS d FROM settings WHERE `key` = ?').get(step.key);
     if (done) continue;
     const result = await step.run();
