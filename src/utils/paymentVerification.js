@@ -6,7 +6,7 @@
 'use strict';
 
 const db = require('../config/database');
-const { notifyStaff } = require('./notifications');
+const { notifyStaff, notifyAllAdmins } = require('./notifications');
 
 /**
  * Mark a payment verified, recalculate the reservation's payment status and
@@ -50,6 +50,9 @@ async function verifyPayment(payment, staffUserId) {
         ' has been verified. Your booking is now ' + newResStatus.replace(/_/g, ' ') + '.',
         '/portal/my-reservations/' + reservation.id);
     }
+    await notifyAllAdmins('payment', newResStatus === 'confirmed' && reservation.status !== 'confirmed' ? 'Payment Verified, Booking Confirmed' : 'Payment Verified',
+      '₱' + Number(payment.amount).toLocaleString() + ' for ' + reservation.booking_ref + ' was verified. Payment status: ' + newPayStatus.replace(/_/g, ' ') + '.',
+      '/reservations/' + reservation.id);
     return { newPayStatus, newResStatus, reservation };
   });
   return result;

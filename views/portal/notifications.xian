@@ -1,7 +1,7 @@
 <% layout('layouts/portal') %>
 <%
   const typeName = { payment: 'Payment', reservation: 'Booking', inquiry: 'Message' };
-  const typeIcon = { payment: 'fa-wallet', reservation: 'fa-calendar-check', inquiry: 'fa-comment-dots' };
+  const typeIcon = { payment: 'fa-wallet', reservation: 'fa-calendar-check', inquiry: 'fa-comment-dots', feedback: 'fa-star', account: 'fa-circle-user' };
   const list = notifications || [];
   const unreadCount = list.filter(n => !n.is_read).length;
   // DB timestamps are UTC ('YYYY-MM-DD HH:MM:SS'); group and label them in Philippine time.

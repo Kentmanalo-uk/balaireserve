@@ -73,6 +73,10 @@ router.get('/:id', requireAuth, async (req, res) => {
 router.post('/:id/assign', requireAuth, requireRole('admin','staff'), async (req, res) => {
   const { assigned_to } = req.body;
   await db.prepare(`UPDATE inquiries SET assigned_to=?, status='in_progress', updated_at=NOW() WHERE id=?`).run(assigned_to || null, req.params.id);
+  if (assigned_to && Number(assigned_to) !== req.session.user.id) {
+    const inq = await db.prepare('SELECT name, subject FROM inquiries WHERE id = ?').get(req.params.id);
+    if (inq) await notifyUser(Number(assigned_to), 'inquiry', 'Inquiry Assigned to You', `${inq.name}: "${inq.subject}"`, `/inquiries/${req.params.id}`);
+  }
   req.session.flash = { success: 'Inquiry assigned.' };
   res.redirect(`/inquiries/${req.params.id}`);
 });
@@ -94,6 +98,8 @@ router.post('/:id/resolve', requireAuth, requireRole('admin','staff'), async (re
     await notifyUser(recipient.user_id, 'inquiry', 'We replied to your inquiry',
       'Our team responded to "' + recipient.subject + '".', '/portal/my-inquiries');
   }
+  const resolved = await db.prepare('SELECT name, subject FROM inquiries WHERE id = ?').get(req.params.id);
+  if (resolved) await notifyAllAdmins('inquiry', 'Inquiry Resolved', `${resolved.name}: "${resolved.subject}" was answered by ${req.session.user.firstName || 'staff'}.`, `/inquiries/${req.params.id}`);
   req.session.flash = { success: 'Inquiry marked as resolved.' };
   res.redirect(`/inquiries/${req.params.id}`);
 });
@@ -110,6 +116,7 @@ router.post('/:id/escalate', requireAuth, requireRole('admin','staff'), async (r
   `).run(ticketNum, inquiry.customer_id, inquiry.id, inquiry.subject, inquiry.message, inquiry.category || 'general', req.session.user.id);
 
   await db.prepare(`UPDATE inquiries SET status='escalated', updated_at=NOW() WHERE id=?`).run(inquiry.id);
+  await notifyAllAdmins('inquiry', 'Support Ticket Opened', `${inquiry.name}: "${inquiry.subject}" was escalated to ticket ${ticketNum}.`, `/inquiries/${inquiry.id}`);
   req.session.flash = { success: `Escalated to support ticket ${ticketNum}.` };
   res.redirect(`/inquiries/${inquiry.id}`);
 });
@@ -141,6 +148,7 @@ router.post('/submit',
     `).run(customerId, name, email||'', phone||'', subject, message, category||'general', source||'website')).lastInsertRowid;
 
     await notifyAllAdmins('inquiry', 'New Inquiry', `${name} sent a new inquiry: "${subject}"`, `/inquiries/${id}`);
+    if (req.session?.user) await notifyUser(req.session.user.id, 'inquiry', 'Inquiry Received', `We received your inquiry "${subject}". Our team will reply soon.`, '/portal/my-inquiries');
 
     // Check if auto-answer is possible (simple chatbot logic)
     const autoReply = await autoAnswer(subject + ' ' + message);

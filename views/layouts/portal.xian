@@ -90,6 +90,8 @@
                     <% if (n.type === 'reservation') { %><i class="fas fa-calendar-check"></i>
                     <% } else if (n.type === 'payment') { %><i class="fas fa-money-bill-wave"></i>
                     <% } else if (n.type === 'inquiry') { %><i class="fas fa-question-circle"></i>
+                    <% } else if (n.type === 'feedback') { %><i class="fas fa-star"></i>
+                    <% } else if (n.type === 'account') { %><i class="fas fa-circle-user"></i>
                     <% } else { %><i class="fas fa-bell"></i><% } %>
                   </div>
                   <div class="portal-notif-text">

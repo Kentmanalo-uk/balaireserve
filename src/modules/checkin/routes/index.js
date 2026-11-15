@@ -18,7 +18,7 @@ const QRCode = require('qrcode');
 const db = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { renderQRPng, publicBaseUrl } = require('../../../utils/qrGenerator');
-const { notifyReservationCustomer } = require('../../../utils/notifications');
+const { notifyReservationCustomer, notifyAllAdmins } = require('../../../utils/notifications');
 const ck = require('../../../utils/checkin');
 const arrival = require('../../../utils/arrivalCode');
 
@@ -28,6 +28,7 @@ const STAFF = [requireAuth, requireRole('admin', 'staff')];
 async function afterCheckIn(req, result, reservationId, method) {
   await notifyReservationCustomer(reservationId, 'reservation', 'Checked In',
     `Welcome! You're checked in for booking ${result.bookingRef}. Enjoy your stay!`, `/portal/my-reservations/${reservationId}`);
+  await notifyAllAdmins('reservation', 'Guest Checked In', `${result.bookingRef} was checked in by ${req.session.user.firstName || 'staff'}${method === 'qr' ? ' (QR scan)' : ''}.`, `/reservations/${reservationId}`);
   await req.audit(method === 'qr' ? 'qr_checkin' : 'manual_checkin', 'reservations', reservationId, null, { checked_in_at: result.checkedInAt, method });
 }
 

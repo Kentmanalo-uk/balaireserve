@@ -461,6 +461,9 @@ router.post('/', requireAuth, requireRole('admin','staff'), async (req, res) => 
 
   // Notify admins
   await notifyAllAdmins('reservation', 'New Reservation', `${bookingRef} has been created.`, `/reservations/${result.id}`);
+  await notifyReservationCustomer(result.id, 'reservation', 'Booking Created',
+    `Your booking ${bookingRef} has been created by our front desk.` + (paymentNow > 0 ? ` We received your payment of ${peso(paymentNow)}.` : ''),
+    '/portal/my-reservations/' + result.id);
 
   await req.audit('create', 'reservations', result.id, null, { bookingRef, reservation_type: type, total_amount: total, payment_now: paymentNow || 0 });
   req.session.flash = { success: `Reservation ${bookingRef} created successfully.` + (paymentNow > 0 ? ` Payment of ${peso(paymentNow)} recorded.` : '') };
@@ -645,6 +648,9 @@ router.post('/:id/status', requireAuth, requireRole('admin','staff'), async (req
         '/portal/my-reservations/' + req.params.id
       );
     }
+    await notifyAllAdmins('reservation', `Booking ${statusLabel(status)}`,
+      `${ref} changed from ${statusLabel(old.status)} to ${statusLabel(status)} by ${req.session.user.firstName || 'staff'}.` + (notes ? ` Note: ${notes}` : ''),
+      `/reservations/${req.params.id}`);
   }
 
   const label = statusLabel(status);
@@ -718,6 +724,9 @@ router.post('/:id/verify-payment/:paymentId', requireAuth, requireRole('admin','
       'We could not verify your payment of ₱' + payment.amount.toLocaleString() + ' for booking ' + reservation.booking_ref + '.' +
         (reason ? ' Reason: ' + reason + '.' : '') + ' Please check the details and submit your proof again.',
       '/portal/my-reservations/' + reservation.id);
+    await notifyAllAdmins('payment', 'Payment Rejected',
+      `₱${payment.amount.toLocaleString()} for ${reservation.booking_ref} was not accepted` + (reason ? `. Reason: ${reason}` : '') + '.',
+      `/reservations/${reservation.id}`);
     await req.audit('reject_payment', 'payments', payment.id, { status: payment.status }, { status: 'refunded' });
     req.session.flash = { warning: 'Payment proof rejected. Customer will need to resubmit.' };
   }
@@ -858,6 +867,9 @@ router.post('/:id/reschedule', requireAuth, requireRole('admin','staff'), async 
     `Your booking ${reservation.booking_ref} has been rescheduled to ${newText}.`,
     '/portal/my-reservations/' + reservation.id
   );
+  await notifyAllAdmins('reservation', 'Booking Rescheduled',
+    `${reservation.booking_ref} moved from ${oldText} to ${newText}.` + (reason ? ` Reason: ${reason}` : ''),
+    `/reservations/${reservation.id}`);
   await req.audit('reschedule', 'reservations', reservation.id, before, schedule);
   req.session.flash = { success: `Booking rescheduled to ${newText}.` };
   res.redirect(back);
@@ -924,6 +936,12 @@ router.post('/:id/amount', requireAuth, requireRole('admin','staff'), async (req
   await req.audit('update_amount', 'reservations', reservation.id,
     { total_amount: reservation.total_amount, downpayment_req: reservation.downpayment_req, payment_status: reservation.payment_status },
     { total_amount: newTotal, downpayment_req: downpayment, payment_status: payStatus, mode });
+  await notifyReservationCustomer(reservation.id, 'payment', 'Booking Total Updated',
+    `The total for your booking ${reservation.booking_ref} is now ${peso(newTotal)}. Paid so far: ${peso(paid)}; balance: ${peso(newBalance)}.` + (reason ? ` Reason: ${reason}` : ''),
+    '/portal/my-reservations/' + reservation.id);
+  await notifyAllAdmins('payment', 'Booking Total Updated',
+    `${reservation.booking_ref}: total changed from ${peso(reservation.total_amount)} to ${peso(newTotal)}, balance ${peso(newBalance)}.` + (reason ? ` Reason: ${reason}` : ''),
+    `/reservations/${reservation.id}`);
   req.session.flash = { success: `Total amount updated to ${peso(newTotal)}. Balance is now ${peso(newBalance)}.` };
   res.redirect(back);
 });

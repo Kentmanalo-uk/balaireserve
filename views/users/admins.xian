@@ -1,0 +1,126 @@
+<% layout('layouts/main') %>
+<div class="ap-page">
+
+<!--page-head-->
+<a href="/users" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Users</a>
+<h1 class="ph-title">Administrators</h1>
+<div class="ph-actions">
+    <a href="/users/new?role=admin" class="btn btn-outline-secondary"><i class="fas fa-user-plus" aria-hidden="true"></i>New admin account</a>
+  </div>
+<!--/page-head-->
+<p class="page-intro">Administrators can manage bookings, payments, listings, settings and user accounts. Search for an existing account (staff or guest) by name or email to make it an administrator, or create a new admin account.</p>
+
+<form method="GET" action="/users/admins" class="ap-toolbar" role="search" aria-label="Find an account">
+  <div class="ap-field ap-field-search">
+    <label for="adminSearch">Find an account</label>
+    <div class="ap-search"><i class="fas fa-search" aria-hidden="true"></i><input type="search" id="adminSearch" name="q" value="<%= q %>" class="form-control" placeholder="Name or email" autocomplete="off" <%= q ? '' : 'autofocus' %> /></div>
+  </div>
+  <div class="ap-toolbar-actions">
+    <button type="submit" class="btn btn-primary">Search</button>
+    <% if (q) { %><a href="/users/admins" class="btn btn-outline-secondary">Clear</a><% } %>
+  </div>
+</form>
+
+<% if (q) { %>
+<section class="ap-panel" aria-labelledby="adminResultsHeading">
+  <div class="ap-panel-head">
+    <h2 id="adminResultsHeading">Accounts matching “<%= q %>” <span class="ap-meta"><%= results.length %><%= results.length === 20 ? '+' : '' %></span></h2>
+  </div>
+  <% if (results.length === 0) { %>
+  <div class="ap-empty">
+    <strong>No account matches “<%= q %>”</strong>
+    <div>Administrators are listed below. To add someone without an account, <a href="/users/new?role=admin">create a new admin account</a>.</div>
+  </div>
+  <% } else { %>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Current role</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const u of results) { const fullName = u.first_name + ' ' + u.last_name; %>
+        <tr class="<%= u.is_active ? '' : 'is-inactive' %>">
+          <td class="ap-cell-title">
+            <a href="/users/<%= u.id %>" class="ap-name"><%= fullName %></a>
+            <span class="ap-line2"><%= u.email %></span>
+          </td>
+          <td data-label="Current role"><%= u.role_label %></td>
+          <td class="ap-cell-status">
+            <% if (u.is_active) { %><span class="status-chip st-teal">Active</span><% } else { %><span class="status-chip st-gray">Inactive</span><% } %>
+          </td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <% if (u.is_active) { %>
+              <form action="/users/<%= u.id %>/make-admin" method="POST" class="d-inline">
+                <input type="hidden" name="q" value="<%= q %>" />
+                <button type="submit" class="btn btn-primary btn-sm"
+                  data-confirm="Make <%= fullName %> (<%= u.email %>) an administrator? They will be able to manage bookings, payments, listings, settings and user accounts."
+                  data-confirm-title="Make administrator" data-confirm-type="primary" data-confirm-ok="Make admin">Make admin<span class="br-sr-only"> <%= fullName %></span></button>
+              </form>
+              <% } else { %>
+              <span class="ap-meta">Activate the account on the Users page first</span>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+  <% } %>
+</section>
+<% } %>
+
+<section class="ap-panel" aria-labelledby="adminListHeading">
+  <div class="ap-panel-head">
+    <h2 id="adminListHeading">Current administrators <span class="ap-meta"><%= admins.length %></span></h2>
+  </div>
+  <div class="ap-table-wrap">
+    <table class="table-br ap-table ap-stack">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Last sign-in</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="text-end"><span class="br-sr-only">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <% for (const a of admins) { const fullName = a.first_name + ' ' + a.last_name; const lastOne = a.is_active && activeAdmins <= 1; %>
+        <tr class="<%= a.is_active ? '' : 'is-inactive' %>">
+          <td class="ap-cell-title">
+            <a href="/users/<%= a.id %>" class="ap-name"><%= fullName %></a><% if (a.id === currentUser.id) { %> <span class="ap-meta">(you)</span><% } %>
+            <span class="ap-line2"><%= a.email %></span>
+          </td>
+          <td data-label="Last sign-in"><%= a.last_login ? formatDateTime(a.last_login) : 'Never' %></td>
+          <td class="ap-cell-status">
+            <% if (a.is_active) { %><span class="status-chip st-teal">Active</span><% } else { %><span class="status-chip st-gray">Inactive</span><% } %>
+          </td>
+          <td class="ap-row-actions">
+            <div class="ap-actions">
+              <% if (a.id === currentUser.id) { %>
+              <span class="ap-meta">Another administrator can change your access</span>
+              <% } else if (lastOne) { %>
+              <span class="ap-meta">Only active administrator</span>
+              <% } else { %>
+              <form action="/users/<%= a.id %>/remove-admin" method="POST" class="d-inline">
+                <button type="submit" class="ap-act"
+                  data-confirm="Remove administrator access from <%= fullName %>? Their role becomes Staff."
+                  data-confirm-title="Remove administrator" data-confirm-type="danger" data-confirm-ok="Remove admin">Remove admin<span class="br-sr-only"> access from <%= fullName %></span></button>
+              </form>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+</div>

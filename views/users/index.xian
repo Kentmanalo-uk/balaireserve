@@ -5,7 +5,8 @@
 <!--page-head-->
 <h1 class="ph-title">Users</h1>
 <div class="ph-actions">
-    <a href="/users/new" class="btn btn-primary"><i class="fas fa-user-plus" aria-hidden="true"></i>Add staff user</a>
+    <a href="/users/admins" class="btn btn-outline-secondary"><i class="fas fa-user-tie" aria-hidden="true"></i>Administrators</a>
+    <a href="/users/new" class="btn btn-primary"><i class="fas fa-user-plus" aria-hidden="true"></i>Add user</a>
   </div>
 <!--/page-head-->
 <p class="page-intro">Staff and admin accounts that can sign in to the back office, plus registered guests. Deactivate an account to block sign-in without deleting its history.</p>

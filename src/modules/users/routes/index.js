@@ -1,6 +1,6 @@
 /**
  * User Management Routes  (/users)
- * Admin-only: create, edit, toggle-active staff accounts.
+ * Admin-only: create, edit, toggle-active staff and admin accounts; find an account and make it an admin.
  */
 'use strict';
 
@@ -10,9 +10,33 @@ const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
 const { sendAccountCreated } = require('../../../utils/accountEmails');
+const { notifyUser, notifyAllAdmins } = require('../../../utils/notifications');
 
 const router     = express.Router();
 const ADMIN_ONLY = requireRole('admin');
+
+// Roles the form offers: back-office roles, plus Customer when editing a guest (so saving keeps them a guest).
+async function formRoles(user) {
+  const keepCustomer = user && user.role_name === 'customer';
+  return db.prepare(`SELECT * FROM roles WHERE name <> 'customer' ${keepCustomer ? "OR name = 'customer'" : ''} ORDER BY name`).all();
+}
+const activeAdminCount = async () => (await db.prepare(
+  "SELECT COUNT(*) AS n FROM users u JOIN roles r ON r.id = u.role_id WHERE r.name = 'admin' AND u.is_active = 1"
+).get()).n;
+const roleById = id => db.prepare('SELECT * FROM roles WHERE id = ?').get(id);
+
+// The person and every admin hear about a change of access.
+async function announceRoleChange(target, role, by) {
+  const name = `${target.first_name} ${target.last_name}`;
+  const isAdmin = role.name === 'admin';
+  await notifyUser(target.id, 'account', isAdmin ? 'You are now an administrator' : `Your role is now ${role.label}`,
+    isAdmin
+      ? `${by.firstName || 'An administrator'} gave you administrator access to Balai-Reserve. You can now manage bookings, payments, listings, settings and user accounts.`
+      : `${by.firstName || 'An administrator'} changed your Balai-Reserve role to ${role.label}.`,
+    role.name === 'customer' ? '/portal' : '/dashboard');
+  await notifyAllAdmins('account', isAdmin ? 'New Administrator' : 'Role Changed',
+    `${name} (${target.email}) is now ${role.label}. Changed by ${by.firstName || 'an administrator'}.`, `/users/${target.id}`);
+}
 
 // GET /users
 router.get('/', requireAuth, ADMIN_ONLY, async (req, res) => {
@@ -53,14 +77,68 @@ router.get('/', requireAuth, ADMIN_ONLY, async (req, res) => {
   });
 });
 
-// GET /users/new
-router.get('/new', requireAuth, ADMIN_ONLY, async (req, res) => {
-  // Exclude 'admin' and 'customer' — only one admin allowed, customers are self-registered
-  const roles = await db.prepare(`SELECT * FROM roles WHERE name NOT IN ('customer','admin') ORDER BY name`).all();
-  res.render('users/form', {
-    title:  'Add Staff User',
+// GET /users/admins — current administrators, and a search to find any account and make it an admin.
+router.get('/admins', requireAuth, ADMIN_ONLY, async (req, res) => {
+  const q = String(req.query.q || '').trim().slice(0, 100);
+  const admins = await db.prepare(`
+    SELECT u.* FROM users u JOIN roles r ON r.id = u.role_id
+    WHERE r.name = 'admin' ORDER BY u.is_active DESC, u.first_name, u.last_name
+  `).all();
+  let results = [];
+  if (q) {
+    const like = `%${q}%`;
+    results = await db.prepare(`
+      SELECT u.*, r.name AS role_name, r.label AS role_label FROM users u JOIN roles r ON r.id = u.role_id
+      WHERE r.name <> 'admin' AND (u.first_name LIKE ? OR u.last_name LIKE ? OR u.email LIKE ? OR CONCAT(u.first_name, ' ', u.last_name) LIKE ?)
+      ORDER BY u.is_active DESC, u.first_name, u.last_name LIMIT 20
+    `).all(like, like, like, like);
+  }
+  res.render('users/admins', {
+    title:  'Administrators – Balai-Reserve',
     layout: 'layouts/main',
-    user: null, roles, errors: [], old: {},
+    admins, results, q, activeAdmins: admins.filter(a => a.is_active).length,
+  });
+});
+
+// POST /users/:id/make-admin — give an existing (active) account administrator access.
+router.post('/:id/make-admin', requireAuth, ADMIN_ONLY, async (req, res) => {
+  const back = '/users/admins' + (req.body.q ? '?q=' + encodeURIComponent(String(req.body.q).slice(0, 100)) : '');
+  const target = await db.prepare('SELECT u.*, r.name AS role_name, r.label AS role_label FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?').get(req.params.id);
+  if (!target) { req.session.flash = { error: 'Account not found.' }; return res.redirect(back); }
+  if (target.role_name === 'admin') { req.session.flash = { info: `${target.first_name} ${target.last_name} is already an administrator.` }; return res.redirect(back); }
+  if (!target.is_active) { req.session.flash = { error: `${target.first_name} ${target.last_name}'s account is deactivated. Activate it on the Users page first.` }; return res.redirect(back); }
+
+  const admin = await db.prepare("SELECT * FROM roles WHERE name = 'admin'").get();
+  await db.prepare('UPDATE users SET role_id = ?, updated_at = NOW() WHERE id = ?').run(admin.id, target.id);
+  await req.audit('make_admin', 'users', target.id, { role: target.role_name }, { role: 'admin' });
+  await announceRoleChange(target, admin, req.session.user);
+  req.session.flash = { success: `${target.first_name} ${target.last_name} is now an administrator.` };
+  res.redirect('/users/admins');
+});
+
+// POST /users/:id/remove-admin — back to Staff. Never yourself, never the last active admin.
+router.post('/:id/remove-admin', requireAuth, ADMIN_ONLY, async (req, res) => {
+  const target = await db.prepare('SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?').get(req.params.id);
+  if (!target || target.role_name !== 'admin') { req.session.flash = { error: 'That account is not an administrator.' }; return res.redirect('/users/admins'); }
+  if (target.id === req.session.user.id) { req.session.flash = { error: 'You cannot remove your own administrator access. Ask another administrator.' }; return res.redirect('/users/admins'); }
+  if (target.is_active && await activeAdminCount() <= 1) { req.session.flash = { error: 'At least one active administrator is required.' }; return res.redirect('/users/admins'); }
+
+  const staff = await db.prepare("SELECT * FROM roles WHERE name = 'staff'").get();
+  await db.prepare('UPDATE users SET role_id = ?, updated_at = NOW() WHERE id = ?').run(staff.id, target.id);
+  await req.audit('remove_admin', 'users', target.id, { role: 'admin' }, { role: 'staff' });
+  await announceRoleChange(target, staff, req.session.user);
+  req.session.flash = { success: `${target.first_name} ${target.last_name} is now Staff.` };
+  res.redirect('/users/admins');
+});
+
+// GET /users/new  (?role=admin preselects Administrator)
+router.get('/new', requireAuth, ADMIN_ONLY, async (req, res) => {
+  const roles = await formRoles(null);
+  const pre = roles.find(r => r.name === req.query.role);
+  res.render('users/form', {
+    title:  'Add User',
+    layout: 'layouts/main',
+    user: null, roles, errors: [], old: pre ? { role_id: pre.id } : {},
   });
 });
 
@@ -80,23 +158,29 @@ router.post('/',
   ],
   async (req, res) => {
     const errors = validationResult(req);
-    const roles  = await db.prepare(`SELECT * FROM roles WHERE name NOT IN ('customer','admin') ORDER BY name`).all();
+    const roles  = await formRoles(null);
     if (!errors.isEmpty()) {
       return res.render('users/form', {
-        title: 'Add Staff User', layout: 'layouts/main',
+        title: 'Add User', layout: 'layouts/main',
         user: null, roles, errors: errors.array(), old: req.body,
       });
     }
 
     const { first_name, last_name, email, role_id, password, phone } = req.body;
+    if (!roles.some(r => String(r.id) === String(role_id))) {
+      return res.render('users/form', {
+        title: 'Add User', layout: 'layouts/main',
+        user: null, roles, errors: [{ msg: 'Select a role.' }], old: req.body,
+      });
+    }
 
     // Check email uniqueness
     const existing = await db.prepare(`SELECT id FROM users WHERE email = ?`).get(email);
     if (existing) {
       return res.render('users/form', {
-        title: 'Add Staff User', layout: 'layouts/main',
+        title: 'Add User', layout: 'layouts/main',
         user: null, roles,
-        errors: [{ msg: `Email "${email}" is already in use.` }], old: req.body,
+        errors: [{ msg: `Email "${email}" is already in use. To give that account admin access, use Users → Administrators.` }], old: req.body,
       });
     }
 
@@ -124,7 +208,7 @@ router.get('/:id/edit', requireAuth, ADMIN_ONLY, async (req, res) => {
     return res.redirect('/profile');
   }
 
-  const roles = await db.prepare(`SELECT * FROM roles WHERE name NOT IN ('customer','admin') ORDER BY name`).all();
+  const roles = await formRoles(user);
   res.render('users/form', {
     title:  `Edit ${user.first_name} ${user.last_name}`,
     layout: 'layouts/main',
@@ -142,8 +226,10 @@ router.post('/:id/edit',
     body('role_id').isInt().withMessage('Select a role.'),
   ],
   async (req, res) => {
-    const old    = await db.prepare(`SELECT * FROM users WHERE id=?`).get(req.params.id);
-    const roles  = await db.prepare(`SELECT * FROM roles WHERE name NOT IN ('customer','admin') ORDER BY name`).all();
+    const old    = await db.prepare(`SELECT u.*, r.name AS role_name FROM users u JOIN roles r ON r.id=u.role_id WHERE u.id=?`).get(req.params.id);
+    if (!old) { req.session.flash = { error: 'User not found.' }; return res.redirect('/users'); }
+    if (old.id === req.session.user.id) { req.session.flash = { info: 'Use the Profile page to edit your own account.' }; return res.redirect('/profile'); }
+    const roles  = await formRoles(old);
     const errors = validationResult(req);
 
     if (!errors.isEmpty()) {
@@ -154,6 +240,16 @@ router.post('/:id/edit',
     }
 
     const { first_name, last_name, email, role_id, phone } = req.body;
+    const newRole = roles.find(r => String(r.id) === String(role_id));
+    const roleError = !newRole ? 'Select a role.'
+      : old.role_name === 'admin' && newRole.name !== 'admin' && old.is_active && await activeAdminCount() <= 1
+        ? 'At least one active administrator is required, so this account must stay an administrator.' : null;
+    if (roleError) {
+      return res.render('users/form', {
+        title: 'Edit User', layout: 'layouts/main',
+        user: old, roles, errors: [{ msg: roleError }], old: req.body,
+      });
+    }
 
     // Check email uniqueness (excluding self)
     const dup = await db.prepare(`SELECT id FROM users WHERE email=? AND id!=?`).get(email, req.params.id);
@@ -168,6 +264,7 @@ router.post('/:id/edit',
       .run(first_name, last_name, email, role_id, phone || '', req.params.id);
 
     await req.audit('update', 'users', req.params.id, { email: old.email, role_id: old.role_id }, { email, role_id });
+    if (String(old.role_id) !== String(role_id)) await announceRoleChange({ ...old, first_name, last_name, email }, newRole, req.session.user);
     req.session.flash = { success: 'User updated successfully.' };
     res.redirect('/users');
   }

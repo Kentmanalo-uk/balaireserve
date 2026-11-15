@@ -6,7 +6,7 @@
 const express = require('express');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
-const { notifyReservationCustomer } = require('../../../utils/notifications');
+const { notifyReservationCustomer, notifyAllAdmins } = require('../../../utils/notifications');
 
 const router = express.Router();
 
@@ -111,6 +111,7 @@ router.post('/:id/checkout', requireAuth, requireRole('admin','staff'), async (r
   if (reservation) {
     await notifyReservationCustomer(guest.reservation_id, 'reservation', 'Checked Out',
       `You're checked out of booking ${reservation.booking_ref}. Thank you for staying with us — we'd love your feedback!`, `/portal/my-reservations/${guest.reservation_id}`);
+    await notifyAllAdmins('reservation', 'Guest Checked Out', `${guest.first_name || ''} ${guest.last_name || ''} checked out of ${reservation.booking_ref}.`, `/reservations/${guest.reservation_id}`);
   }
   req.session.flash = { success: 'Guest checked out successfully.' };
   res.redirect(`/guests/${guest.id}`);

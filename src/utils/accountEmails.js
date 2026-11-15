@@ -10,7 +10,13 @@
 const crypto = require('crypto');
 const db = require('../config/database');
 const { mailNotification, settings: mailSettings } = require('./mailer');
-const { notifyUser } = require('./notifications');
+const { notifyUser, notifyAllAdmins } = require('./notifications');
+
+// Tell the admins a new account exists (name, email, role), linking to it on /users.
+async function tellAdminsAboutAccount(userId, title) {
+  const u = await db.prepare('SELECT u.first_name, u.last_name, u.email, r.label FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?').get(userId);
+  if (u) await notifyAllAdmins('account', title, `${u.first_name} ${u.last_name} (${u.email}), ${u.label}.`, `/users/${userId}`);
+}
 
 const TTL = { verify: 3 * 24 * 3600 * 1000, reset: 60 * 60 * 1000 };
 const hash = t => crypto.createHash('sha256').update(String(t)).digest('hex');
@@ -57,6 +63,7 @@ async function sendWelcome(user) {
   await notifyUser(user.id, 'account', `Welcome to Balai-Reserve, ${user.first_name}!`,
     'Your account is ready. Browse rooms, cottages, the function hall and event packages, check availability and book online. You’ll get an email for every booking update, payment and check-in.',
     '/portal');
+  await tellAdminsAboutAccount(user.id, 'New Guest Sign-up');
 }
 
 async function sendPasswordReset(user) {
@@ -83,11 +90,13 @@ async function sendPasswordChanged(user) {
 // An account staff created for someone (a guest's portal login, or a staff user). Never includes the password.
 async function sendAccountCreated(userId, kind) {
   const guest = kind === 'guest';
+  const role = guest ? null : await db.prepare('SELECT r.label FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?').get(userId);
   await notifyUser(userId, 'account', 'Your Balai-Reserve account is ready',
     guest
       ? 'The resort created an account for you with this email address. Sign in to see your bookings, payments and check-in details. If you don’t know your password, use “Forgot password?” on the sign-in page to choose one.'
-      : 'An administrator created a staff account for you. Sign in with this email address and the password you were given, then change it under Profile → Password. If you don’t have it, use “Forgot password?” on the sign-in page.',
+      : `An administrator created a back-office account for you (role: ${role ? role.label : 'Staff'}). Sign in with this email address and the password you were given, then change it under Profile → Password. If you don’t have it, use “Forgot password?” on the sign-in page.`,
     '/auth/login');
+  await tellAdminsAboutAccount(userId, guest ? 'Guest Account Created' : 'Back-office Account Created');
 }
 
 module.exports = { createToken, findToken, useToken, sendVerification, sendWelcome, sendPasswordReset, sendPasswordChanged, sendAccountCreated };

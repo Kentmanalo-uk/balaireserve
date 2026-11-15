@@ -225,6 +225,9 @@ router.post('/:id/refund',
 
     await req.audit('refund', 'payments', payment.id, { amount: payment.amount }, { refunded: refundAmt, reason: req.body.refund_reason });
     await notifyAllAdmins('payment', 'Refund Processed', `₱${refundAmt.toLocaleString()} refunded on ${payment.booking_ref}`, `/payments/${payment.id}`);
+    await notifyReservationCustomer(payment.reservation_id, 'payment', 'Refund Processed',
+      `We refunded ₱${refundAmt.toLocaleString('en-PH')} on your booking ${payment.booking_ref}. Reference: ${refundRef}.`,
+      '/portal/my-reservations/' + payment.reservation_id);
 
     req.session.flash = { success: `Refund of ₱${refundAmt.toLocaleString()} processed. Reference: ${refundRef}` };
     res.redirect(`/payments/${payment.id}`);
@@ -374,6 +377,9 @@ router.post('/refunds/requests/:id/review',
           + (adminNote ? ` Note: ${adminNote}` : ''),
         '/portal/my-reservations/' + rr.reservation_id
       );
+      await notifyAllAdmins('payment', 'Refund Approved',
+        `Refund for ${reservation.booking_ref} approved and paid out via ${payoutMethod.toUpperCase()}` + (payoutRef ? ` (ref: ${payoutRef})` : '') + '. The booking was cancelled.',
+        '/reservations/' + rr.reservation_id);
       req.session.flash = { success: `Refund approved for ${reservation.booking_ref} via ${payoutMethod.toUpperCase()}. The booking was cancelled and the room/venue/cottage is now available.` };
 
     } else if (action === 'reject') {
@@ -392,6 +398,9 @@ router.post('/refunds/requests/:id/review',
         `Your refund request for ${reservation.booking_ref} was declined. Reason: ${adminNote}`,
         '/portal/my-reservations/' + rr.reservation_id
       );
+      await notifyAllAdmins('payment', 'Refund Request Declined',
+        `Refund request for ${reservation.booking_ref} was declined. Reason: ${adminNote}`,
+        '/reservations/' + rr.reservation_id);
       req.session.flash = { warning: `Refund request for ${reservation.booking_ref} was declined.` };
 
     } else {

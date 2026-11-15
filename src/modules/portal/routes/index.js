@@ -1005,6 +1005,7 @@ router.post('/my-reservations/:id/request-refund', requireCustomer, async (req, 
   if (gcashNumber && !/^09\d{9}$/.test(gcashNumber)) { req.session.flash = { error: 'Please enter a valid GCash number (11 digits starting with 09).' }; return res.redirect('/portal/my-reservations/' + reservation.id); }
   await db.prepare(`INSERT INTO refund_requests (reservation_id, customer_id, amount, reason, gcash_number, status) VALUES (?, ?, ?, ?, ?, 'pending')`).run(reservation.id, customer.id, amountPaid, reason, gcashNumber || null);
   await notifyAllAdmins('payment', 'Refund Requested', `${(user.firstName || '')} ${(user.lastName || '')} requested a refund of ₱${amountPaid.toLocaleString('en-PH')} for ${reservation.booking_ref}.`, '/reservations/' + reservation.id);
+  await notifyUser(user.id, 'payment', 'Refund Request Received', `We received your refund request of ₱${amountPaid.toLocaleString('en-PH')} for ${reservation.booking_ref}. Our team will review it and let you know.`, '/portal/my-reservations/' + reservation.id);
   req.session.flash = { success: 'Your refund request has been submitted.' };
   res.redirect('/portal/my-reservations/' + reservation.id);
 });
@@ -1020,7 +1021,9 @@ router.post('/feedback/:reservationId', requireCustomer, [
   const errors = validationResult(req);
   if (!errors.isEmpty()) { return res.render('portal/feedback', { title: 'Leave Feedback', layout: 'layouts/portal', reservation, errors: errors.array(), old: req.body }); }
   const { rating, category, comments, suggestions } = req.body;
-  await db.prepare('INSERT INTO feedback (reservation_id, customer_id, rating, category, comments, suggestions) VALUES (?,?,?,?,?,?)').run(reservation.id, customer.id, rating, category || 'overall', comments, suggestions || '');
+  const fb = await db.prepare('INSERT INTO feedback (reservation_id, customer_id, rating, category, comments, suggestions) VALUES (?,?,?,?,?,?)').run(reservation.id, customer.id, rating, category || 'overall', comments, suggestions || '');
+  await notifyAllAdmins('feedback', 'New Feedback', `${customer.first_name || ''} ${customer.last_name || ''} rated ${reservation.booking_ref} ${rating} out of 5.`, '/feedback/' + fb.lastInsertRowid);
+  await notifyUser(user.id, 'feedback', 'Thank you for your feedback', `We received your feedback on ${reservation.booking_ref}.`, '/portal/my-reservations/' + reservation.id);
   req.session.flash = { success: 'Thank you for your feedback!' };
   res.redirect('/portal/my-reservations/' + reservation.id);
 });
@@ -1041,6 +1044,7 @@ router.post('/inquire', [
   const customerId = req.session?.user ? ((await db.prepare('SELECT id FROM customers WHERE user_id = ?').get(req.session.user.id))?.id || null) : null;
   const inquiry = await db.prepare("INSERT INTO inquiries (customer_id, name, email, phone, subject, message, category, source, status) VALUES (?,?,?,?,?,?,?,'website','open')").run(customerId, name, email||'', phone||'', subject, message, category||'general');
   await notifyAllAdmins('inquiry', 'New Inquiry', name + ': ' + subject, '/inquiries/' + inquiry.lastInsertRowid);
+  if (req.session?.user) await notifyUser(req.session.user.id, 'inquiry', 'Inquiry Received', 'We received your inquiry "' + subject + '". Our team will reply soon.', '/portal/my-inquiries');
   req.session.flash = { success: 'Your inquiry has been received.' };
   res.redirect(req.session?.user ? '/portal/my-inquiries' : '/portal/inquire');
 });

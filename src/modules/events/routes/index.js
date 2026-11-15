@@ -7,6 +7,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { notifyAllAdmins, notifyCustomer } = require('../../../utils/notifications');
 
 const router = express.Router();
 const CAN_MANAGE = ['admin','staff'];
@@ -119,6 +120,8 @@ router.post('/',
     )).lastInsertRowid;
 
     await req.audit('create', 'events', id, null, { event_name, event_type, event_date });
+    await notifyAllAdmins('reservation', 'New Event', `"${event_name}" on ${event_date} was added.`, `/events/${id}`);
+    await notifyCustomer(customer_id, 'reservation', 'Event Booked', `Your event "${event_name}" on ${event_date} has been booked with the resort.`, '/portal/my-reservations');
     req.session.flash = { success: `Event "${event_name}" created successfully.` };
     res.redirect(`/events/${id}`);
   }
@@ -152,7 +155,13 @@ router.get('/:id', requireAuth, async (req, res) => {
 // POST /events/:id/status
 router.post('/:id/status', requireAuth, requireRole(...CAN_MANAGE), async (req, res) => {
   const { status } = req.body;
+  const ev = await db.prepare('SELECT event_name, event_date, customer_id, status FROM events WHERE id=?').get(req.params.id);
   await db.prepare(`UPDATE events SET status=?, updated_at=NOW() WHERE id=?`).run(status, req.params.id);
+  if (ev && ev.status !== status) {
+    const label = String(status || '').replace(/_/g, ' ');
+    await notifyAllAdmins('reservation', 'Event Status Updated', `"${ev.event_name}" on ${ev.event_date} is now ${label}.`, `/events/${req.params.id}`);
+    await notifyCustomer(ev.customer_id, 'reservation', 'Event Update', `Your event "${ev.event_name}" on ${ev.event_date} is now ${label}.`, '/portal/my-reservations');
+  }
   req.session.flash = { success: `Event status updated to ${status}.` };
   res.redirect(`/events/${req.params.id}`);
 });

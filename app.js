@@ -218,7 +218,21 @@ app.use(xianHelpersMiddleware);
 
 // ΓöÇΓöÇ Per-request globals (single authoritative block) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 app.use(async (req, res, next) => {
-  const user = req.session?.user || null;
+  let user = req.session?.user || null;
+
+  // Access follows the account, not the sign-in: a role change (e.g. made an admin, or admin removed)
+  // applies on the next page, and a deactivated or deleted account is signed out.
+  if (user) {
+    try {
+      const now = await db.prepare('SELECT u.is_active, r.name AS role, r.label AS role_label FROM users u JOIN roles r ON r.id = u.role_id WHERE u.id = ?').get(user.id);
+      if (!now || !now.is_active) {
+        delete req.session.user;
+        user = null;
+      } else if (now.role !== user.role) {
+        user = req.session.user = { ...user, role: now.role, roleLabel: now.role_label };
+      }
+    } catch { /* database hiccup: keep the session as it is */ }
+  }
 
   res.locals.flash = req.session?.flash || {};
   if (req.session?.flash) delete req.session.flash;

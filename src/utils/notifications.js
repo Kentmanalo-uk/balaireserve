@@ -32,15 +32,18 @@ async function notifyStaff(userId, type, title, message, link = null) {
 }
 
 /**
- * Create a notification for a customer.
+ * Create a notification for a customer: in their bell when they have an account, and by email.
+ * A guest without an account gets the email only, without the portal link.
  */
 async function notifyCustomer(customerId, type, title, message, link = null) {
+  if (!customerId) return;
   try {
+    const c = await db.prepare('SELECT user_id FROM customers WHERE id = ?').get(customerId);
     await db.prepare(`
-      INSERT INTO notifications (customer_id, type, title, message, link)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(customerId, type, title, message, link);
-    await emailCustomer(customerId, title, message, link);
+      INSERT INTO notifications (user_id, customer_id, type, title, message, link)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(c?.user_id || null, customerId, type, title, message, link);
+    await emailCustomer(customerId, title, message, c?.user_id ? link : null);
   } catch { /* non-critical */ }
 }
 

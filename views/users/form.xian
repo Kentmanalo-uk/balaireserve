@@ -3,9 +3,9 @@
 
 <!--page-head-->
 <a href="/users" class="ph-back"><i class="fas fa-arrow-left" aria-hidden="true"></i>Users</a>
-<h1 class="ph-title"><%= user ? 'Edit ' + user.first_name + ' ' + user.last_name : 'Add staff user' %></h1>
+<h1 class="ph-title"><%= user ? 'Edit ' + user.first_name + ' ' + user.last_name : 'Add user' %></h1>
 <!--/page-head-->
-<div class="page-meta"><%= user ? 'Update contact details or change what this person can access.' : 'Create a back-office account for a member of staff. They sign in with this email and password.' %></div>
+<div class="page-meta"><%= user ? 'Update contact details or change what this person can access.' : 'Create a back-office account for a member of staff or another administrator. They sign in with this email and password.' %> <% if (!user) { %>Already has an account? <a href="/users/admins">Find it and make it an admin</a>.<% } %></div>
 
 <% if (errors && errors.length > 0) { %>
 <div class="alert alert-danger ap-errors" role="alert">
@@ -47,7 +47,7 @@
   <section class="ap-section" aria-labelledby="userRoleHeading">
     <div class="ap-section-intro">
       <h2 id="userRoleHeading">Role and access</h2>
-      <p>The role decides which pages and records this person can open.</p>
+      <p>The role decides which pages and records this person can open. Administrators can also manage settings and user accounts.</p>
     </div>
     <div class="ap-section-body">
       <div class="row g-3">
@@ -69,7 +69,7 @@
   <section class="ap-section" aria-labelledby="userPassHeading">
     <div class="ap-section-intro">
       <h2 id="userPassHeading">Password</h2>
-      <p>Share it with the staff member privately. They can change it later under My Profile.</p>
+      <p>Share it with the person privately. They can change it later under My Profile.</p>
     </div>
     <div class="ap-section-body">
       <div class="row g-3">

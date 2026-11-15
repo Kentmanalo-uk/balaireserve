@@ -8,6 +8,7 @@ const express = require('express');
 const { body, validationResult } = require('express-validator');
 const db      = require('../../../config/database');
 const { requireAuth, requireRole } = require('../../../middleware/auth');
+const { notifyCustomer } = require('../../../utils/notifications');
 
 const router = express.Router();
 const CAN_RESPOND = ['admin', 'staff'];
@@ -124,6 +125,10 @@ router.post('/:id/respond',
     `).run(req.body.admin_response.trim(), req.session.user.id, req.params.id);
 
     await req.audit('respond', 'feedback', req.params.id, null, { responded: true });
+    const fb = await db.prepare('SELECT f.customer_id, f.reservation_id, r.booking_ref FROM feedback f LEFT JOIN reservations r ON r.id = f.reservation_id WHERE f.id = ?').get(req.params.id);
+    if (fb) await notifyCustomer(fb.customer_id, 'feedback', 'We replied to your feedback',
+      'Thank you for your feedback' + (fb.booking_ref ? ' on ' + fb.booking_ref : '') + '. Our reply: ' + req.body.admin_response.trim(),
+      fb.reservation_id ? '/portal/my-reservations/' + fb.reservation_id : '/portal');
     req.session.flash = { success: 'Response saved successfully.' };
     res.redirect(`/feedback/${req.params.id}`);
   }

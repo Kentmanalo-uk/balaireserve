@@ -5,6 +5,8 @@
     payment:     ['fa-money-bill-wave', 'Payment'],
     inventory:   ['fa-boxes', 'Inventory'],
     inquiry:     ['fa-comment-dots', 'Inquiry'],
+    feedback:    ['fa-star', 'Feedback'],
+    account:     ['fa-circle-user', 'Account'],
   };
   const unreadCount = (notifications || []).filter(n => !n.is_read).length;
 %>
